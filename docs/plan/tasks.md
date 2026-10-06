@@ -24,6 +24,6 @@ The detailed step-by-step plan for M0 to M3 is [2026-10-06-m0-m3-implementation.
 | T11 | `/content setup`; roster recovery when the message is deleted | M4 | FR-016, FR-017 | not started |
 | T12 | Reminders and `/content list` | M5 | FT-007, FR-015 | not started |
 | T13 | Attendance marking and history | M5 | FR-014 | not started |
-| T14 | Safe text and restricted mentions across all messages | M1 | FR-018 | not started |
+| T14 | Safe text and restricted mentions across all messages | M1 | FR-018 | code done (escapeText, allowed_mentions) |
 
 FT-011 (templates, recurring content, export) is deferred and has no task on purpose.
