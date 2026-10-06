@@ -40,7 +40,9 @@ export function parseSlots(input: string): Result<SlotDef[]> {
   if (lines.length > 20) return fail(`Too many slots (${lines.length}). The maximum is 20.`);
   const slots: SlotDef[] = [];
   for (const { text, n } of lines) {
-    const idx = text.search(/[-–]/);
+    // Prefer the first spaced separator so roles like "Off-Tank" survive; else the first bare dash.
+    const spaced = /\s[-–]\s/.exec(text);
+    const idx = spaced ? spaced.index + 1 : text.search(/[-–]/);
     if (idx < 0) return fail(`Slot on line ${n} needs a role and a weapon separated by a dash, like: Tank - Great Axe`);
     const role = text.slice(0, idx).trim();
     const weapon = text.slice(idx + 1).trim();
@@ -67,15 +69,17 @@ export function parseUtcStart(input: string, now: Date): Result<Date> {
   return { ok: true, value: date };
 }
 
+const stripInvisible = (s: string): string => s.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "").trim();
+
 export function parseTitle(input: string): Result<string> {
-  const t = input.trim();
+  const t = stripInvisible(input);
   if (t.length === 0) return fail("The title cannot be empty.");
   if (t.length > 100) return fail("The title is too long (max 100 characters).");
   return { ok: true, value: t };
 }
 
 export function parseNotes(input: string): Result<string | null> {
-  const t = input.trim();
+  const t = stripInvisible(input);
   if (t.length === 0) return { ok: true, value: null };
   if (t.length > 500) return fail("The notes are too long (max 500 characters).");
   return { ok: true, value: t };

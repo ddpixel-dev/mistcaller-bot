@@ -77,3 +77,42 @@ test("parseNotes", () => {
   assert.ok(err(parseNotes("a".repeat(501))).length > 0);
   assert.equal(ok(parseNotes("a".repeat(500))), "a".repeat(500));
 });
+
+test("parseSlots hyphenated roles and weapons", () => {
+  assert.deepEqual(ok(parseSlots("Off-Tank - Axe")), [{ role: "Off-Tank", weapon: "Axe" }]);
+  assert.deepEqual(ok(parseSlots("Off-Tank – Axe")), [{ role: "Off-Tank", weapon: "Axe" }]);
+  assert.deepEqual(ok(parseSlots("DPS-Longbow")), [{ role: "DPS", weapon: "Longbow" }]);
+  assert.deepEqual(ok(parseSlots("Tank - Great-Axe")), [{ role: "Tank", weapon: "Great-Axe" }]);
+  assert.deepEqual(ok(parseSlots("Tank-Great Axe")), [{ role: "Tank", weapon: "Great Axe" }]);
+  assert.ok(err(parseSlots("Tank -")).length > 0);
+  assert.ok(err(parseSlots("- Axe")).length > 0);
+  assert.ok(err(parseSlots("Tank Axe")).includes("line 1"));
+});
+
+test("parseSlots CRLF and original line numbers", () => {
+  assert.deepEqual(ok(parseSlots("Tank - Axe\r\nHealer - Holy\r\n")), [
+    { role: "Tank", weapon: "Axe" },
+    { role: "Healer", weapon: "Holy" },
+  ]);
+  assert.ok(err(parseSlots("Tank - Axe\n\n\nBroken")).includes("line 4"));
+});
+
+test("parseTier extra edge cases", () => {
+  assert.ok(err(parseTier("T5.3-T7.0-T8.0")).includes("T5.3"));
+  assert.ok(err(parseTier("T5.3,T7.0")).includes("T5.3"));
+});
+
+test("parseUtcStart edge cases", () => {
+  const now = new Date("2026-10-06T12:00:00Z");
+  assert.equal(ok(parseUtcStart("2028-02-29 18:00", now)).toISOString(), "2028-02-29T18:00:00.000Z");
+  for (const s of ["2027-02-29 18:00", "2026-10-07 24:00", "2026-10-07 18:60"]) {
+    assert.ok(err(parseUtcStart(s, now)).includes("2026-10-07 18:00"), s);
+  }
+});
+
+test("zero-width only title and notes", () => {
+  const zw = "​‌‍⁠﻿";
+  assert.ok(err(parseTitle(` ${zw} `)).length > 0);
+  assert.equal(ok(parseNotes(` ${zw} `)), null);
+  assert.equal(ok(parseTitle(`${zw}Hi${zw}`)), "Hi");
+});
