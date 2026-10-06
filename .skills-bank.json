@@ -1,0 +1,14 @@
+{
+  "installs": [
+    {
+      "skill": "buildit",
+      "source": "/home/tharwat/Stuff/Projects/skills/skills/software-engineering/buildit",
+      "mode": "symlink",
+      "agents": [
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}
