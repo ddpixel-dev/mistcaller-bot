@@ -29,7 +29,7 @@ function voteRow(view: RosterView) {
   };
 }
 
-function voteLine(view: RosterView): string {
+export function voteLine(view: RosterView): string {
   const { split, regear } = view.votes;
   if (!view.voteClosed) return `Loot vote: Split ${split} - Regear ${regear}`;
   switch (view.voteResult) {
