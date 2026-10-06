@@ -18,6 +18,28 @@ export function escapeText(s: string): string {
   return s.replace(/[\\*_~`|>#]/g, "\\$&").replace(/@/g, "@\u200B");
 }
 
+function voteRow(view: RosterView) {
+  const disabled = view.voteClosed || view.status === "cancelled" || view.status === "done";
+  return {
+    type: 1,
+    components: [
+      { type: 2, style: 1, label: `Split (${view.votes.split})`, custom_id: `vote:${view.id}:split`, disabled },
+      { type: 2, style: 3, label: `Regear (${view.votes.regear})`, custom_id: `vote:${view.id}:regear`, disabled },
+    ],
+  };
+}
+
+function voteLine(view: RosterView): string {
+  const { split, regear } = view.votes;
+  if (!view.voteClosed) return `Loot vote: Split ${split} - Regear ${regear}`;
+  switch (view.voteResult) {
+    case "split": return `Loot vote result: Split won ${split}-${regear}`;
+    case "regear": return `Loot vote result: Regear won ${regear}-${split}`;
+    case "tie": return `Loot vote result: Tie ${split}-${regear}`;
+    default: return "Loot vote result: no votes";
+  }
+}
+
 export function renderRosterMessage(view: RosterView): {
   embeds: Embed[];
   components: unknown[];
@@ -29,6 +51,7 @@ export function renderRosterMessage(view: RosterView): {
     `${formatUtc(view.startsAt)} (<t:${epoch}:F>, <t:${epoch}:R>)`,
     `Tier: ${formatTier(view.tier)} · ${view.type === "pvp" ? "PvP" : "PvE"} · Loot: ${view.hasLoot ? "Yes" : "No"}`,
   ];
+  if (view.hasLoot) head.push(voteLine(view));
   const slotLines = view.slots.map(
     (s) => `${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${s.userId ? `<@${s.userId}>` : "open"}`,
   );
@@ -71,6 +94,7 @@ export function renderRosterMessage(view: RosterView): {
           },
         ],
       },
+      ...(view.hasLoot ? [voteRow(view)] : []),
     ],
     allowed_mentions: { parse: [] },
   };

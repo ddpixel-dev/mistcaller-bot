@@ -71,7 +71,7 @@ test("limits with maximum-length content", () => {
 });
 
 test("components: select with slot options and Leave button", () => {
-  const rows = renderRosterMessage(view()).components as any[];
+  const rows = renderRosterMessage(view({ hasLoot: false })).components as any[];
   assert.equal(rows.length, 2);
   assert.equal(rows[0].type, 1);
   const sel = rows[0].components[0];
@@ -105,4 +105,64 @@ test("cancelled and done: both disabled", () => {
     assert.equal(rows[0].components[0].disabled, true);
     assert.equal(rows[1].components[0].disabled, true);
   }
+});
+
+const voteRow = (v: RosterView) => (renderRosterMessage(v).components as any[])[2];
+
+test("vote row: open loot shows counts, enabled, styles and ids", () => {
+  const rows = renderRosterMessage(view({ votes: { split: 3, regear: 2 } })).components as any[];
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[2], {
+    type: 1,
+    components: [
+      { type: 2, style: 1, label: "Split (3)", custom_id: "vote:c1:split", disabled: false },
+      { type: 2, style: 3, label: "Regear (2)", custom_id: "vote:c1:regear", disabled: false },
+    ],
+  });
+});
+
+test("vote line placement while open", () => {
+  const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
+  const lines = d.split("\n");
+  const t = lines.findIndex((l) => l.startsWith("Tier:"));
+  assert.equal(lines[t + 1], "Loot vote: Split 3 - Regear 2");
+  assert.ok(d.indexOf("Loot vote:") < d.indexOf("**Roster"));
+  assert.equal(d.split("Loot vote").length, 2);
+});
+
+test("after cutoff: disabled buttons and result lines", () => {
+  const closed = { voteClosed: true };
+  const r1 = view({ ...closed, votes: { split: 3, regear: 2 }, voteResult: "split" });
+  assert.ok(desc(r1).includes("Loot vote result: Split won 3-2"));
+  assert.ok(!desc(r1).includes("Loot vote:"));
+  assert.equal(voteRow(r1).components[0].disabled, true);
+  assert.equal(voteRow(r1).components[1].disabled, true);
+  assert.ok(desc(view({ ...closed, votes: { split: 2, regear: 3 }, voteResult: "regear" })).includes("Loot vote result: Regear won 3-2"));
+  assert.ok(desc(view({ ...closed, votes: { split: 2, regear: 2 }, voteResult: "tie" })).includes("Loot vote result: Tie 2-2"));
+  assert.ok(desc(view({ ...closed, votes: { split: 0, regear: 0 }, voteResult: "none" })).includes("Loot vote result: no votes"));
+});
+
+test("vote buttons disabled when cancelled or done", () => {
+  for (const status of ["cancelled", "done"] as const) {
+    const row = voteRow(view({ status }));
+    assert.equal(row.components[0].disabled, true);
+    assert.equal(row.components[1].disabled, true);
+  }
+  assert.equal(voteRow(view({ status: "locked" })).components[0].disabled, false);
+});
+
+test("no loot: no vote row and no vote line", () => {
+  const v = view({ hasLoot: false, voteClosed: true, voteResult: "none" });
+  assert.equal((renderRosterMessage(v).components as any[]).length, 2);
+  assert.ok(!desc(v).includes("Loot vote"));
+});
+
+test("20 max-length slots plus a result line stays under 4096", () => {
+  const slots = Array.from({ length: 20 }, (_, i) => ({
+    id: `s${i}`, position: i + 1, role: "*".repeat(30), weapon: "*".repeat(40), userId: "123456789012345678",
+  }));
+  const v = view({ slots, title: "*".repeat(100), notes: "*".repeat(500), voteClosed: true, votes: { split: 20, regear: 0 }, voteResult: "split" });
+  const d = desc(v);
+  assert.ok(d.length <= 4096);
+  assert.ok(d.includes("Loot vote result: Split won 20-0"));
 });
