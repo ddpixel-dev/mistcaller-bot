@@ -161,6 +161,57 @@ test("leaveContent works on locked content and is unavailable on cancelled or do
 
 const VALID = ["claimed", "moved", "unchanged", "taken"];
 
+type TestSql = Awaited<ReturnType<typeof testSql>>;
+
+function failingBegin(sql: TestSql, codes: (string | null)[]) {
+  const counter = { calls: 0 };
+  const proxy = new Proxy(sql, {
+    get(target, prop, receiver) {
+      if (prop === "begin") {
+        return (...args: unknown[]) => {
+          const code = codes[Math.min(counter.calls, codes.length - 1)];
+          counter.calls++;
+          if (code) return Promise.reject(Object.assign(new Error("x"), { code }));
+          return (target.begin as (...a: unknown[]) => unknown)(...args);
+        };
+      }
+      const v = Reflect.get(target, prop, receiver);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  }) as TestSql;
+  return { proxy, counter };
+}
+
+for (const code of ["40P01", "40001"]) {
+  test(`claimSlot retries once after a first ${code} failure`, async () => {
+    const { sql, contentId, slotIds } = await setup();
+    const { proxy, counter } = failingBegin(sql, [code, null]);
+    const r = await claimSlot(proxy, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1" });
+    assert.equal(r, "claimed");
+    assert.equal(counter.calls, 2);
+    assert.deepEqual(await holders(sql, contentId), ["u1", null, null]);
+  });
+}
+
+test("claimSlot returns taken when the retry also deadlocks, with no further retry", async () => {
+  const { sql, contentId, slotIds } = await setup();
+  const { proxy, counter } = failingBegin(sql, ["40P01"]);
+  const r = await claimSlot(proxy, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1" });
+  assert.equal(r, "taken");
+  assert.equal(counter.calls, 2);
+  const rows = await sql`select 1 from signup where content_id = ${contentId}`;
+  assert.equal(rows.length, 0);
+});
+
+test("claimSlot rethrows unexpected errors without retrying", async () => {
+  const { sql, contentId, slotIds } = await setup();
+  const { proxy, counter } = failingBegin(sql, ["XX000"]);
+  await assert.rejects(claimSlot(proxy, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1" }));
+  assert.equal(counter.calls, 1);
+});
+
+// Probabilistic stress test: it may never hit a real deadlock. The deterministic
+// tests above are what pin the retry behavior.
 test("swap: two users swapping slots concurrently never throw or double-book", async () => {
   const sql = await testSql();
   for (let i = 0; i < 10; i++) {
