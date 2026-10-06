@@ -158,3 +158,56 @@ test("leaveContent works on locked content and is unavailable on cancelled or do
     "unavailable",
   );
 });
+
+const VALID = ["claimed", "moved", "unchanged", "taken"];
+
+test("swap: two users swapping slots concurrently never throw or double-book", async () => {
+  const sql = await testSql();
+  for (let i = 0; i < 10; i++) {
+    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 2) });
+    const [s1, s2] = (await getRosterView(sql, contentId, new Date()))!.slots.map((s) => s.id) as [string, string];
+    await claimSlot(sql, { contentId, slotId: s1, userId: "ua", guildId: "g1" });
+    await claimSlot(sql, { contentId, slotId: s2, userId: "ub", guildId: "g1" });
+    const results = await Promise.all([
+      claimSlot(sql, { contentId, slotId: s2, userId: "ua", guildId: "g1" }),
+      claimSlot(sql, { contentId, slotId: s1, userId: "ub", guildId: "g1" }),
+    ]);
+    for (const r of results) assert.ok(VALID.includes(r), `trial ${i}: ${r}`);
+    const bySlot = await sql`
+      select slot_id, count(*)::int as n from signup
+      where content_id = ${contentId} and status = 'signed' group by slot_id`;
+    for (const r of bySlot) assert.equal(r.n, 1, `trial ${i}`);
+    const byUser = await sql`
+      select user_id, count(*)::int as n from signup where content_id = ${contentId} group by user_id`;
+    for (const r of byUser) assert.equal(r.n, 1, `trial ${i}`);
+  }
+});
+
+test("concurrent double delivery by the same new user leaves one signup row", async () => {
+  const sql = await testSql();
+  for (let i = 0; i < 10; i++) {
+    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 1) });
+    const slotId = (await getRosterView(sql, contentId, new Date()))!.slots[0]!.id;
+    const a = { contentId, slotId, userId: "ua", guildId: "g1" };
+    const results = await Promise.all([claimSlot(sql, a), claimSlot(sql, a)]);
+    for (const r of results) assert.ok(VALID.includes(r), `trial ${i}: ${r}`);
+    const rows = await sql`select slot_id, status from signup where content_id = ${contentId} and user_id = 'ua'`;
+    assert.equal(rows.length, 1, `trial ${i}`);
+    assert.equal(rows[0]!.slot_id, slotId);
+    assert.equal(rows[0]!.status, "signed");
+  }
+});
+
+test("a claim waiting on a content lock sees the committed lock and returns locked", async () => {
+  const { sql, contentId, slotIds } = await setup();
+  let claim!: Promise<string>;
+  await sql.begin(async (tx) => {
+    await tx`select 1 from content where id = ${contentId} for update`;
+    claim = claimSlot(sql, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1" });
+    await new Promise((r) => setTimeout(r, 300));
+    await tx`update content set status = 'locked' where id = ${contentId}`;
+  });
+  assert.equal(await claim, "locked");
+  const rows = await sql`select 1 from signup where content_id = ${contentId}`;
+  assert.equal(rows.length, 0);
+});

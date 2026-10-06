@@ -8,13 +8,36 @@ function isSlotTaken(err: unknown): boolean {
   return e?.code === "23505" && e.constraint_name === "signup_one_signed_per_slot";
 }
 
+function isRetryable(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return code === "40P01" || code === "40001";
+}
+
 export async function claimSlot(
   sql: Sql,
   a: { contentId: string; slotId: string; userId: string; guildId: string },
 ): Promise<ClaimResult> {
   try {
+    return await claimOnce(sql, a);
+  } catch (err) {
+    if (!isRetryable(err)) throw err;
+  }
+  // Deadlock or serialization failure (e.g. two users swapping slots): retry once.
+  try {
+    return await claimOnce(sql, a);
+  } catch (err) {
+    if (isRetryable(err)) return "taken";
+    throw err;
+  }
+}
+
+async function claimOnce(
+  sql: Sql,
+  a: { contentId: string; slotId: string; userId: string; guildId: string },
+): Promise<ClaimResult> {
+  try {
     return await sql.begin(async (tx): Promise<ClaimResult> => {
-      const [c] = await tx`select status, guild_id from content where id = ${a.contentId}`;
+      const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for share`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
       const [s] = await tx`select id from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
