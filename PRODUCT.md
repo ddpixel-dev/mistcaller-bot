@@ -221,8 +221,8 @@ Validated when every check below has a recorded passing result. MVP work does no
 #### CHK-001: Signed endpoint
 validates: NFR-001
 check: Discord's signed test request is accepted when the endpoint URL is saved in the developer portal, and a request with a bad signature gets 401.
-status: not started
-result:
+status: done
+result: 2026-10-06 passed. Discord accepted `https://mistcaller-bot.vercel.app/api/discord`; unsigned POSTs to it got 401 "invalid request signature" in 12 of 12 repeated probes after the alias settled. Two live deploy problems were fixed on the way (TypeScript 7 pin, `.ts` import specifiers).
 
 #### CHK-002: Create and time rendering
 validates: FT-001
@@ -295,4 +295,5 @@ Next step: deploy to Vercel (region `dub1`), save the Interactions Endpoint URL 
 | FT-007, FT-008, FT-009 | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-006 | done | 2026-10-06 |
-| CHK-001 to CHK-005, CHK-007 | not started | Need the Vercel deploy and the guild test |
+| CHK-001 | done | 2026-10-06 |
+| CHK-002 to CHK-005, CHK-007 | in progress | First roster posted live; remaining live checks pending |
