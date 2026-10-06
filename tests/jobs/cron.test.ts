@@ -6,6 +6,7 @@ import { createContent, setMessageId, getRosterView, type NewContent } from "../
 import { claimSlot } from "../../src/db/signup.ts";
 import { castVote } from "../../src/db/vote.ts";
 import { isAuthorized, lockStarted, postVoteResults, runJobs } from "../../src/jobs/cron.ts";
+import * as cronRoute from "../../api/cron.ts";
 import { handleCron } from "../../src/jobs/cron-handler.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
@@ -297,4 +298,79 @@ test("workflow file has the required lines", () => {
   assert.match(y, /CRON_SECRET: \$\{\{ secrets\.CRON_SECRET \}\}/);
   assert.ok(y.includes('curl --fail --silent --show-error -X POST -H "Authorization: Bearer $CRON_SECRET" "$CRON_URL"'));
   assert.ok(!/echo/.test(y));
+});
+
+test("api/cron: unauthorized with other env unset is 401 and builds nothing", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.CRON_SECRET = "s3cret";
+    delete process.env.DISCORD_BOT_TOKEN;
+    delete process.env.DATABASE_URL;
+    const r = await cronRoute.POST(req("Bearer nope"));
+    assert.equal(r.status, 401);
+    assert.deepEqual(await r.json(), { error: "unauthorized" });
+    assert.equal((await cronRoute.GET(req())).status, 401);
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("api/cron: authorized with DATABASE_URL unset is a generic 500", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.CRON_SECRET = "s3cret-value-xyz";
+    process.env.DISCORD_BOT_TOKEN = "tok-value-xyz";
+    delete process.env.DATABASE_URL;
+    const r = await cronRoute.POST(req("Bearer s3cret-value-xyz"));
+    assert.equal(r.status, 500);
+    const body = await r.text();
+    assert.ok(!body.includes("xyz") && !body.includes("DATABASE_URL"), body);
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("three due rows, middle fails: other two posted, failed one unclaimed and attempted once", async () => {
+  const a = await make({ threadId: "ta", startsAt: new Date("2026-12-01T18:00:00Z") }, "m1");
+  await make({ threadId: "tb", startsAt: new Date("2026-12-01T18:00:00Z") }, "m2");
+  await make({ threadId: "tc", startsAt: new Date("2026-12-01T18:00:00Z") }, "m3");
+  const f = fakeRest();
+  const attempts: string[] = [];
+  const rest: Rest = {
+    ...f.rest,
+    async editMessage(ch, m, b) {
+      attempts.push(ch);
+      if (ch === "tb") throw new DiscordApiError(500, "boom");
+      return f.rest.editMessage(ch, m, b);
+    },
+  };
+  assert.equal(await postVoteResults({ sql: a.sql, rest, now: () => CUTOFF }), 2);
+  assert.deepEqual(attempts.sort(), ["ta", "tb", "tc"]);
+  assert.deepEqual(f.calls.posts.map((p) => p.channel).sort(), ["ta", "tc"]);
+  const rows = await a.sql`select thread_id, loot_result_posted_at as p from content order by thread_id`;
+  assert.deepEqual(rows.map((r: any) => r.p === null), [false, true, false]);
+  assert.equal(await postVoteResults({ sql: a.sql, rest: fakeRest().rest, now: () => CUTOFF }), 1);
+});
+
+test("conditional release does not clear a claim with a different timestamp", async () => {
+  const { sql, id } = await make();
+  const other = new Date("2026-11-30T00:00:00Z");
+  const rest: Rest = {
+    ...fakeRest().rest,
+    async editMessage() {
+      await sql`update content set loot_result_posted_at = ${other} where id = ${id}`;
+      throw new DiscordApiError(500, "boom");
+    },
+  };
+  assert.equal(await postVoteResults({ sql, rest, now: () => CUTOFF }), 0);
+  assert.deepEqual(await posted(sql, id), other);
+});
+
+test("at most 25 rows are processed in one run", async () => {
+  const { sql } = await make({ threadId: "t0" }, "m0");
+  for (let i = 1; i < 30; i++) await make({ threadId: `t${i}` }, `m${i}`);
+  const f = fakeRest();
+  assert.equal(await postVoteResults({ sql, rest: f.rest, now: () => CUTOFF }), 25);
+  assert.equal(f.calls.posts.length, 25);
+  assert.equal(await postVoteResults({ sql, rest: f.rest, now: () => CUTOFF }), 5);
 });

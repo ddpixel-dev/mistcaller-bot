@@ -57,22 +57,31 @@ export async function lockStarted(deps: Deps): Promise<number> {
   return rows.length;
 }
 
-// Claims due rows by setting loot_result_posted_at up-front in one UPDATE ... RETURNING
-// (rows locked with FOR UPDATE SKIP LOCKED, so overlapping runs never claim the same row).
-// The claim is un-set if the edit or the thread message fails, so the next run retries.
+const MAX_RESULTS_PER_RUN = 25;
+
+// Claims ONE due row at a time by setting loot_result_posted_at up-front in a single
+// UPDATE ... RETURNING (row picked with FOR UPDATE SKIP LOCKED, so overlapping runs never
+// claim the same row). A kill strands at most the one in-flight row. The claim is released
+// only if it still carries this run's timestamp. A row that failed in this run is not
+// re-claimed in the same run.
 export async function postVoteResults(deps: Deps): Promise<number> {
   const now = deps.now();
   const dueBefore = new Date(now.getTime() + VOTE_CUTOFF_MS);
-  const claimed = await deps.sql`
-    update content set loot_result_posted_at = ${now}
-    where id in (
-      select id from content
-      where has_loot and status in ('open', 'locked')
-        and starts_at <= ${dueBefore} and loot_result_posted_at is null
-      for update skip locked)
-    returning id, thread_id`;
+  const failed = new Set<string>();
   let marked = 0;
-  for (const c of claimed) {
+  for (let i = 0; i < MAX_RESULTS_PER_RUN; i++) {
+    const [c] = await deps.sql`
+      update content set loot_result_posted_at = ${now}
+      where id in (
+        select id from content
+        where has_loot and status in ('open', 'locked')
+          and starts_at <= ${dueBefore} and loot_result_posted_at is null
+          and id <> all(${[...failed]}::uuid[])
+        order by starts_at, id
+        limit 1
+        for update skip locked)
+      returning id, thread_id`;
+    if (!c) break;
     try {
       await editRoster(deps, c.id);
       const view = await getRosterView(deps.sql, c.id, now);
@@ -84,8 +93,11 @@ export async function postVoteResults(deps: Deps): Promise<number> {
       marked++;
     } catch (e) {
       logFailure("vote_result_failed", c.id, e);
+      failed.add(c.id);
       try {
-        await deps.sql`update content set loot_result_posted_at = null where id = ${c.id}`;
+        await deps.sql`
+          update content set loot_result_posted_at = null
+          where id = ${c.id} and loot_result_posted_at = ${now}`;
       } catch (e2) {
         logFailure("vote_result_unclaim_failed", c.id, e2);
       }
