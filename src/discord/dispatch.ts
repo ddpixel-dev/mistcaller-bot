@@ -3,6 +3,7 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { reply } from "./response.ts";
 import { handleCreateCommand, handleCreateModal } from "../handlers/create.ts";
+import { handleLeave, handleSignup } from "../handlers/signup.ts";
 
 export type Deps = { sql: Sql; rest: Rest; now: () => Date };
 export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionResponse>;
@@ -10,7 +11,7 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleCreateCommand };
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal };
-const componentHandlers: Record<string, Handler> = {};
+const componentHandlers: Record<string, Handler> = { signup: handleSignup, leave: handleLeave };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
 

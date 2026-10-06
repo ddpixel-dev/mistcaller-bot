@@ -70,6 +70,39 @@ test("limits with maximum-length content", () => {
   assert.ok(w.embeds[0]!.title!.length <= 256);
 });
 
-test("components empty", () => {
-  assert.deepEqual(renderRosterMessage(view()).components, []);
+test("components: select with slot options and Leave button", () => {
+  const rows = renderRosterMessage(view()).components as any[];
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].type, 1);
+  const sel = rows[0].components[0];
+  assert.equal(sel.type, 3);
+  assert.equal(sel.custom_id, "signup:c1");
+  assert.equal(sel.placeholder, "Pick a position");
+  assert.ok(!sel.disabled);
+  assert.deepEqual(sel.options, [
+    { label: "1. Tank - Axe", value: "s1", description: "Taken" },
+    { label: "2. Healer - Holy", value: "s2", description: "Open" },
+  ]);
+  assert.equal(rows[1].type, 1);
+  assert.deepEqual(rows[1].components, [{ type: 2, style: 2, label: "Leave", custom_id: "leave:c1", disabled: false }]);
+});
+
+test("select labels are truncated to 100 and not markdown-escaped", () => {
+  const sel = (renderRosterMessage(view({ slots: [{ id: "s", position: 1, role: "_R_" + "x".repeat(150), weapon: "W", userId: null }] })).components as any[])[0].components[0];
+  assert.equal(sel.options[0].label.length, 100);
+  assert.ok(sel.options[0].label.startsWith("1. _R_x"));
+});
+
+test("locked: select disabled, Leave enabled", () => {
+  const rows = renderRosterMessage(view({ status: "locked" })).components as any[];
+  assert.equal(rows[0].components[0].disabled, true);
+  assert.equal(rows[1].components[0].disabled, false);
+});
+
+test("cancelled and done: both disabled", () => {
+  for (const status of ["cancelled", "done"] as const) {
+    const rows = renderRosterMessage(view({ status })).components as any[];
+    assert.equal(rows[0].components[0].disabled, true);
+    assert.equal(rows[1].components[0].disabled, true);
+  }
 });

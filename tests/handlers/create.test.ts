@@ -178,7 +178,7 @@ test("dispatch routes command and modal; unknown things are not implemented", as
   assert.equal(content(await d(modal(good))), "Created");
   assert.equal(content(await d(base({ data: { name: "nope" } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 5, data: { custom_id: "zzz:1", components: [] } }))), "Not implemented yet");
-  assert.equal(content(await d(base({ type: 3, data: { custom_id: "signup:x" } }))), "Not implemented yet");
+  assert.equal(content(await d(base({ type: 3, data: { custom_id: "vote:x" } }))), "Not implemented yet");
 });
 
 test("setMessageId failure removes the row and the posted message", async () => {

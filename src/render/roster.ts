@@ -42,7 +42,36 @@ export function renderRosterMessage(view: RosterView): {
   if (description.length > DESC_LIMIT) description = description.slice(0, DESC_LIMIT);
   return {
     embeds: [{ title: escapeText(view.title).slice(0, TITLE_LIMIT), description }],
-    components: [],
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `signup:${view.id}`,
+            placeholder: "Pick a position",
+            disabled: view.status !== "open",
+            options: view.slots.map((s) => ({
+              label: `${s.position}. ${s.role} - ${s.weapon}`.slice(0, 100),
+              value: s.id,
+              description: s.userId ? "Taken" : "Open",
+            })),
+          },
+        ],
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 2,
+            label: "Leave",
+            custom_id: `leave:${view.id}`,
+            disabled: view.status === "cancelled" || view.status === "done",
+          },
+        ],
+      },
+    ],
     allowed_mentions: { parse: [] },
   };
 }
