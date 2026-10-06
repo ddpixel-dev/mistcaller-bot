@@ -1,4 +1,5 @@
 import type { Sql } from "./client.ts";
+import { isVoteOpen, tallyVotes, type VoteChoice } from "../domain/vote.ts";
 import type { ContentStatus, ContentType, RosterView, SlotDef, TierRange } from "../domain/types.ts";
 
 export type NewContent = {
@@ -43,7 +44,7 @@ export async function deleteContent(sql: Sql, contentId: string): Promise<void> 
   await sql`delete from content where id = ${contentId}`;
 }
 
-export async function getRosterView(sql: Sql, contentId: string, _now: Date): Promise<RosterView | null> {
+export async function getRosterView(sql: Sql, contentId: string, now: Date): Promise<RosterView | null> {
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
@@ -53,6 +54,9 @@ export async function getRosterView(sql: Sql, contentId: string, _now: Date): Pr
     left join signup su on su.slot_id = s.id and su.status = 'signed'
     where s.content_id = ${contentId}
     order by s.position`;
+  const voteRows = await sql`select choice from vote where content_id = ${contentId}`;
+  const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
+  const voteClosed = !isVoteOpen(c.starts_at, now);
   return {
     id: c.id,
     guildId: c.guild_id,
@@ -75,8 +79,8 @@ export async function getRosterView(sql: Sql, contentId: string, _now: Date): Pr
       weapon: s.weapon,
       userId: s.user_id ?? null,
     })),
-    votes: { split: 0, regear: 0 },
-    voteClosed: false,
-    voteResult: null,
+    votes: { split: tally.split, regear: tally.regear },
+    voteClosed,
+    voteResult: voteClosed && c.has_loot ? tally.result : null,
   };
 }
