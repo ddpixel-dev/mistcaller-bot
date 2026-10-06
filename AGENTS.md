@@ -20,7 +20,8 @@ Read `PRODUCT.md` and `docs/INDEX.md` first. They hold the product definition, e
 
 ## Project-specific
 
-- Build and test: not defined yet. Record the commands here when the project is scaffolded in M0.
+- Tooling: never install third-party tools or packages on the host. Run every tool in Docker (`docker compose run --rm node ...`) and ask the owner before adding any package (ADR 0006).
+- Build and test: `docker compose run --rm node npm test` once the scaffold exists (plan Task 1). Record any further commands here.
 - Conventions: no product code, dependency installs or scaffolding until the owner approves the written implementation plan. Keep domain logic pure with no Discord or database imports (NFR-007).
 - Security: verify every Discord signature before parsing; never trust client-supplied IDs, use only the verified user and guild; secrets only in environment variables, never in the repo or logs; row-level security stays on for every table; send every bot message with restricted allowed mentions (NFR-001, FR-018).
 - Responsiveness: acknowledge every interaction within 3 seconds, then finish by editing the message (NFR-002).

@@ -7,7 +7,7 @@ date: 2026-10-06
 
 # Tasks
 
-The detailed implementation plan for M0 to M3 is written after the owner approves these documents.
+The detailed step-by-step plan for M0 to M3 is [2026-10-06-m0-m3-implementation.md](2026-10-06-m0-m3-implementation.md). Its Tasks 1 to 14 refine T2 to T9 and T14 below; the table here stays the high-level tracker.
 
 | ID | Task | Milestone | Satisfies | Status |
 |---|---|---|---|---|

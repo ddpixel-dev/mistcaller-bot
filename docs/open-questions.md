@@ -20,4 +20,5 @@ Anything uncertain goes here instead of being assumed. Resolve an entry by recor
 | Q7 | question | Does the bot work as expected inside forum posts: permissions in threads, and locked or archived posts? | FR-002 | open | Verify at M1 |
 | Q8 | question | Privacy note and delete-my-data path for public use; Discord's requirements for verification and privacy policy | NFR-006, FT-010 | open | Before FT-010 |
 | Q9 | question | Product name | | open | Before publishing |
+| Q11 | risk | Does Vercel's build accept web-standard `POST` exports and `.ts` import specifiers with no bundler? If not, the owner decides whether to add a build tool | NFR-003 | open | Verified at plan Task 4 |
 | Q10 | question | Does a modal support a loot dropdown? Current choice: loot is a command option | FR-003 | resolved | Command option, per the agreed design |

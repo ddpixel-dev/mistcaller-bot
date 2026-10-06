@@ -17,6 +17,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0003 Permissions](decisions/0003-permissions-and-creation-cap.md): anyone creates; creator, admin, officer manage; cap of 5 per day
 - [0004 Slot model](decisions/0004-slot-model.md): one line per slot, maximum 20
 - [0005 Vote cutoff](decisions/0005-vote-cutoff.md): closes 5 minutes before the start
+- [0006 Docker tooling](decisions/0006-docker-tooling-minimal-dependencies.md): no host installs, minimal dependencies
 
 ## Architecture
 - [Overview](architecture/overview.md)
@@ -25,6 +26,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [Roadmap](plan/roadmap.md)
 - [Milestones](plan/milestones.md)
 - [Tasks](plan/tasks.md)
+- [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 
 ## Working notes
 - [Open questions](open-questions.md)
