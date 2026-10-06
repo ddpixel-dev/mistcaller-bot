@@ -1,15 +1,15 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { getSql } from "../../src/db/client.ts";
+import type { Sql } from "../../src/db/client.ts";
+import { testSql } from "../helpers/db.ts";
 import { applyMigrations } from "../../src/db/migrate.ts";
 
-const url = process.env.TEST_DATABASE_URL;
-if (!url) throw new Error("TEST_DATABASE_URL is required");
-const sql = getSql(url);
+let sql: Sql;
 const dir = new URL("../../supabase/migrations", import.meta.url).pathname;
 const tables = ["guild_settings", "content", "slot", "signup", "vote"];
 
 before(async () => {
+  sql = await testSql(); // runs the safety guard before anything destructive
   await sql.unsafe("drop schema public cascade; create schema public;");
 });
 after(async () => {
