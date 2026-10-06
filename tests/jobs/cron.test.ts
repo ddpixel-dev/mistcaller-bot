@@ -114,7 +114,7 @@ test("postVoteResults at the cutoff: one edit, one thread message, marked, secon
   const { sql, id } = await make();
   const slots = (await getRosterView(sql, id, EARLY))!.slots.map((s) => s.id);
   for (const [i, u] of ["a", "b", "c"].entries())
-    await claimSlot(sql, { contentId: id, slotId: slots[i]!, userId: u, guildId: "g1" });
+    await claimSlot(sql, { contentId: id, slotId: slots[i]!, userId: u, guildId: "g1", now: EARLY });
   for (const [u, c] of [["a", "split"], ["b", "split"], ["c", "regear"]] as const)
     assert.equal(await castVote(sql, { contentId: id, userId: u, guildId: "g1", choice: c, now: EARLY }), "recorded");
   const { rest, calls } = fakeRest();

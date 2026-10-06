@@ -119,3 +119,25 @@ test("getGuildSettings returns null for unknown guild and the row after insert",
     dailyCap: 5,
   });
 });
+
+test("createContent with 20 slots stores all in input order", async () => {
+  const sql = await testSql();
+  const slots = Array.from({ length: 20 }, (_, i) => ({ role: `Role${i + 1}`, weapon: `Weapon${i + 1}` }));
+  const id = await createContent(sql, { ...base, slots });
+  const rows = await sql`select position, role, weapon, guild_id from slot where content_id = ${id} order by position`;
+  assert.equal(rows.length, 20);
+  rows.forEach((r, i) => {
+    assert.equal(r.position, i + 1);
+    assert.equal(r.role, `Role${i + 1}`);
+    assert.equal(r.weapon, `Weapon${i + 1}`);
+    assert.equal(r.guild_id, "g1");
+  });
+});
+
+test("getRosterView sets started when starts_at <= now", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, base);
+  assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() - 1)))!.started, false);
+  assert.equal((await getRosterView(sql, id, startsAt))!.started, true);
+  assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() + 1)))!.started, true);
+});

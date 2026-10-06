@@ -15,7 +15,10 @@ export function formatUtc(d: Date): string {
 }
 
 export function escapeText(s: string): string {
-  return s.replace(/[\\*_~`|>#]/g, "\\$&").replace(/@/g, "@\u200B");
+  return s
+    .replace(/[\\*_~`|>#[\]]/g, "\\$&")
+    .replace(/@/g, "@\u200B")
+    .replace(/</g, "<\u200B");
 }
 
 function voteRow(view: RosterView) {
@@ -73,9 +76,9 @@ export function renderRosterMessage(view: RosterView): {
             type: 3,
             custom_id: `signup:${view.id}`,
             placeholder: "Pick a position",
-            disabled: view.status !== "open",
+            disabled: view.status !== "open" || view.started,
             options: view.slots.map((s) => ({
-              label: `${s.position}. ${s.role} - ${s.weapon}`.slice(0, 100),
+              label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
               value: s.id,
               description: s.userId ? "Taken" : "Open",
             })),

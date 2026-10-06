@@ -15,7 +15,7 @@ function isRetryable(err: unknown): boolean {
 
 export async function claimSlot(
   sql: Sql,
-  a: { contentId: string; slotId: string; userId: string; guildId: string },
+  a: { contentId: string; slotId: string; userId: string; guildId: string; now: Date },
 ): Promise<ClaimResult> {
   try {
     return await claimOnce(sql, a);
@@ -33,15 +33,15 @@ export async function claimSlot(
 
 async function claimOnce(
   sql: Sql,
-  a: { contentId: string; slotId: string; userId: string; guildId: string },
+  a: { contentId: string; slotId: string; userId: string; guildId: string; now: Date },
 ): Promise<ClaimResult> {
   try {
     return await sql.begin(async (tx): Promise<ClaimResult> => {
-      const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for share`;
+      const [c] = await tx`select status, guild_id, starts_at from content where id = ${a.contentId} for share`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
       const [s] = await tx`select id from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
-      if (c.status !== "open") return "locked";
+      if (c.status !== "open" || c.starts_at <= a.now) return "locked";
 
       const [prev] = await tx`
         select slot_id, status from signup
@@ -71,6 +71,8 @@ export async function leaveContent(
     const rows = await tx`
       delete from signup where content_id = ${a.contentId} and user_id = ${a.userId}
       returning user_id`;
-    return rows.length > 0 ? "left" : "not_signed";
+    if (rows.length === 0) return "not_signed";
+    await tx`delete from vote where content_id = ${a.contentId} and user_id = ${a.userId}`;
+    return "left";
   });
 }

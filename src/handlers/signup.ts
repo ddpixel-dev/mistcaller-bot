@@ -35,7 +35,7 @@ export async function handleSignup(deps: Deps, i: Interaction): Promise<Interact
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view || view.guildId !== guildId) return reply(NOT_FOUND);
 
-  const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId });
+  const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now() });
   if (result === "taken") return reply("That position is already taken. Pick another one.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);

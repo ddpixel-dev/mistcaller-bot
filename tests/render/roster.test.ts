@@ -14,7 +14,7 @@ function view(over: Partial<RosterView> = {}): RosterView {
       { id: "s1", position: 1, role: "Tank", weapon: "Axe", userId: "111" },
       { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: null },
     ],
-    votes: { split: 0, regear: 0 }, voteClosed: false, voteResult: null,
+    votes: { split: 0, regear: 0 }, voteClosed: false, voteResult: null, started: false,
     ...over,
   };
 }
@@ -46,7 +46,15 @@ test("title escaped, no mentions", () => {
 });
 
 test("escapeText", () => {
-  assert.equal(escapeText("\\*_~`|>#@a"), "\\\\\\*\\_\\~\\`\\|\\>\\#@​a");
+  assert.equal(escapeText("\\*_~`|>#[]@a"), "\\\\\\*\\_\\~\\`\\|\\>\\#\\[\\]@\u200Ba");
+});
+
+test("escapeText neutralises masked links, timestamps, custom emoji and autolinks", () => {
+  const z = "\u200B";
+  assert.equal(escapeText("[x](http://evil)"), "\\[x\\](http://evil)");
+  assert.equal(escapeText("<t:1:F>"), `<${z}t:1:F\\>`);
+  assert.equal(escapeText("<:emoji:123>"), `<${z}:emoji:123\\>`);
+  assert.equal(escapeText("<http://evil.example>"), `<${z}http://evil.example\\>`);
 });
 
 test("user text escaped in notes, role and weapon", () => {
@@ -91,6 +99,21 @@ test("select labels are truncated to 100 and not markdown-escaped", () => {
   const sel = (renderRosterMessage(view({ slots: [{ id: "s", position: 1, role: "_R_" + "x".repeat(150), weapon: "W", userId: null }] })).components as any[])[0].components[0];
   assert.equal(sel.options[0].label.length, 100);
   assert.ok(sel.options[0].label.startsWith("1. _R_x"));
+});
+
+test("label truncation is code-point safe", () => {
+  const role = "\u{1F600}".repeat(150);
+  const sel = (renderRosterMessage(view({ slots: [{ id: "s", position: 1, role, weapon: "W", userId: null }] })).components as any[])[0].components[0];
+  const label: string = sel.options[0].label;
+  assert.equal(Array.from(label).length, 100);
+  assert.ok(!/[\ud800-\udbff]$/.test(label));
+});
+
+test("select is disabled once started even though status is open; Leave stays enabled", () => {
+  const rows = renderRosterMessage(view({ status: "open", started: true })).components as any[];
+  assert.equal(rows[0].components[0].disabled, true);
+  assert.equal(rows[1].components[0].disabled, false);
+  assert.equal((renderRosterMessage(view({ started: false })).components as any[])[0].components[0].disabled, false);
 });
 
 test("locked: select disabled, Leave enabled", () => {

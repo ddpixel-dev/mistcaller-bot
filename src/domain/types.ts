@@ -20,5 +20,6 @@ export type RosterView = {
   slots: RosterSlot[];
   votes: { split: number; regear: number };
   voteClosed: boolean;
+  started: boolean;
   voteResult: "split" | "regear" | "tie" | "none" | null;
 };

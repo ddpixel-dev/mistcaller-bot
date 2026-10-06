@@ -28,7 +28,7 @@ async function setup(over: Partial<NewContent> = {}) {
   let now = OPEN;
   const deps: Deps = { sql, rest, now: () => now };
   const sign = async (userId: string, n: number) =>
-    assert.equal(await claimSlot(sql, { contentId, slotId: slots[n]!, userId, guildId: "g1" }), "claimed");
+    assert.equal(await claimSlot(sql, { contentId, slotId: slots[n]!, userId, guildId: "g1", now: OPEN }), "claimed");
   return { sql, deps, contentId, slots, sign, setNow: (d: Date) => { now = d; } };
 }
 

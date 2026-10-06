@@ -26,12 +26,14 @@ export async function createContent(sql: Sql, input: NewContent): Promise<string
         ${max ? max.enchant : null}, ${input.hasLoot}, ${input.createdBy})
       returning id`;
     const id: string = row!.id;
-    for (let i = 0; i < input.slots.length; i++) {
-      const s = input.slots[i]!;
-      await tx`
-        insert into slot (guild_id, content_id, position, role, weapon)
-        values (${input.guildId}, ${id}, ${i + 1}, ${s.role}, ${s.weapon})`;
-    }
+    const rows = input.slots.map((s, i) => ({
+      guild_id: input.guildId,
+      content_id: id,
+      position: i + 1,
+      role: s.role,
+      weapon: s.weapon,
+    }));
+    await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon")}`;
     return id;
   });
 }
@@ -56,6 +58,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     order by s.position`;
   const voteRows = await sql`select choice from vote where content_id = ${contentId}`;
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
+  const started = c.starts_at <= now;
   const voteClosed = !isVoteOpen(c.starts_at, now);
   return {
     id: c.id,
@@ -81,6 +84,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     })),
     votes: { split: tally.split, regear: tally.regear },
     voteClosed,
+    started,
     voteResult: voteClosed && c.has_loot ? tally.result : null,
   };
 }

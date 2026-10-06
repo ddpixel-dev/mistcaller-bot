@@ -38,7 +38,7 @@ async function setup(over: Partial<NewContent> = {}) {
 }
 
 async function sign(sql: Awaited<ReturnType<typeof testSql>>, contentId: string, slotId: string, userId: string) {
-  assert.equal(await claimSlot(sql, { contentId, slotId, userId, guildId: "g1" }), "claimed");
+  assert.equal(await claimSlot(sql, { contentId, slotId, userId, guildId: "g1", now: before }), "claimed");
 }
 
 async function voteCount(sql: Awaited<ReturnType<typeof testSql>>, contentId: string): Promise<number> {
