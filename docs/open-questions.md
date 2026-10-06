@@ -1,0 +1,23 @@
+---
+title: Open questions, assumptions, and risks
+type: log
+status: active
+date: 2026-10-06
+---
+
+# Open questions, assumptions, and risks
+
+Anything uncertain goes here instead of being assumed. Resolve an entry by recording the answer (an ADR or a `PRODUCT.md` change) and marking it resolved; do not delete it.
+
+| ID | Kind | Question or risk | Affects | Status | Resolution |
+|---|---|---|---|---|---|
+| Q1 | risk | Does a 5-minute GitHub Actions schedule post the vote result early enough? Free-tier schedules can be delayed or skipped | FR-008, FR-013 | open | Measured in CHK-005. Alternative: `pg_cron` (see ADR 0002) |
+| Q2 | question | Are `pg_cron` and `pg_net` usable on the Supabase free tier, in case the alternative is needed? | FR-013 | open | |
+| Q3 | risk | Does Supabase pause the free project during a quiet week? | NFR-003 | open | Measured in CHK-007 |
+| Q4 | risk | Vercel Hobby is non-commercial. Fine for the guild, but it blocks monetization | NFR-003 | open | Revisit before FT-010 |
+| Q5 | question | Do GitHub scheduled workflows on a public repo get disabled after inactivity, and what are the free minutes for a private repo? | FR-013 | open | Verify at M3 |
+| Q6 | question | Can the Supabase Data API be turned off entirely? Otherwise row-level security with no policies stays the guard | NFR-001 | open | Verify at M0 |
+| Q7 | question | Does the bot work as expected inside forum posts: permissions in threads, and locked or archived posts? | FR-002 | open | Verify at M1 |
+| Q8 | question | Privacy note and delete-my-data path for public use; Discord's requirements for verification and privacy policy | NFR-006, FT-010 | open | Before FT-010 |
+| Q9 | question | Product name | | open | Before publishing |
+| Q10 | question | Does a modal support a loot dropdown? Current choice: loot is a command option | FR-003 | resolved | Command option, per the agreed design |
