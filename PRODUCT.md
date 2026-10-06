@@ -106,6 +106,22 @@ satisfies: FR-003
 
 Saved rosters, repeating content and an ICS export. Not planned yet.
 
+### FT-012: One content per forum post
+status: not started
+phase: MVP
+priority: must
+satisfies: FR-019
+
+A forum post holds at most one active content, so rosters cannot be duplicated by accident.
+
+### FT-013: Fantasy roster style
+status: not started
+phase: MVP
+priority: should
+satisfies: FR-022
+
+The roster message gets a themed look: colors per content type, role icons, a roster-fill bar and dividers. The theme is chosen from the mock-ups shown to the owner (open question Q16).
+
 ## Functional requirements
 
 ### FR-001: Command namespace
@@ -179,6 +195,22 @@ If the roster message was deleted, the next interaction or scheduled job shall r
 ### FR-018: Safe text
 status: accepted
 User-supplied text shall be escaped, and every bot message shall restrict allowed mentions so text such as `@everyone` cannot ping.
+
+### FR-019: One active content per post
+status: accepted
+A forum post shall hold at most one content whose status is `open` or `locked`. A new content may be created in a post only after the previous one was cancelled. A post whose content is `done` cannot take a new one. The database enforces this, so two simultaneous creates cannot both succeed, and the second creator gets a clear private message.
+
+### FR-020: Edit content
+status: accepted
+The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. The roster message is re-rendered after every edit.
+
+### FR-021: Cancel content
+status: accepted
+The same managers shall be able to cancel a content after a confirmation step. Cancelling sets the status to `cancelled`, re-renders the roster as cancelled with all buttons disabled, and pings the signed-up members.
+
+### FR-022: Themed roster style
+status: proposed
+The roster message shall use the owner's chosen fantasy theme: an embed color per content type, an icon per role, a roster-fill indicator and dividers, while staying readable for screen readers and under Discord's embed limits. The theme and any images are decided in open question Q16. No third-party game art is used without permission.
 
 ## Non-functional requirements
 
