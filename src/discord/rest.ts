@@ -13,23 +13,30 @@ export class DiscordApiError extends Error {
 export type Rest = {
   createMessage(channelId: string, body: unknown): Promise<{ id: string }>;
   editMessage(channelId: string, messageId: string, body: unknown): Promise<void>;
+  deleteMessage(channelId: string, messageId: string): Promise<void>;
 };
 
-export function createRest(token: string, fetchFn: typeof fetch = fetch): Rest {
-  async function call(method: string, path: string, body: unknown): Promise<unknown> {
+export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+export function createRest(
+  token: string,
+  fetchFn: typeof fetch = fetch,
+  sleep: (ms: number) => Promise<void> = realSleep,
+): Rest {
+  async function call(method: string, path: string, body: unknown, okStatuses: number[] = []): Promise<unknown> {
     const init: RequestInit = {
       method,
       headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     };
     let res = await fetchFn(`${API}${path}`, init);
     if (res.status === 429) {
       const data = (await res.json().catch(() => ({}))) as { retry_after?: number };
       const wait = Math.min(Math.max(Number(data.retry_after) || 0, 0) * 1000, MAX_RETRY_WAIT_MS);
-      await new Promise((r) => setTimeout(r, wait));
+      await sleep(wait);
       res = await fetchFn(`${API}${path}`, init);
     }
-    if (!res.ok) {
+    if (!res.ok && !okStatuses.includes(res.status)) {
       throw new DiscordApiError(res.status, `Discord API ${method} ${path} failed with status ${res.status}`);
     }
     return await res.json().catch(() => ({}));
@@ -42,6 +49,9 @@ export function createRest(token: string, fetchFn: typeof fetch = fetch): Rest {
     },
     async editMessage(channelId, messageId, body) {
       await call("PATCH", `/channels/${channelId}/messages/${messageId}`, body);
+    },
+    async deleteMessage(channelId, messageId) {
+      await call("DELETE", `/channels/${channelId}/messages/${messageId}`, undefined, [404]);
     },
   };
 }

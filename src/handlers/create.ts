@@ -15,7 +15,8 @@ async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null
   if (!i.guild_id) return null;
   const settings = await getGuildSettings(deps.sql, i.guild_id);
   if (!settings) return null;
-  return forumContentType(settings, i.channel?.parent_id ?? null);
+  if (i.channel?.type !== 11) return null;
+  return forumContentType(settings, i.channel.parent_id ?? null);
 }
 
 function lootOption(i: Interaction): boolean {
@@ -67,7 +68,7 @@ function modalValues(i: Interaction): Record<string, string> {
 export async function handleCreateModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const type = await forumType(deps, i);
   const creator = i.member?.user?.id;
-  const threadId = i.channel?.id ?? i.channel_id;
+  const threadId = i.channel?.id;
   if (type === null || !i.guild_id || !creator || !threadId) return reply(NOT_FORUM);
 
   const v = modalValues(i);
@@ -97,14 +98,22 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     createdBy: creator,
     slots: slots.value,
   });
+  const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
+  let postedId: string | null = null;
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view) throw new Error("content row missing");
     const posted = await deps.rest.createMessage(threadId, renderRosterMessage(view));
+    postedId = posted.id;
     await setMessageId(deps.sql, id, posted.id);
   } catch (err) {
     await deleteContent(deps.sql, id).catch(() => {});
-    console.error(JSON.stringify({ evt: "create_failed", name: err instanceof Error ? err.name : "unknown" }));
+    if (postedId !== null) {
+      await deps.rest.deleteMessage(threadId, postedId).catch((e) => {
+        console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
+      });
+    }
+    console.error(JSON.stringify({ evt: "create_failed", name: errName(err) }));
     return reply(FAILED);
   }
   return reply("Created");

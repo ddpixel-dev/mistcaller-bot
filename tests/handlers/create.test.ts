@@ -12,11 +12,12 @@ const GUILD = "g1";
 const PVP = "forum-pvp";
 const PVE = "forum-pve";
 
-async function setup(failPost = false) {
+async function setup(failPost = false, failDelete = false, failSetId = false) {
   const sql = await testSql();
   await resetDb(sql);
   await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id) values (${GUILD}, ${PVP}, ${PVE})`;
   const posts: { channelId: string; body: any }[] = [];
+  const deletes: { channelId: string; messageId: string }[] = [];
   const rest: Rest = {
     async createMessage(channelId, body) {
       if (failPost) throw new Error("Bot SECRET-TOKEN exploded");
@@ -24,9 +25,21 @@ async function setup(failPost = false) {
       return { id: "msg-1" };
     },
     async editMessage() {},
+    async deleteMessage(channelId, messageId) {
+      deletes.push({ channelId, messageId });
+      if (failDelete) throw new Error("Bot SECRET-TOKEN delete exploded");
+    },
   };
-  const deps: Deps = { sql, rest, now: () => NOW };
-  return { sql, deps, posts };
+  const guarded = failSetId
+    ? new Proxy(sql, {
+        apply(t, thisArg, args) {
+          if (String((args[0] as TemplateStringsArray)?.[0]).includes("set message_id")) throw new Error("db down");
+          return Reflect.apply(t, thisArg, args);
+        },
+      })
+    : sql;
+  const deps: Deps = { sql: guarded, rest, now: () => NOW };
+  return { sql, deps, posts, deletes };
 }
 beforeEach(async () => { await resetDb(await testSql()); });
 after(async () => { await (await testSql()).end(); });
@@ -166,4 +179,70 @@ test("dispatch routes command and modal; unknown things are not implemented", as
   assert.equal(content(await d(base({ data: { name: "nope" } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 5, data: { custom_id: "zzz:1", components: [] } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 3, data: { custom_id: "signup:x" } }))), "Not implemented yet");
+});
+
+test("setMessageId failure removes the row and the posted message", async () => {
+  const { deps, sql, deletes } = await setup(false, false, true);
+  const r = await handleCreateModal(deps, modal(good));
+  assert.equal((r.data as any).flags, 64);
+  assert.equal(content(r), "Could not create the content right now. Nothing was saved, please try again.");
+  assert.equal((await sql`select 1 from content`).length, 0);
+  assert.deepEqual(deletes, [{ channelId: "thread-1", messageId: "msg-1" }]);
+});
+
+test("setMessageId failure with failing deleteMessage still cleans the row, no secret", async () => {
+  const { deps, sql, deletes } = await setup(false, true, true);
+  const r = await handleCreateModal(deps, modal(good));
+  assert.equal((r.data as any).flags, 64);
+  assert.ok(!content(r).includes("SECRET"));
+  assert.ok(!content(r).includes("exploded"));
+  assert.equal((await sql`select 1 from content`).length, 0);
+  assert.equal(deletes.length, 1);
+});
+
+test("a channel that is not a thread (type != 11) is refused on command and modal", async () => {
+  const { deps, sql, posts } = await setup();
+  const ch = { id: "thread-1", type: 0, parent_id: PVP };
+  const a = await handleCreateCommand(deps, command(true, { channel: ch }));
+  assert.equal((a.data as any).flags, 64);
+  assert.match(content(a), /forum/);
+  const b = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+  assert.equal((b.data as any).flags, 64);
+  assert.match(content(b), /forum/);
+  assert.equal((await sql`select 1 from content`).length, 0);
+  assert.equal(posts.length, 0);
+});
+
+test("thread id comes from channel.id, not channel_id", async () => {
+  const { deps, posts, sql } = await setup();
+  await handleCreateModal(deps, modal(good, "1", { channel_id: "other-id" }));
+  assert.equal(posts[0]!.channelId, "thread-1");
+  assert.equal((await sql`select thread_id from content`)[0]!.thread_id, "thread-1");
+});
+
+test("modal without member is an ephemeral error and creates nothing", async () => {
+  const { deps, sql } = await setup();
+  const r = await handleCreateModal(deps, modal(good, "1", { member: undefined }));
+  assert.equal((r.data as any).flags, 64);
+  assert.equal((await sql`select 1 from content`).length, 0);
+});
+
+test("malformed modal data does not crash", async () => {
+  const { deps, sql } = await setup();
+  const odd = base({
+    type: 5,
+    data: { custom_id: "create:1", components: [{ type: 1, components: [{ type: 4, custom_id: "title", value: 42 }] }] },
+  });
+  const a = await handleCreateModal(deps, odd);
+  assert.equal((a.data as any).flags, 64);
+  const b = await handleCreateModal(deps, base({ type: 5, data: undefined }));
+  assert.equal((b.data as any).flags, 64);
+  assert.equal((await sql`select 1 from content`).length, 0);
+});
+
+test("unknown interaction type is not implemented", async () => {
+  const { deps } = await setup();
+  const r = await createDispatch(deps)(base({ type: 99 }));
+  assert.equal((r.data as any).flags, 64);
+  assert.equal(content(r), "Not implemented yet");
 });

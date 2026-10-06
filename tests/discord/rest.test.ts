@@ -68,3 +68,32 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(create.name, "create");
   assert.deepEqual(create.options[0], { type: 5, name: "loot", description: create.options[0]!.description, required: false });
 });
+
+test("429 with retry_after 30 waits at most 2 seconds (injected sleep)", async () => {
+  const waits: number[] = [];
+  const queue = [res(429, { retry_after: 30 }), res(200, { id: "m" })];
+  const fetchFn = (async () => queue.shift()!) as unknown as typeof fetch;
+  const rest = createRest("T", fetchFn, async (ms) => { waits.push(ms); });
+  await rest.createMessage("c", {});
+  assert.deepEqual(waits, [2000]);
+});
+
+test("deleteMessage: 204 and 404 are ok, 500 throws DiscordApiError", async () => {
+  const seen: { url: string; method?: string }[] = [];
+  const mk = (r: () => Response) =>
+    createRest("SECRET", (async (url: string, init: RequestInit) => {
+      seen.push({ url, method: init.method });
+      return r();
+    }) as unknown as typeof fetch);
+  await mk(() => new Response(null, { status: 204 })).deleteMessage("c1", "m1");
+  await mk(() => res(200, {})).deleteMessage("c1", "m1");
+  await mk(() => res(404, { message: "Unknown Message" })).deleteMessage("c1", "m1");
+  assert.equal(seen[0]!.url, "https://discord.com/api/v10/channels/c1/messages/m1");
+  assert.equal(seen[0]!.method, "DELETE");
+  await assert.rejects(mk(() => res(500, {})).deleteMessage("c1", "m1"), (e: unknown) => {
+    assert.ok(e instanceof DiscordApiError);
+    assert.equal(e.status, 500);
+    assert.ok(!e.message.includes("SECRET"));
+    return true;
+  });
+});
