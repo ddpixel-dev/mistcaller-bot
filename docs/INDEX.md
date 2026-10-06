@@ -18,6 +18,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0004 Slot model](decisions/0004-slot-model.md): one line per slot, maximum 20
 - [0005 Vote cutoff](decisions/0005-vote-cutoff.md): closes 5 minutes before the start
 - [0006 Docker tooling](decisions/0006-docker-tooling-minimal-dependencies.md): no host installs, minimal dependencies
+- [0007 POC accepted](decisions/0007-poc-accepted-with-open-checks.md): owner accepts the POC with live checks still open
 
 ## Architecture
 - [Overview](architecture/overview.md)

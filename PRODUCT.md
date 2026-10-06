@@ -282,9 +282,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: POC
+Phase: MVP (the owner accepted the POC on 2026-10-06 with CHK-002 to CHK-005 and CHK-007 still open, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-06
-Next step: deploy to Vercel (region `dub1`), save the Interactions Endpoint URL in the Discord portal (CHK-001), register `/content`, and run the live checks CHK-002 to CHK-005.
+Next step: new session. Design and build FT-005 (edit and cancel), FT-012 (one content per post) and FT-013 (fantasy style) as MVP milestone M4, and run the open checks CHK-004 and CHK-005 first.
 
 | Item | Status | Note |
 |---|---|---|
