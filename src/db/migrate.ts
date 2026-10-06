@@ -7,6 +7,16 @@ export async function applyMigrations(sql: Sql, dir: string): Promise<string[]> 
     name text primary key,
     applied_at timestamptz not null default now()
   )`;
+  await sql`alter table schema_migrations enable row level security`;
+  await sql.unsafe(`do $$
+  begin
+    if exists (select 1 from pg_roles where rolname = 'anon') then
+      revoke all on schema_migrations from anon;
+    end if;
+    if exists (select 1 from pg_roles where rolname = 'authenticated') then
+      revoke all on schema_migrations from authenticated;
+    end if;
+  end $$`);
   const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
   const done = new Set((await sql`select name from schema_migrations`).map((r) => r.name as string));
   const applied: string[] = [];

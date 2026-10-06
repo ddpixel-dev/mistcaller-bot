@@ -68,8 +68,14 @@ do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
     revoke all on guild_settings, content, slot, signup, vote from anon;
+    alter default privileges in schema public revoke all on tables from anon;
+    alter default privileges in schema public revoke all on sequences from anon;
+    alter default privileges in schema public revoke all on functions from anon;
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     revoke all on guild_settings, content, slot, signup, vote from authenticated;
+    alter default privileges in schema public revoke all on tables from authenticated;
+    alter default privileges in schema public revoke all on sequences from authenticated;
+    alter default privileges in schema public revoke all on functions from authenticated;
   end if;
 end $$;

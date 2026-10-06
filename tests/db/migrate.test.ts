@@ -58,3 +58,10 @@ test("row level security enabled on every app table", async () => {
   assert.equal(rows.length, tables.length);
   for (const r of rows) assert.equal(r.relrowsecurity, true, r.relname);
 });
+
+test("schema_migrations has row level security enabled", async () => {
+  const [r] = await sql`
+    select relrowsecurity from pg_class
+    where relnamespace = 'public'::regnamespace and relname = 'schema_migrations'`;
+  assert.equal(r!.relrowsecurity, true);
+});
