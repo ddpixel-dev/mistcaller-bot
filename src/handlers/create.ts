@@ -46,7 +46,7 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
         input("title", "Title", 100),
         input("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
         input("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
-        input("slots", "Slots (one per line: Role - Weapon)", 1000, { style: 2, placeholder: "Tank - Axe" }),
+        input("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
         input("notes", "Notes (optional)", 500, { required: false }),
       ],
     },
@@ -107,7 +107,9 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     postedId = posted.id;
     await setMessageId(deps.sql, id, posted.id);
   } catch (err) {
-    await deleteContent(deps.sql, id).catch(() => {});
+    await deleteContent(deps.sql, id).catch((e) => {
+      console.error(JSON.stringify({ evt: "cleanup_failed", error: errName(e) }));
+    });
     if (postedId !== null) {
       await deps.rest.deleteMessage(threadId, postedId).catch((e) => {
         console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));

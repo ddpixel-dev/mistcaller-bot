@@ -1,6 +1,6 @@
 import { createPublicKey, verify } from "node:crypto";
 import type { Dispatch, Interaction } from "../discord/types.ts";
-import { PONG } from "../discord/response.ts";
+import { PONG, reply } from "../discord/response.ts";
 
 const SPKI_PREFIX = "302a300506032b6570032100";
 
@@ -40,9 +40,10 @@ export async function handleDiscordRequest(
   const raw = await req.text();
   const sig = req.headers.get("x-signature-ed25519");
   const timestamp = req.headers.get("x-signature-timestamp");
+  const publicKey = opts.publicKey.trim();
   const now = (opts.now ?? (() => new Date()))();
   if (!sig || !timestamp) return new Response("invalid request signature", { status: 401 });
-  if (!verifySignature(raw, sig, timestamp, opts.publicKey) || !isFresh(timestamp, now)) {
+  if (!verifySignature(raw, sig, timestamp, publicKey) || !isFresh(timestamp, now)) {
     return new Response("invalid request signature", { status: 401 });
   }
   let interaction: Interaction;
@@ -54,8 +55,24 @@ export async function handleDiscordRequest(
   if (interaction === null || typeof interaction !== "object") {
     return new Response("bad request", { status: 400 });
   }
-  const result =
-    interaction.type === 1 ? { type: PONG } : await opts.dispatch(interaction);
+  let result: unknown;
+  if (interaction.type === 1) {
+    result = { type: PONG };
+  } else {
+    try {
+      result = await opts.dispatch(interaction);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          evt: "dispatch_failed",
+          type: interaction.type,
+          error: err instanceof Error ? err.name : "unknown",
+          ms: Date.now() - started,
+        }),
+      );
+      return json(200, reply("Something went wrong, please try again."));
+    }
+  }
   console.log(
     JSON.stringify({ evt: "interaction", type: interaction.type, ms: Date.now() - started }),
   );

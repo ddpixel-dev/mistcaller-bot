@@ -103,3 +103,58 @@ test("verifySignature false on garbage key; isFresh window", () => {
   assert.equal(isFresh(ts(NOW), NOW), true);
   assert.equal(isFresh("abc", NOW), false);
 });
+
+test("dispatch throwing returns 200 ephemeral generic reply, logs class name only", async () => {
+  const k = makeKey();
+  const dispatch: Dispatch = async () => {
+    throw new RangeError("postgres://user:FAKE-SECRET@host/db failed");
+  };
+  const body = JSON.stringify({ id: "1", type: 2, application_id: "a", token: "TOKEN-XYZ" });
+  const t = ts(NOW);
+  const lines: string[] = [];
+  const origLog = console.log;
+  const origErr = console.error;
+  console.log = (m: unknown) => { lines.push(String(m)); };
+  console.error = (m: unknown) => { lines.push(String(m)); };
+  let res: Response;
+  try {
+    res = await handleDiscordRequest(
+      new Request("https://x.test/api/discord", {
+        method: "POST", body,
+        headers: { "x-signature-ed25519": signed(k.privateKey, t, body), "x-signature-timestamp": t },
+      }),
+      { publicKey: k.publicHex, dispatch, now: () => NOW },
+    );
+  } finally {
+    console.log = origLog;
+    console.error = origErr;
+  }
+  assert.equal(res.status, 200);
+  const json: any = await res.json();
+  assert.equal(json.type, 4);
+  assert.equal(json.data.flags, 64);
+  assert.equal(json.data.content, "Something went wrong, please try again.");
+  const out = lines.join("\n");
+  assert.ok(!out.includes("FAKE-SECRET"));
+  assert.ok(!out.includes("TOKEN-XYZ"));
+  const failed = lines.map((l) => JSON.parse(l)).find((l) => l.evt === "dispatch_failed");
+  assert.equal(failed.type, 2);
+  assert.equal(failed.error, "RangeError");
+  assert.equal(typeof failed.ms, "number");
+  assert.deepEqual(Object.keys(failed).sort(), ["error", "evt", "ms", "type"]);
+});
+
+test("a public key with a trailing newline still verifies", async () => {
+  const k = makeKey();
+  const dispatch: Dispatch = async () => ({ type: 4, data: { content: "hi" } });
+  const body = '{"type":1}';
+  const t = ts(NOW);
+  const res = await handleDiscordRequest(
+    new Request("https://x.test/api/discord", {
+      method: "POST", body,
+      headers: { "x-signature-ed25519": signed(k.privateKey, t, body), "x-signature-timestamp": t },
+    }),
+    { publicKey: k.publicHex + "\n", dispatch, now: () => NOW },
+  );
+  assert.equal(res.status, 200);
+});

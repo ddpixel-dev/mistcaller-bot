@@ -1,3 +1,5 @@
+import { USER_AGENT } from "./rest.ts";
+
 export type CommandOption = { type: number; name: string; description: string; required?: boolean; options?: CommandOption[] };
 export type Command = { name: string; description: string; options: CommandOption[] };
 
@@ -26,7 +28,7 @@ export function buildRegisterRequest(a: { appId: string; guildId: string; token:
     url: `https://discord.com/api/v10/applications/${a.appId}/guilds/${a.guildId}/commands`,
     init: {
       method: "PUT",
-      headers: { Authorization: `Bot ${a.token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bot ${a.token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
       body: JSON.stringify(commands),
     },
   };

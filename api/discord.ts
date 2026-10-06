@@ -19,5 +19,5 @@ export async function POST(request: Request): Promise<Response> {
     rest: createRest(process.env.DISCORD_BOT_TOKEN!),
     now: () => new Date(),
   });
-  return handleDiscordRequest(request, { publicKey: process.env.DISCORD_PUBLIC_KEY!, dispatch });
+  return handleDiscordRequest(request, { publicKey: process.env.DISCORD_PUBLIC_KEY!.trim(), dispatch });
 }

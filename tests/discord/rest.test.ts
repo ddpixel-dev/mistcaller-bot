@@ -20,6 +20,7 @@ test("createRest retries once after 429 and returns the id", async () => {
   assert.equal(calls[0]!.url, "https://discord.com/api/v10/channels/c1/messages");
   const headers = calls[0]!.init.headers as Record<string, string>;
   assert.equal(headers.Authorization, "Bot SECRET");
+  assert.equal(headers["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
   assert.equal(calls[0]!.init.method, "POST");
   assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { content: "x" });
 });
@@ -62,6 +63,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   const h = r.init.headers as Record<string, string>;
   assert.equal(h.Authorization, "Bot SECRET");
   assert.equal(h["Content-Type"], "application/json");
+  assert.equal(h["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
   assert.deepEqual(JSON.parse(r.init.body as string), commands);
   const create = commands[0]!.options[0]!;
   assert.equal(commands[0]!.name, "content");
@@ -96,4 +98,17 @@ test("deleteMessage: 204 and 404 are ok, 500 throws DiscordApiError", async () =
     assert.ok(!e.message.includes("SECRET"));
     return true;
   });
+});
+
+test("every REST method sends the User-Agent header", async () => {
+  const seen: Record<string, string>[] = [];
+  const rest = createRest("T", (async (_u: string, init: RequestInit) => {
+    seen.push(init.headers as Record<string, string>);
+    return res(200, { id: "m" });
+  }) as unknown as typeof fetch);
+  await rest.createMessage("c", {});
+  await rest.editMessage("c", "m", {});
+  await rest.deleteMessage("c", "m");
+  assert.equal(seen.length, 3);
+  for (const h of seen) assert.equal(h["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
 });

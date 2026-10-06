@@ -104,7 +104,7 @@ test("command in the PvP forum returns the modal with five inputs", async () => 
     assert.equal(inputs[3].style, 2);
     assert.equal(inputs[3].placeholder, "Tank - Axe");
     assert.equal(inputs[4].required, false);
-    assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 30, 1000, 500]);
+    assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 30, 1500, 500]);
   }
 });
 
@@ -245,4 +245,27 @@ test("unknown interaction type is not implemented", async () => {
   const r = await createDispatch(deps)(base({ type: 99 }));
   assert.equal((r.data as any).flags, 64);
   assert.equal(content(r), "Not implemented yet");
+});
+
+test("a failing cleanup deleteContent is logged by class name only", async () => {
+  const { deps, sql } = await setup(true);
+  const failing = new Proxy(sql, {
+    apply(t, thisArg, args) {
+      if (String((args[0] as TemplateStringsArray)?.[0]).includes("delete from content")) {
+        throw new TypeError("password=hunter2 leaked");
+      }
+      return Reflect.apply(t, thisArg, args);
+    },
+  });
+  const lines: string[] = [];
+  const orig = console.error;
+  console.error = (m: unknown) => { lines.push(String(m)); };
+  try {
+    const r = await handleCreateModal({ ...deps, sql: failing }, modal(good));
+    assert.equal((r.data as any).flags, 64);
+  } finally {
+    console.error = orig;
+  }
+  assert.ok(lines.includes(JSON.stringify({ evt: "cleanup_failed", error: "TypeError" })), lines.join("\n"));
+  assert.ok(!lines.join("\n").includes("hunter2"));
 });

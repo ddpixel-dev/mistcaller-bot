@@ -1,4 +1,5 @@
 const API = "https://discord.com/api/v10";
+export const USER_AGENT = "DiscordBot (content-roster-bot, 0.1.0)";
 const MAX_RETRY_WAIT_MS = 2000;
 
 export class DiscordApiError extends Error {
@@ -26,7 +27,7 @@ export function createRest(
   async function call(method: string, path: string, body: unknown, okStatuses: number[] = []): Promise<unknown> {
     const init: RequestInit = {
       method,
-      headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     };
     let res = await fetchFn(`${API}${path}`, init);
