@@ -16,9 +16,11 @@ Anything uncertain goes here instead of being assumed. Resolve an entry by recor
 | Q3 | risk | Does Supabase pause the free project during a quiet week? | NFR-003 | open | Measured in CHK-007 |
 | Q4 | risk | Vercel Hobby is non-commercial. Fine for the guild, but it blocks monetization | NFR-003 | open | Revisit before FT-010 |
 | Q5 | question | Do GitHub scheduled workflows on a public repo get disabled after inactivity, and what are the free minutes for a private repo? | FR-013 | open | Verify at M3 |
-| Q6 | question | Can the Supabase Data API be turned off entirely? Otherwise row-level security with no policies stays the guard | NFR-001 | open | Verify at M0 |
+| Q6 | question | Can the Supabase Data API be turned off entirely? Otherwise row-level security with no policies stays the guard | NFR-001 | open | The guard works: all tables answer 401/42501 to the anon key (CHK-006). Switching the Data API off entirely is optional hardening, still to check in the dashboard |
 | Q7 | question | Does the bot work as expected inside forum posts: permissions in threads, and locked or archived posts? | FR-002 | open | Verify at M1 |
 | Q8 | question | Privacy note and delete-my-data path for public use; Discord's requirements for verification and privacy policy | NFR-006, FT-010 | open | Before FT-010 |
 | Q9 | question | Product name | | open | Before publishing |
 | Q11 | risk | Does Vercel's build accept web-standard `POST` exports and `.ts` import specifiers with no bundler? If not, the owner decides whether to add a build tool | NFR-003 | open | Verified at plan Task 4 |
+| Q12 | question | Should a member's vote be removed when they leave? Decided yes (FR-008: only signed-up members vote); implemented in `leaveContent` | FR-008 | resolved | A leaver loses their vote; leaving and rejoining means voting again |
+| Q13 | risk | Which Vercel region runs the functions? Supabase is eu-west-1 (Ireland), so use Dublin (`dub1`) to keep database round trips short inside the 3-second limit | NFR-002 | open | Set in the Vercel dashboard before CHK-004 |
 | Q10 | question | Does a modal support a loot dropdown? Current choice: loot is a command option | FR-003 | resolved | Command option, per the agreed design |

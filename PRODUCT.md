@@ -251,8 +251,8 @@ result:
 #### CHK-006: Database closed to anon
 validates: NFR-001
 check: The Supabase anon key cannot read any table.
-status: not started
-result:
+status: done
+result: 2026-10-06 passed. A positive control (`/auth/v1/health`) confirmed the project URL, then all six tables (`guild_settings`, `content`, `slot`, `signup`, `vote`, `schema_migrations`) answered HTTP 401 with PostgREST code 42501 (permission denied). A first run the same day was a false pass (URL contained a path); `scripts/check-anon.ts` now normalizes the URL and runs the positive control.
 
 #### CHK-007: Supabase stays active
 validates: NFR-003
@@ -284,14 +284,15 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 Phase: POC
 Last updated: 2026-10-06
-Next step: owner reviews these documents, then the implementation plan for M0 to M3 is written.
+Next step: deploy to Vercel (region `dub1`), save the Interactions Endpoint URL in the Discord portal (CHK-001), register `/content`, and run the live checks CHK-002 to CHK-005.
 
 | Item | Status | Note |
 |---|---|---|
-| FT-001 | not started | POC |
-| FT-002 | not started | POC |
-| FT-004 | not started | POC |
+| FT-001 | in progress | Code done and reviewed; live check CHK-002 pending |
+| FT-002 | in progress | Code done and reviewed; live check CHK-003 pending |
+| FT-004 | in progress | Code done and reviewed; live check CHK-005 pending |
 | FT-003, FT-005, FT-006 | not started | MVP |
 | FT-007, FT-008, FT-009 | not started | MVP |
 | FT-010, FT-011 | not started | later |
-| CHK-001 to CHK-007 | not started | |
+| CHK-006 | done | 2026-10-06 |
+| CHK-001 to CHK-005, CHK-007 | not started | Need the Vercel deploy and the guild test |
