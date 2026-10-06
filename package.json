@@ -9,7 +9,9 @@
   "scripts": {
     "test": "node --test --test-concurrency=1 \"tests/**/*.test.ts\"",
     "migrate": "node scripts/migrate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "register": "node scripts/register-commands.ts",
+    "seed": "node scripts/seed-guild.ts"
   },
   "dependencies": {
     "postgres": "^3.4.9"
