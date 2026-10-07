@@ -58,12 +58,3 @@ export function statusBanner(status: ContentStatus, started: boolean): string | 
   if (status === "locked" || started) return "🔒 **The roll is closed.**";
   return null;
 }
-
-// Discord only colors text inside ```ansi code blocks (desktop and web). Bold bright colors read as neon.
-// Only fixed system text goes in these blocks: mentions and timestamps do not render inside code.
-const ESC = "\u001b";
-export const NEON = { tier: "1;36", on: "1;32", off: "1;31", time: "1;33" } as const;
-
-export function ansi(code: string, text: string): string {
-  return `${ESC}[${code}m${text}${ESC}[0m`;
-}

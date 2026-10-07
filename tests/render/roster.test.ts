@@ -28,14 +28,14 @@ test("formatUtc", () => {
 test("description contents", () => {
   const d = desc(view());
   for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:f>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
-    "Loot vote ON", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
+    "Loot vote: On", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
     assert.ok(d.includes(s), s);
   }
 });
 
 test("no loot and single tier", () => {
   const d = desc(view({ hasLoot: false, tier: { min: { tier: 5, enchant: 3 }, max: null } }));
-  assert.ok(d.includes("Loot vote OFF"));
+  assert.ok(d.includes("Loot vote: Off"));
   assert.ok(d.includes("T5.3"));
   assert.ok(!d.includes("T5.3–"));
 });
@@ -156,9 +156,9 @@ test("vote row: open loot shows counts, enabled, styles and ids", () => {
 test("vote line placement while open", () => {
   const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
   const lines = d.split("\n");
-  const t = lines.findIndex((l) => l.includes("Your time"));
-  assert.equal(lines[t + 1], "💰 Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
-  assert.ok(d.indexOf("Spoils vote:") < d.indexOf("### The Company"));
+  const t = lines.findIndex((l) => l.includes("Tier **"));
+  assert.equal(lines[t + 3], "💰 Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
+  assert.ok(d.indexOf("Spoils vote:") < d.indexOf("**The Company"));
   assert.equal(d.split("Spoils vote").length, 2);
 });
 
@@ -241,7 +241,7 @@ test("cancelled and done are greyed with a status banner and nothing enabled", (
 
 test("time lines: UTC and Your time are separate labelled lines", () => {
   const lines = desc(view()).split("\n");
-  assert.ok(lines.some((l) => l.includes("UTC  Wed 7 Oct 2026, 18:00 UTC")));
+  assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:f> · <t:1791396000:R>"));
 });
 
@@ -263,26 +263,14 @@ test("a cancelled content says so in the title", () => {
 
 test("kind shows in the label and sets the color; Other shows only the type", () => {
   const zvz = renderRosterMessage(view({ kind: "zvz" })).embeds[0]!;
-  assert.ok(zvz.description!.includes("## ⚔️ PvP · ZvZ"));
+  assert.ok(zvz.description!.includes("**PvP · ZvZ**"));
   assert.equal(zvz.color, 0x1c3a8a);
   const other = renderRosterMessage(view({ kind: "other" })).embeds[0]!;
-  assert.ok(other.description!.includes("## ⚔️ PvP\n"));
+  assert.ok(other.description!.includes("**PvP** ·"));
   assert.equal(other.color, 0x2b4db0);
   const boss = renderRosterMessage(view({ type: "pve", kind: "world-boss" })).embeds[0]!;
-  assert.ok(boss.description!.includes("## ⚔️ PvE · World boss"));
+  assert.ok(boss.description!.includes("**PvE · World boss**"));
   assert.equal(boss.color, 0xd4a017);
   assert.equal(renderRosterMessage(view({ kind: "nonsense" })).embeds[0]!.color, 0x2b4db0);
   assert.equal(renderRosterMessage(view({ kind: "zvz", status: "cancelled" })).embeds[0]!.color, 0x6b6b6b);
-});
-
-test("emphasis: header sizes and neon ANSI block with only system text", () => {
-  const d = desc(view({ title: "```x```", notes: "```evil```" }));
-  assert.ok(d.startsWith("## ⚔️ PvP\n```ansi\n"));
-  assert.ok(d.includes("### The Company (1/2)"));
-  const block = d.slice(d.indexOf("```ansi"), d.indexOf("```", d.indexOf("```ansi") + 7) + 3);
-  assert.ok(block.includes("\u001b[1;36mTier T5.3–T7.0\u001b[0m"));
-  assert.ok(block.includes("\u001b[1;32mLoot vote ON\u001b[0m"));
-  assert.ok(block.includes("\u001b[1;33mUTC  Wed 7 Oct 2026, 18:00 UTC\u001b[0m"));
-  assert.ok(!block.includes("evil") && !block.includes("<@") && !block.includes("<t:"));
-  assert.ok(desc(view({ hasLoot: false })).includes("\u001b[1;31mLoot vote OFF\u001b[0m"));
 });
