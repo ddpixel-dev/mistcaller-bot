@@ -1,7 +1,7 @@
 ---
 title: Weapon icons as application emoji from the Albion render service
 type: decision
-status: accepted
+status: superseded by 0013
 date: 2026-10-07
 tags: [icons, weapons, rights]
 satisfies: [FR-026]

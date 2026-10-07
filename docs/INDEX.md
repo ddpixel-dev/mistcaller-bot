@@ -22,7 +22,9 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0008 Medieval Banner style](decisions/0008-medieval-banner-roster-style.md): theme, Lines layout, owner-made art
 - [0009 Weapon data from ao-bin-dumps](decisions/0009-weapon-data-from-ao-bin-dumps.md): accepted, no license on the data
 - [0010 Content kinds](decisions/0010-content-kinds-fixed-list.md): fixed list in code
-- [0011 Weapon icons](decisions/0011-weapon-icons-as-application-emoji.md): application emoji from the render service, rights unconfirmed
+- [0011 Weapon icons as emoji](decisions/0011-weapon-icons-as-application-emoji.md): superseded by 0013
+- [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
+- [0014 Git flow](decisions/0014-git-flow.md): main, develop, feature, release, hotfix branches
 - [0012 Preset permissions](decisions/0012-preset-permissions-and-cap.md): Manage Server and officer role, 25 per server
 
 ## Architecture

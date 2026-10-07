@@ -242,7 +242,7 @@ An officer shall be able to save the slots defined in the typed-lines mode or th
 
 ### FR-026: Weapon list and icons
 status: accepted
-Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). Roster lines shall show a small weapon icon beside the role and weapon name, using application emoji made from Albion's render service (ADR 0011). The rights to use those icons are unconfirmed, so the owner confirms them with Sandbox Interactive before this ships; without permission the roster shows names only.
+Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). The weapon icon shall be shown beside the role and weapon name, linked by URL from Albion's render service and never stored or uploaded (ADR 0013). If an icon cannot load, the roster still shows the names.
 
 ## Non-functional requirements
 

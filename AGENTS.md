@@ -28,4 +28,5 @@ Read `PRODUCT.md` and `docs/INDEX.md` first. They hold the product definition, e
 - Data: every table carries a guild id and times are stored in UTC; unknown or unmarked attendance is never counted as a no-show (NFR-004, FR-014).
 - Reliability: keep no state in memory, make scheduled actions idempotent, and enforce the vote cutoff in the click handler (NFR-005).
 - Cost: free tiers only. Get the owner's approval before adding any paid service or new dependency (NFR-003).
+- Git: follow git flow (ADR 0014). Work on `feature/<id>-<name>` branches from `develop`; `main` is releases only, tagged. Manage branches and say which one you are on.
 <!-- buildit:end -->
