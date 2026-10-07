@@ -7,6 +7,7 @@ import { handleCancelCommand, handleEditCommand } from "./manage.ts";
 import { handleSetupCommand } from "./setup.ts";
 import { handlePresetCommand } from "./preset.ts";
 import { handleWeaponCommand } from "./weapon.ts";
+import { handleMeCommand } from "./me.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
@@ -16,6 +17,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "setup": return await handleSetupCommand(deps, i);
     case "preset": return await handlePresetCommand(deps, i);
     case "weapon": return await handleWeaponCommand(deps, i);
+    case "me": return await handleMeCommand(deps, i);
     default: return reply("Not implemented yet");
   }
 }

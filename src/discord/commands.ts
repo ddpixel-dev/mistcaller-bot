@@ -78,6 +78,7 @@ export const commands = [
           autocomplete: true, max_length: 50,
         }],
       },
+      { type: 1, name: "me", description: "Your own place in this content: sign up, move or leave" },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
     ],
   },
