@@ -1,13 +1,14 @@
 import type { Result, RosterSlot, SlotDef } from "./types.ts";
+import { dutyDef } from "./duties.ts";
 
 export type SlotPlan = {
-  rename: { id: string; role: string; weapon: string }[];
+  rename: { id: string; role: string; weapon: string; duty: string | null }[];
   add: SlotDef[];
   remove: string[];
 };
 
-export function formatSlotLines(slots: { role: string; weapon: string }[]): string {
-  return slots.map((s) => `${s.role} - ${s.weapon}`).join("\n");
+export function formatSlotLines(slots: { role: string; weapon: string; duty?: string | null }[]): string {
+  return slots.map((s) => `${s.role} - ${s.weapon}${dutyDef(s.duty) ? ` (${dutyDef(s.duty)!.label})` : ""}`).join("\n");
 }
 
 // FR-020: lines map to positions. A changed line renames that slot, extra lines add slots, and
@@ -19,8 +20,8 @@ export function planSlotEdit(current: RosterSlot[], next: SlotDef[]): Result<Slo
     const want = next[i];
     if (!want) {
       plan.remove.push(slot.id);
-    } else if (want.role !== slot.role || want.weapon !== slot.weapon) {
-      plan.rename.push({ id: slot.id, role: want.role, weapon: want.weapon });
+    } else if (want.role !== slot.role || want.weapon !== slot.weapon || (want.duty ?? null) !== (slot.duty ?? null)) {
+      plan.rename.push({ id: slot.id, role: want.role, weapon: want.weapon, duty: want.duty ?? null });
     }
   });
   plan.add = next.slice(ordered.length);

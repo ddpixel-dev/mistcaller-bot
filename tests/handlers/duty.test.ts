@@ -43,7 +43,7 @@ test("the creator assigns a duty to a held position: saved and shown on the rost
   assert.ok(text(r).includes("Caller assigned for position 1."));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   assert.equal(edits.length, 1);
-  assert.ok(edits[0].body.embeds[0].description.includes("sworn: <@alice> · 📯 Caller"));
+  assert.ok(edits[0].body.embeds[0].description.includes("1. Tank - Mace · 📯 Caller · sworn: <@alice>"));
   assert.ok(text(await d(duty(1, "none"))).includes("Duty cleared"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, null);
 });
@@ -58,7 +58,8 @@ test("officers and Manage Server may assign; strangers may not", async () => {
 
 test("an open position, a missing position, bad input and no content are explained", async () => {
   const { d, sql, id } = await setup();
-  assert.ok(text(await d(duty(2, "caller"))).includes("is open"));
+  assert.ok(text(await d(duty(2, "caller"))).includes("Caller assigned for position 2."));
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[1]!.duty, "caller");
   assert.ok(text(await d(duty(9, "caller"))).includes("no position 9"));
   assert.ok(text(await d(duty(0, "caller"))).includes("1 to 20"));
   assert.ok(text(await d(duty(1.5, "caller"))).includes("1 to 20"));

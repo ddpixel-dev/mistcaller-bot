@@ -6,6 +6,8 @@ import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
 import { createForm, inContentPost, postTakenReply } from "./create.ts";
+import { deleteDraft, findDraft } from "../db/draft.ts";
+import { startGuided } from "./guided.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Run `/content create` again.";
@@ -92,7 +94,10 @@ export async function createPanel(
   }
   rows.push({
     type: 1,
-    components: [{ type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}`, disabled: draft.type === null }],
+    components: [
+      { type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}`, disabled: draft.type === null },
+      { type: 2, style: 2, label: "Cancel", custom_id: "cpx" },
+    ],
   });
   const data = {
     content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, tier and slots.",
@@ -163,7 +168,7 @@ export async function checked(deps: Deps, i: Interaction, prefix: string): Promi
   return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId } };
 }
 
-// Continue: with a preset, open the form with its slots. Otherwise offer the two ways to define the slots.
+// Continue: with a preset, open the form with its slots. Otherwise start the guided steps (how many players).
 export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const c = await checked(deps, i, "cpgo");
   if (!c.ok) return c.response;
@@ -172,28 +177,17 @@ export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<
     if (!preset) return reply("That preset no longer exists. Run `/content create` again.");
     return createForm(c.draft, formatSlotLines(preset.slots));
   }
-  const suffix = encode(c.draft);
-  return {
-    type: UPDATE_MESSAGE,
-    data: {
-      content: "**How do you want to set the slots?**",
-      components: [{
-        type: 1,
-        components: [
-          { type: 2, style: 1, label: "Write them in a form", custom_id: `cpform:${suffix}` },
-          { type: 2, style: 2, label: "Guided steps", custom_id: `cpgs:${suffix}` },
-        ],
-      }],
-      allowed_mentions: { parse: [] },
-    },
-  };
+  return await startGuided(deps, i, c.draft);
 }
 
-// "Write them in a form": the usual form with an empty slots box.
-export async function handleCreateFormButton(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const c = await checked(deps, i, "cpform");
-  if (!c.ok) return c.response;
-  return createForm(c.draft, null);
+// Cancel in the create panel: close it and drop any unfinished guided draft of this member in this post.
+export async function handleCreateCancel(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const userId = i.member?.user?.id;
+  if (i.guild_id && userId && i.channel?.id) {
+    const d = await findDraft(deps.sql, { guildId: i.guild_id, threadId: i.channel.id, userId }, deps.now());
+    if (d) await deleteDraft(deps.sql, d.id);
+  }
+  return { type: UPDATE_MESSAGE, data: { content: "Creation cancelled.", embeds: [], components: [] } };
 }
 
 export { DEFAULT_KIND };

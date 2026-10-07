@@ -268,7 +268,7 @@ test("kind shows in the label and sets the color; Other shows only the type", ()
   assert.equal(renderRosterMessage(view({ kind: "zvz", status: "cancelled" })).embeds[0]!.color, 0x6b6b6b);
 });
 
-test("a duty shows after the player on a held position only", () => {
+test("a duty shows after the weapon, on held and open positions alike", () => {
   const withDuty = view({ slots: [
     { id: "s1", position: 1, role: "Tank", weapon: "Axe", userId: "111", duty: "caller" },
     { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: null, duty: "scout" },
@@ -276,8 +276,8 @@ test("a duty shows after the player on a held position only", () => {
     { id: "s4", position: 4, role: "DPS", weapon: "Bow", userId: "333", duty: "bogus" },
   ] });
   const d = desc(withDuty);
-  assert.ok(d.includes("sworn: <@111> · 📯 Caller"));
-  assert.ok(d.includes("2. Healer - Holy · open\n"));
-  assert.ok(d.includes("sworn: <@222> · 🐀 Rat"));
-  assert.ok(d.includes("sworn: <@333>\n"));
+  assert.ok(d.includes("1. Tank - Axe · 📯 Caller · sworn: <@111>"));
+  assert.ok(d.includes("2. Healer - Holy · 🏹 Scout · open"));
+  assert.ok(d.includes("3. DPS - Bow · 🐀 Rat · sworn: <@222>"));
+  assert.ok(d.includes("4. DPS - Bow · sworn: <@333>\n"));
 });

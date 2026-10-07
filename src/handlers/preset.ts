@@ -51,7 +51,7 @@ export async function handlePresetCommand(deps: Deps, i: Interaction): Promise<I
   const view = target ? await getRosterView(deps.sql, target.id, deps.now()) : null;
   if (!view) return reply("Run this inside a post that has content. Its slots are what gets saved.");
   const result = await savePreset(deps.sql, {
-    guildId, name: name.value, slots: view.slots.map((s) => ({ role: s.role, weapon: s.weapon })), createdBy: userId,
+    guildId, name: name.value, slots: view.slots.map((s) => ({ role: s.role, weapon: s.weapon, duty: s.duty ?? null })), createdBy: userId,
   });
   if (result === "exists") return reply("A preset with that name already exists. Pick another name or delete it first.");
   if (result === "full") return reply(`This server already has ${MAX_PRESETS} presets. Delete one first.`);

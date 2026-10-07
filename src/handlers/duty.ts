@@ -33,7 +33,6 @@ export async function handleDutyCommand(deps: Deps, i: Interaction): Promise<Int
   const result = await setSlotDuty(deps.sql, { contentId: target.id, position, duty: duty === CLEAR_DUTY ? null : duty });
   if (result === "unavailable") return reply("This content is no longer open, so duties cannot change.");
   if (result === "no_slot") return reply(`There is no position ${position}.`);
-  if (result === "empty") return reply(`Position ${position} is open. Give a ${DUTY_WORD.toLowerCase()} to a position someone holds.`);
 
   let refreshed = false;
   try {

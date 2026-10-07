@@ -130,16 +130,15 @@ test("edit changes the kind and null keeps it", async () => {
 import { claimSlot, leaveContent } from "../../src/db/signup.ts";
 import { setSlotDuty } from "../../src/db/manage.ts";
 
-test("a duty goes on a held position, shows in the view, and clearing is always allowed", async () => {
+test("a duty goes on any position, held or open, shows in the view, and can be cleared", async () => {
   const { sql, id, slotIds } = await setup();
-  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" }), "empty");
-  await sign(sql, id, "a", slotIds[0]!);
   assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" }), "ok");
-  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", null, null]);
-  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "scout" }), "ok");
+  await sign(sql, id, "a", slotIds[1]!);
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 2, duty: "scout" }), "ok");
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", "scout", null]);
   assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: null }), "ok");
-  assert.equal(await setSlotDuty(sql, { contentId: id, position: 3, duty: null }), "ok");
   assert.equal(await setSlotDuty(sql, { contentId: id, position: 9, duty: "rat" }), "no_slot");
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, "scout", null]);
 });
 
 test("duties are refused on cancelled or done content but allowed once locked", async () => {
@@ -153,16 +152,25 @@ test("duties are refused on cancelled or done content but allowed once locked", 
   }
 });
 
-test("the duty is cleared when the holder leaves or moves, and survives a rename", async () => {
+test("the duty stays on the position when the holder leaves or moves, and survives a rename", async () => {
   const { sql, id, slotIds } = await setup();
   const claim = (user: string, slot: string) => claimSlot(sql, { contentId: id, slotId: slot, userId: user, guildId: "g1", now: NOW });
   await claim("a", slotIds[0]!);
   await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" });
-  await editContent(sql, id, edit({ slots: [{ role: "Off-Tank", weapon: "Mace" }, base.slots[1]!, base.slots[2]!] }), NOW);
+  await editContent(sql, id, edit({ slots: [{ role: "Off-Tank", weapon: "Mace", duty: "caller" }, base.slots[1]!, base.slots[2]!] }), NOW);
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   await claim("a", slotIds[1]!);
-  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null]);
-  await setSlotDuty(sql, { contentId: id, position: 2, duty: "scout" });
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", null, null]);
   assert.equal(await leaveContent(sql, { contentId: id, userId: "a", guildId: "g1" }), "left");
-  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null]);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", null, null]);
+});
+
+test("slots created or edited with a duty store it; dropping it from the line clears it", async () => {
+  const { sql, id } = await setup();
+  await editContent(sql, id, edit({ slots: [{ ...base.slots[0]!, duty: "scout" }, base.slots[1]!, base.slots[2]!, { role: "DPS", weapon: "Bow", duty: "rat" }] }), NOW);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["scout", null, null, "rat"]);
+  await editContent(sql, id, edit({ slots: [base.slots[0]!, base.slots[1]!, base.slots[2]!, { role: "DPS", weapon: "Bow", duty: "rat" }] }), NOW);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null, "rat"]);
+  const made = await createContent(sql, { ...base, threadId: "t2", slots: [{ role: "Tank", weapon: "Mace", duty: "caller" }] });
+  assert.equal((await getRosterView(sql, made, NOW))!.slots[0]!.duty, "caller");
 });

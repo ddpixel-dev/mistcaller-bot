@@ -54,17 +54,17 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
     if (!c || c.status !== "open" || c.starts_at <= now) return { result: "unavailable" };
 
     const slotRows = await tx`
-      select s.id, s.position, s.role, s.weapon, su.user_id
+      select s.id, s.position, s.role, s.weapon, s.duty, su.user_id
       from slot s left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${id} order by s.position`;
     const current: RosterSlot[] = slotRows.map((s) => ({
-      id: s.id, position: s.position, role: s.role, weapon: s.weapon, userId: s.user_id ?? null,
+      id: s.id, position: s.position, role: s.role, weapon: s.weapon, duty: s.duty ?? null, userId: s.user_id ?? null,
     }));
     const plan = planSlotEdit(current, input.slots);
     if (!plan.ok) return { result: "slots_held", error: plan.error };
 
     for (const r of plan.value.rename) {
-      await tx`update slot set role = ${r.role}, weapon = ${r.weapon} where id = ${r.id}`;
+      await tx`update slot set role = ${r.role}, weapon = ${r.weapon}, duty = ${r.duty} where id = ${r.id}`;
     }
     for (const sid of plan.value.remove) {
       await tx`delete from slot where id = ${sid}`;
@@ -77,8 +77,9 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         position: current.length + i + 1,
         role: s.role,
         weapon: s.weapon,
+        duty: s.duty ?? null,
       }));
-      await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon")}`;
+      await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
     }
 
     const { min, max } = input.tier;
@@ -112,9 +113,9 @@ export async function cancelContent(sql: Sql, id: string): Promise<CancelResult>
   });
 }
 
-export type DutyResult = "ok" | "no_slot" | "empty" | "unavailable";
+export type DutyResult = "ok" | "no_slot" | "unavailable";
 
-// A duty goes on a held position only. Clearing is always allowed. Locked content can still be assigned.
+// The duty belongs to the position, held or open. Locked content can still be changed.
 export async function setSlotDuty(
   sql: Sql,
   a: { contentId: string; position: number; duty: string | null },
@@ -123,11 +124,8 @@ export async function setSlotDuty(
     const [c] = await tx`select status from content where id = ${a.contentId} for update`;
     if (!c || (c.status !== "open" && c.status !== "locked")) return "unavailable";
     const [slot] = await tx`
-      select s.id, su.user_id from slot s
-      left join signup su on su.slot_id = s.id and su.status = 'signed'
-      where s.content_id = ${a.contentId} and s.position = ${a.position}`;
+      select s.id from slot s where s.content_id = ${a.contentId} and s.position = ${a.position}`;
     if (!slot) return "no_slot";
-    if (a.duty !== null && !slot.user_id) return "empty";
     await tx`update slot set duty = ${a.duty} where id = ${slot.id}`;
     return "ok";
   });

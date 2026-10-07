@@ -116,3 +116,18 @@ test("zero-width only title and notes", () => {
   assert.equal(ok(parseNotes(` ${zw} `)), null);
   assert.equal(ok(parseTitle(`${zw}Hi${zw}`)), "Hi");
 });
+
+test("parseSlots reads an optional duty in brackets at the end of a line", () => {
+  const r = parseSlots("Tank - Great Axe (Caller)\nHealer - Holy Staff ( scout )\nDPS - Bow\nDPS - Dagger Pair (RAT)");
+  assert.equal(r.ok, true);
+  assert.deepEqual((r as { value: unknown[] }).value, [
+    { role: "Tank", weapon: "Great Axe", duty: "caller" },
+    { role: "Healer", weapon: "Holy Staff", duty: "scout" },
+    { role: "DPS", weapon: "Bow" },
+    { role: "DPS", weapon: "Dagger Pair", duty: "rat" },
+  ]);
+  const bad = parseSlots("Tank - Axe (Captain)");
+  assert.equal(bad.ok, false);
+  assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat\./);
+  assert.equal(parseSlots("Tank - (Caller)").ok, false);
+});

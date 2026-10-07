@@ -42,7 +42,7 @@ test("an officer saves this post's slots as a preset; list shows it", async () =
   const { deps, sql } = await setup();
   assert.ok(text(await handlePresetCommand(deps, preset("save", { name: "Ava raid" }))).includes('saved with 2 slots'));
   const all = await listPresets(sql, "g1");
-  assert.deepEqual(all.map((p) => [p.name, p.slots]), [["Ava raid", [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }]]]);
+  assert.deepEqual(all.map((p) => [p.name, p.slots]), [["Ava raid", [{ role: "Tank", weapon: "Mace", duty: null }, { role: "Healer", weapon: "Holy", duty: null }]]]);
   const list = text(await handlePresetCommand(deps, preset("list", {}, who("nobody"))));
   assert.ok(list.includes("Ava raid") && list.includes("1/25"));
 });
