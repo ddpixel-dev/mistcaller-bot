@@ -24,10 +24,37 @@ export function modalValues(i: Interaction): Record<string, string> {
   return out;
 }
 
+type Opt = { name?: unknown; type?: number; value?: unknown; focused?: boolean; options?: Opt[] };
+
+// "/content preset save" gives ["preset", "save"]; "/content edit" gives ["edit"].
+export function commandPath(i: Interaction): string[] {
+  const path: string[] = [];
+  let level = (i.data as { options?: Opt[] } | undefined)?.options?.[0];
+  while (level && (level.type === 1 || level.type === 2) && typeof level.name === "string") {
+    path.push(level.name);
+    level = level.options?.[0];
+  }
+  return path;
+}
+
 export function subcommandName(i: Interaction): string | null {
-  const data = i.data as { options?: { name?: unknown }[] } | undefined;
-  const name = data?.options?.[0]?.name;
-  return typeof name === "string" ? name : null;
+  return commandPath(i)[0] ?? null;
+}
+
+// The option list of the deepest subcommand.
+function leafOptions(i: Interaction): Opt[] {
+  let opts = (i.data as { options?: Opt[] } | undefined)?.options ?? [];
+  while (opts[0] && (opts[0].type === 1 || opts[0].type === 2)) opts = opts[0].options ?? [];
+  return opts;
+}
+
+export function leafOption(i: Interaction, name: string): unknown {
+  return leafOptions(i).find((o) => o.name === name)?.value;
+}
+
+export function focusedOption(i: Interaction): { name: string; value: string } | null {
+  const f = leafOptions(i).find((o) => o.focused === true);
+  return f && typeof f.name === "string" ? { name: f.name, value: typeof f.value === "string" ? f.value : "" } : null;
 }
 
 export function subOption(i: Interaction, sub: string, name: string): unknown {

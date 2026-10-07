@@ -36,6 +36,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [Tasks](plan/tasks.md)
 - [Next-session handoff](plan/next-session-handoff.md)
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
+- [FT-015 slot builder and presets design](plan/2026-10-07-ft-015-slot-builder-design.md)
 
 ## Working notes
 - [Open questions](open-questions.md)

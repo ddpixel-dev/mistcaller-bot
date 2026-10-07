@@ -4,6 +4,7 @@ import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
 import { handleContentCommand } from "../handlers/content.ts";
+import { handleAutocomplete } from "../handlers/preset.ts";
 import { handleCancelButton, handleEditModal } from "../handlers/manage.ts";
 import { handleLegacyLeave, handleSignup } from "../handlers/signup.ts";
 import { handleVote } from "../handlers/vote.ts";
@@ -24,6 +25,7 @@ export function createDispatch(deps: Deps): Dispatch {
   return async (i) => {
     const data = (i.data ?? {}) as { name?: unknown; custom_id?: unknown };
     let handler: Handler | undefined;
+    if (i.type === 4) return await handleAutocomplete(deps, i);
     if (i.type === 2 && typeof data.name === "string") {
       handler = Object.hasOwn(commandHandlers, data.name) ? commandHandlers[data.name] : undefined;
     } else if ((i.type === 3 || i.type === 5) && typeof data.custom_id === "string") {

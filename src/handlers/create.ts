@@ -3,6 +3,8 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
 import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
+import { getPreset } from "../db/preset.ts";
+import { formatSlotLines } from "../domain/slots.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -42,6 +44,13 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   const kindOpt = subOption(i, "create", "kind");
   const kind = resolveKind(type, typeof kindOpt === "string" ? kindOpt : null);
   if (!kind.ok) return reply(kind.error);
+  const presetOpt = subOption(i, "create", "preset");
+  let presetLines: string | null = null;
+  if (typeof presetOpt === "string" && presetOpt.trim() !== "" && i.guild_id) {
+    const preset = await getPreset(deps.sql, i.guild_id, presetOpt.trim());
+    if (!preset) return reply("There is no preset with that name. Use `/content preset list` to see them.");
+    presetLines = formatSlotLines(preset.slots);
+  }
   if (i.guild_id && i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
@@ -55,7 +64,9 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
         textInput("title", "Title", 100),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
         textInput("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
+        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
+          style: 2, placeholder: "Tank - Axe", ...(presetLines ? { value: presetLines } : {}),
+        }),
         textInput("notes", "Notes (optional)", 500, { required: false }),
       ],
     },

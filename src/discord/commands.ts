@@ -13,6 +13,8 @@ export type CommandOption = {
   options?: CommandOption[];
   choices?: { name: string; value: string }[];
   channel_types?: number[];
+  autocomplete?: boolean;
+  max_length?: number;
   min_value?: number;
   max_value?: number;
 };
@@ -30,6 +32,7 @@ export const commands = [
         options: [
           { type: 5, name: "loot-vote", description: "Run a split-or-regear loot vote for this content?", required: false },
           kindOption("Kind of content (defaults to Other)"),
+          { type: 3, name: "preset", description: "Start from a saved slot preset", required: false, autocomplete: true },
         ],
       },
       {
@@ -52,6 +55,22 @@ export const commands = [
           {
             type: 4, name: "daily-cap", description: "Contents one member may create per day (default 5)",
             required: false, min_value: 1, max_value: 50,
+          },
+        ],
+      },
+      {
+        type: 2,
+        name: "preset",
+        description: "Saved slot presets (save and delete: Manage Server or officer role)",
+        options: [
+          {
+            type: 1, name: "save", description: "Save this post's slots as a preset",
+            options: [{ type: 3, name: "name", description: "Preset name", required: true, max_length: 50 }],
+          },
+          { type: 1, name: "list", description: "Show the saved presets" },
+          {
+            type: 1, name: "delete", description: "Delete a preset",
+            options: [{ type: 3, name: "name", description: "Preset name", required: true, autocomplete: true }],
           },
         ],
       },
