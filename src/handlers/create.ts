@@ -1,6 +1,7 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
+import { modalValues, textInput } from "../discord/modal.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -27,16 +28,6 @@ function lootOption(i: Interaction): boolean {
   return create?.options?.find((o) => o.name === "loot")?.value === true;
 }
 
-const input = (
-  custom_id: string,
-  label: string,
-  max_length: number,
-  extra: Record<string, unknown> = {},
-) => ({
-  type: 1,
-  components: [{ type: 4, custom_id, label, style: 1, max_length, required: true, ...extra }],
-});
-
 async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
@@ -62,26 +53,14 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
       custom_id: `create:${lootOption(i) ? 1 : 0}`,
       title: "Create content",
       components: [
-        input("title", "Title", 100),
-        input("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
-        input("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
-        input("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
-        input("notes", "Notes (optional)", 500, { required: false }),
+        textInput("title", "Title", 100),
+        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
+        textInput("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
+        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
+        textInput("notes", "Notes (optional)", 500, { required: false }),
       ],
     },
   };
-}
-
-function modalValues(i: Interaction): Record<string, string> {
-  const rows = ((i.data as { components?: unknown[] } | undefined)?.components ?? []) as {
-    components?: { custom_id?: string; value?: string }[];
-  }[];
-  const out: Record<string, string> = {};
-  for (const row of rows) {
-    const c = row.components?.[0];
-    if (c && typeof c.custom_id === "string") out[c.custom_id] = typeof c.value === "string" ? c.value : "";
-  }
-  return out;
 }
 
 export async function handleCreateModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {

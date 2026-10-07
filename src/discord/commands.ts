@@ -16,9 +16,18 @@ export const commands = [
           { type: 5, name: "loot", description: "Is loot shared for this content?", required: false },
         ],
       },
+      {
+        type: 1,
+        name: "edit",
+        description: "Edit this post's content (creator, officers, Manage Server)",
+        options: [
+          { type: 5, name: "loot", description: "Change whether loot is shared (leave empty to keep it)", required: false },
+        ],
+      },
+      { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
     ],
   },
-] satisfies Command[] as [Command & { options: [CommandOption & { options: CommandOption[] }] }];
+] satisfies Command[] as [Command & { options: (CommandOption & { options?: CommandOption[] })[] }];
 
 export function buildRegisterRequest(a: { appId: string; guildId: string; token: string }): {
   url: string;
