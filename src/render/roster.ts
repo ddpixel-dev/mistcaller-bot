@@ -1,5 +1,6 @@
 import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
+import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import {
   BANNER_URL, ICON_URL, RULE, SCROLL, TITLE_MARK, WORDS, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
@@ -43,7 +44,10 @@ function voteRow(view: RosterView) {
 
 export function voteLine(view: RosterView): string {
   const { split, regear } = view.votes;
-  if (!view.voteClosed) return `Spoils vote: Split ${split} - Regear ${regear}`;
+  if (!view.voteClosed) {
+    const closes = Math.floor((view.startsAt.getTime() - VOTE_CUTOFF_MS) / 1000);
+    return `Spoils vote: Split ${split} - Regear ${regear} · closes <t:${closes}:R>`;
+  }
   switch (view.voteResult) {
     case "split": return `Spoils vote result: Split won ${split}-${regear}`;
     case "regear": return `Spoils vote result: Regear won ${regear}-${split}`;
@@ -83,7 +87,7 @@ export function renderRosterMessage(view: RosterView): {
   const base = [...head, ...roster].join("\n");
   let description = base;
   if (view.notes) {
-    const withNotes = [...head, `📜 ${escapeText(view.notes)}`, ...roster].join("\n");
+    const withNotes = [...head, `📝 **Notes:** ${escapeText(view.notes)}`, ...roster].join("\n");
     if (withNotes.length <= DESC_LIMIT) description = withNotes;
   }
   if (description.length > DESC_LIMIT) description = description.slice(0, DESC_LIMIT);
