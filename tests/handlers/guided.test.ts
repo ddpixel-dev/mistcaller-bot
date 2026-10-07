@@ -71,16 +71,20 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   const role = find(card, "gs:role");
   const weapon = find(card, "gs:weapon");
   const duty = find(card, "gs:duty");
-  assert.deepEqual([role.placeholder, weapon.placeholder, duty.placeholder], ["Role (pick one)", "Weapon (press Search weapon first)", "Duty (optional)"]);
+  assert.deepEqual([role.placeholder, weapon.placeholder, duty.placeholder], ["Role (pick one)", "Weapon (pick a class first)", "Duty (optional)"]);
   assert.deepEqual(role.options.map((o: any) => o.label), ["Tank", "Healer", "Support", "DPS"]);
   assert.equal(weapon.disabled, true);
-  assert.equal(weapon.placeholder, "Weapon (press Search weapon first)");
-  assert.deepEqual(weapon.options.map((o: any) => o.label), ["Search a weapon first"]);
-  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "None"]);
+  assert.deepEqual(weapon.options.map((o: any) => o.label), ["Pick a weapon class first"]);
+  const cls = find(card, "gs:class");
+  assert.equal(cls.placeholder, "Weapon class (pick one)");
+  assert.deepEqual(cls.options.map((o: any) => o.label), ["Sword", "Axe", "Hammer", "Mace", "Spear", "Dagger", "Quarterstaff", "Bow", "Crossbow", "Gloves", "Fire Staff", "Frost Staff", "Holy Staff", "Arcane Staff", "Cursed Staff", "Nature Staff", "Shapeshifter", "Off-hand"]);
+  assert.ok(cls.options.every((o: any) => !o.default));
+  assert.equal(card.data.components.length, 5);
+  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat"]);
+  assert.deepEqual([duty.min_values, duty.max_values], [0, 1]);
   assert.ok([role, weapon, duty].every((s: any) => s.options.every((o: any) => !o.default)));
-  const buttons = card.data.components[3].components;
+  const buttons = card.data.components[4].components;
   assert.deepEqual(buttons.map((b: any) => [b.label, !!b.disabled]), [["Next", true], ["Back", false], ["Same as previous", true], ["Fill the rest", true], ["Cancel", false]]);
-  assert.deepEqual(card.data.components[4].components.map((b: any) => b.label), ["Search weapon", "Change number"]);
   assert.ok(buttons.every((b: any) => b.custom_id.endsWith(id)));
 });
 
@@ -102,7 +106,7 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   let r: any = await d(press(`gs:role:${id}`, ["Tank"]));
   assert.deepEqual(find(r, "gs:role").options.filter((o: any) => o.default).map((o: any) => o.value), ["Tank"]);
   assert.equal(find(r, "gs:next").disabled, true);
-  r = await d(form(`gsq:${id}`, { weapon: "axe" }));
+  r = await d(press(`gs:class:${id}`, ["Axe"]));
   const weaponBase = find(r, "gs:weapon").options[1].value;
   assert.equal(find(r, "gs:weapon").disabled, false);
   r = await d(press(`gs:weapon:${id}`, [weaponBase]));
@@ -119,26 +123,54 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   assert.deepEqual([stored.role, stored.weapon, stored.duty, stored.step], [null, null, null, 1]);
 });
 
-test("Search weapon opens a form; the weapon list shows only the matches; Clear search empties it again", async () => {
-  const { d } = await setup();
+test("deselecting the duty clears it, since there is no None entry", async () => {
+  const { sql, d } = await setup();
   const { id } = await begin(d, "2");
-  const f: any = await d(press(`gs:search:${id}`));
-  assert.equal(f.type, 9);
-  assert.equal(f.data.custom_id, `gsq:${id}`);
-  const r: any = await d(form(`gsq:${id}`, { weapon: "holy" }));
-  const names = find(r, "gs:weapon").options.map((o: any) => o.label.toLowerCase());
-  assert.ok(names.length > 0 && names.length < 25);
-  assert.ok(names.every((n: string) => n.includes("holy") || n.includes("sanctified")) || names.length > 0);
-  assert.ok(embed(r).description.includes('Weapon search: "holy"'));
-  assert.ok(all(r).some((c: any) => c.label === "Clear search"));
-  const cleared: any = await d(press(`gs:clear:${id}`));
-  assert.equal(find(cleared, "gs:weapon").disabled, true);
-  assert.deepEqual(find(cleared, "gs:weapon").options.map((o: any) => o.label), ["Search a weapon first"]);
-  const none: any = await d(form(`gsq:${id}`, { weapon: "zzzqqq" }));
-  assert.ok(embed(none).description.includes("(no match)"));
-  assert.equal(find(none, "gs:weapon").disabled, true);
-  assert.equal(find(none, "gs:weapon").options[0].label, "No match");
-  assert.equal(find(none, "gs:weapon").placeholder, "Weapon (no match, search again)");
+  let r: any = await d(press(`gs:duty:${id}`, ["rat"]));
+  assert.deepEqual(find(r, "gs:duty").options.filter((o: any) => o.default).map((o: any) => o.value), ["rat"]);
+  r = await d(press(`gs:duty:${id}`, []));
+  assert.deepEqual(find(r, "gs:duty").options.filter((o: any) => o.default), []);
+  assert.equal((await getDraft(sql, id, NOW))!.duty, null);
+  assert.ok(!JSON.stringify(find(r, "gs:duty").options).includes("None"));
+});
+
+test("picking a weapon class fills the Weapon list with just that class, sorted, and no form pops up", async () => {
+  const { sql, d } = await setup();
+  const { id } = await begin(d, "2");
+  let r: any = await d(press(`gs:class:${id}`, ["Holy Staff"]));
+  assert.equal(r.type, 7);
+  assert.deepEqual(find(r, "gs:class").options.filter((o: any) => o.default).map((o: any) => o.value), ["Holy Staff"]);
+  const weapon = find(r, "gs:weapon");
+  assert.equal(weapon.disabled, false);
+  assert.equal(weapon.placeholder, "Weapon (pick one)");
+  const labels = weapon.options.map((o: any) => o.label);
+  assert.ok(labels.length > 1 && labels.length <= 25);
+  assert.deepEqual(labels, [...labels].sort((a: string, b: string) => a.localeCompare(b)));
+  assert.ok(labels.some((l: string) => l.startsWith("Great Holy Staff")));
+  assert.ok(!all(r).some((c: any) => c.label === "Search weapon"));
+  const off: any = await d(press(`gs:class:${id}`, ["Off-hand"]));
+  assert.ok(find(off, "gs:weapon").options.some((o: any) => o.label.startsWith("Shield")));
+  assert.ok(find(off, "gs:weapon").options.every((o: any) => !o.label.startsWith("Great Holy Staff")));
+  assert.equal((await getDraft(sql, id, NOW))!.weaponClass, "Off-hand");
+  assert.equal(((await d(press(`gs:class:${id}`, ["Wand"]))) as any).data.flags, 64);
+});
+
+test("picking a weapon puts it on the card with its icon and keeps the class; Next resets both", async () => {
+  const { sql, d } = await setup();
+  const { id } = await begin(d, "2");
+  let r: any = await d(press(`gs:class:${id}`, ["Bow"]));
+  const pick = find(r, "gs:weapon").options.find((o: any) => o.label.startsWith("Longbow"));
+  r = await d(press(`gs:weapon:${id}`, [pick.value]));
+  assert.ok(embed(r).description.includes("Longbow"));
+  assert.match(embed(r).thumbnail.url, /T\d_2H_LONGBOW\.png/);
+  assert.deepEqual(find(r, "gs:weapon").options.filter((o: any) => o.default).map((o: any) => o.label.split(" (")[0]), ["Longbow"]);
+  r = await d(press(`gs:role:${id}`, ["DPS"]));
+  r = await d(press(`gs:next:${id}`));
+  assert.equal((await getDraft(sql, id, NOW))!.weaponClass, null);
+  assert.equal(find(r, "gs:weapon").disabled, true);
+  assert.deepEqual(find(r, "gs:class").options.filter((o: any) => o.default), []);
+  r = await d(press(`gs:back:${id}`));
+  assert.deepEqual(find(r, "gs:class").options.filter((o: any) => o.default).map((o: any) => o.value), ["Bow"]);
 });
 
 test("Back goes to the previous card with its saved choices; Same as previous fills the card; Fill the rest completes", async () => {
@@ -153,7 +185,7 @@ test("Back goes to the previous card with its saved choices; Same as previous fi
   assert.deepEqual(find(r, "gs:role").options.filter((o: any) => o.default).map((o: any) => o.value), ["Tank"]);
   await d(press(`gs:next:${id}`));
   await d(press(`gs:role:${id}`, ["DPS"]));
-  r = await d(form(`gsq:${id}`, { weapon: "bow" }));
+  r = await d(press(`gs:class:${id}`, ["Bow"]));
   r = await d(press(`gs:weapon:${id}`, [find(r, "gs:weapon").options[0].value]));
   r = await d(press(`gs:rest:${id}`));
   assert.ok(embed(r).description.includes("All 4 slots are chosen."));
@@ -211,7 +243,7 @@ test("/content slot fills the card in one command, needs a draft and the count, 
   assert.equal(r.data.flags, 64);
   assert.ok(embed(r).description.includes("1. Support - Broadsword · 🏹 Scout"));
   assert.ok(embed(r).description.includes("Slot 2 of 3"));
-  const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon", duty: "none" }));
+  const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon" }));
   assert.ok(embed(typed).description.includes("2. DPS - Some New Weapon"));
   assert.ok((await d(slotCmd({ role: "Wizard", weapon: "Mace" })) as any).data.content.includes("Pick a role"));
   assert.ok((await d(slotCmd({ role: "DPS", weapon: "   " })) as any).data.content.includes("Type part"));
@@ -242,7 +274,7 @@ test("only the owner in the same post can use a draft; expired drafts and tamper
   assert.ok(refused(await d(press(`gs:role:${id}`, ["Tank"], { guild_id: "g2" }))));
   assert.ok(refused(await d(press(`gs:role:${id}`, ["Tank"], { channel: { id: "other", type: 11, parent_id: "fp" } }))));
   assert.ok(refused(await d(form(`gsc:${id}`, { count: "4" }, { member: { user: { id: "u2" }, roles: [] } }))));
-  assert.ok(refused(await d(form(`gsq:${id}`, { weapon: "axe" }, { member: { user: { id: "u2" }, roles: [] } }))));
+  assert.ok(refused(await d(press(`gs:class:${id}`, ["Axe"], { member: { user: { id: "u2" }, roles: [] } }))));
   for (const cid of ["gs:role:nope", "gs:role", `gs:zzz:${id}`, `gs:role:${id}:x`, "gs::"]) {
     assert.equal(((await d(press(cid, ["Tank"]))) as any).data.flags, 64, cid);
   }

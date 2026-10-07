@@ -242,7 +242,7 @@ Each content shall have a category inside its type (a PvP category or a PvE cate
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (the final form), guided steps, or a saved preset. In the create panel, Continue goes straight to the guided steps (owner decisions 2026-10-07): a form asks "How many players needed?" (one whole number, 1 to 20, with validation), then one card per slot offers three lists with placeholders, **Role** (Tank, Healer, Support, DPS), **Weapon** (the first 25 weapons A to Z, or the matches of a search) and **Duty** (Caller, Scout, Rat, optional), with the buttons Next (Finish on the last), Back, Same as previous, Fill the rest, Search weapon, Change number and Cancel. Next saves the slot. The Back button on the first card returns to the create panel. `/content slot role weapon duty` fills the current card in one command, with the weapon typed and picked from an autocomplete list. Discord select menus cannot have a search box, so searching uses the Search weapon button or that command. A chosen preset skips the cards and opens the filled form. Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the final form), guided steps, or a saved preset. In the create panel, Continue goes straight to the guided steps (owner decisions 2026-10-07): a form asks "How many players needed?" (one whole number, 1 to 20, with validation), then one card per slot offers four lists with placeholders, **Role** (Tank, Healer, Support, DPS), **Weapon class** (Sword, Axe, Hammer, Mace, Spear, Dagger, Quarterstaff, Bow, Crossbow, Gloves, Fire, Frost, Holy, Arcane, Cursed and Nature Staff, Shapeshifter, Off-hand), **Weapon** (the weapons of the chosen class) and **Duty** (Caller, Scout, Rat, optional; deselect to clear), with the buttons Next (Finish on the last), Back, Same as previous, Fill the rest and Cancel (Change number is on the first and last screens). Next saves the slot. The Back button on the first card returns to the create panel. `/content slot role weapon duty` fills the current card in one command, with the weapon typed and picked from an autocomplete list. Discord select menus cannot have a search box and the owner asked for no pop-up search, so typing a name uses that command. A chosen preset skips the cards and opens the filled form. Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -358,7 +358,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.8.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.9.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
 Next step: owner tests 0.8.0, then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 

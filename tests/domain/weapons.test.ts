@@ -64,3 +64,34 @@ test("the generated data is sane: enough weapons, unique, valid ids, names fit a
   }
   assert.ok(searchWeapons(WEAPONS, "great axe").length > 0 || searchWeapons(WEAPONS, "greataxe").length > 0);
 });
+
+import { WEAPON_CLASSES, isWeaponClass, weaponClass, weaponsOfClass } from "../../src/domain/weapons.ts";
+
+test("every weapon in the data has a class, no class is empty or over 25, and there are at most 25 classes", () => {
+  assert.ok(WEAPON_CLASSES.length <= 25);
+  const counts = new Map<string, number>();
+  for (const w of WEAPONS) counts.set(weaponClass(w), (counts.get(weaponClass(w)) ?? 0) + 1);
+  // "Other" must stay empty: a new weapon family in a data refresh needs a decision, so the test says so.
+  assert.equal(counts.get("Other") ?? 0, 0, `unmapped families: ${WEAPONS.filter((w) => weaponClass(w) === "Other").map((w) => w.base).join(", ")}`);
+  for (const cls of WEAPON_CLASSES.filter((c) => c !== "Other")) {
+    const n = counts.get(cls) ?? 0;
+    assert.ok(n > 0 && n <= 25, `${cls}: ${n}`);
+    assert.equal(weaponsOfClass(WEAPONS, cls).length, n);
+  }
+  assert.equal([...counts.values()].reduce((a, b) => a + b, 0), WEAPONS.length);
+});
+
+test("classes: off-hands are one class, known weapons land in the expected class, names are sorted", () => {
+  const byName = (name: string) => weaponClass(WEAPONS.find((w) => w.name === name)!);
+  assert.equal(byName("Broadsword"), "Sword");
+  assert.equal(byName("Greataxe"), "Axe");
+  assert.equal(byName("Great Holy Staff"), "Holy Staff");
+  assert.equal(byName("Longbow"), "Bow");
+  assert.equal(byName("Shield"), "Off-hand");
+  assert.equal(byName("Icicle Staff"), "Frost Staff");
+  const names = weaponsOfClass(WEAPONS, "Sword").map((w) => w.name);
+  assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b)));
+  assert.equal(isWeaponClass("Sword"), true);
+  assert.equal(isWeaponClass("Wand"), false);
+  assert.equal(weaponClass({ base: "2H_NEWTHING", name: "N", slot: "2h", iconTier: 4 }), "Other");
+});

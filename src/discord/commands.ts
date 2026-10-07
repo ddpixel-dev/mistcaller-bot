@@ -111,7 +111,7 @@ export const commands = [
           },
           {
             type: 3, name: "duty", description: `The slot's ${DUTY_WORD.toLowerCase()} (optional)`, required: false,
-            choices: [...DUTIES.map((d) => ({ name: d.label, value: d.id })), { name: "None", value: "none" }],
+            choices: DUTIES.map((d) => ({ name: d.label, value: d.id })),
           },
         ],
       },

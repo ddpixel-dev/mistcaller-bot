@@ -1,8 +1,10 @@
 import type { StoredDraft } from "../db/draft.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { GUIDED_ROLES, NO_DUTY, canSave, isComplete } from "../domain/guided.ts";
+import { GUIDED_ROLES, canSave, isComplete } from "../domain/guided.ts";
 import { DUTIES, dutyDef } from "../domain/duties.ts";
-import { SLOT_LABEL, searchWeapons, weaponIconUrl, type Weapon } from "../domain/weapons.ts";
+import {
+  SLOT_LABEL, WEAPON_CLASSES, isWeaponClass, weaponClass, weaponIconUrl, weaponsOfClass, type Weapon, type WeaponClass,
+} from "../domain/weapons.ts";
 import { escapeText } from "./roster.ts";
 
 const btn = (label: string, id: string, extra: Record<string, unknown> = {}) => ({
@@ -11,9 +13,17 @@ const btn = (label: string, id: string, extra: Record<string, unknown> = {}) => 
 
 export const TYPED_WEAPON = "typed";
 
-// The weapon list: only the matches of the search (and the weapon already chosen). Nothing is listed before a search.
+// The class shown on the card: the chosen one, or the class of the weapon already on the card.
+export function effectiveClass(d: StoredDraft): WeaponClass | null {
+  if (isWeaponClass(d.weaponClass)) return d.weaponClass;
+  const known = d.weapon ? WEAPONS.find((w) => w.name === d.weapon) : undefined;
+  return known ? weaponClass(known) : null;
+}
+
+// The weapon list: the weapons of the chosen class (and the weapon already on the card, if from elsewhere).
 export function weaponChoices(d: StoredDraft): Weapon[] {
-  const list = d.query ? searchWeapons(WEAPONS, d.query, 25) : [];
+  const cls = effectiveClass(d);
+  const list = cls ? weaponsOfClass(WEAPONS, cls) : [];
   const known = d.weapon ? WEAPONS.find((w) => w.name === d.weapon) : undefined;
   if (known && !list.some((w) => w.name === known.name)) return [known, ...list.slice(0, 24)];
   return list;
@@ -39,7 +49,6 @@ export function renderGuidedStep(d: StoredDraft) {
     if (!done) {
       const here = [d.role, d.weapon, dutyDef(d.duty)?.label].filter(Boolean).map((x) => escapeText(String(x)));
       body.push("", `This slot: ${here.length ? here.join(" · ") : "nothing chosen yet"}`);
-      if (d.query) body.push(`Weapon search: "${escapeText(d.query)}"${weaponChoices(d).length === 0 ? " (no match)" : ""}`);
     }
   }
   embed.description = body.join("\n");
@@ -61,6 +70,7 @@ export function renderGuidedStep(d: StoredDraft) {
     });
   } else {
     const choices = weaponChoices(d);
+    const cls = effectiveClass(d);
     const weaponOptions = choices.map((w) => ({
       label: `${w.name} (${SLOT_LABEL[w.slot]})`.slice(0, 100), value: w.base, default: w.name === d.weapon,
     }));
@@ -78,20 +88,25 @@ export function renderGuidedStep(d: StoredDraft) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:weapon:${id}`,
-        placeholder: weaponOptions.length ? "Weapon (pick one)" : d.query ? "Weapon (no match, search again)" : "Weapon (press Search weapon first)",
-        disabled: weaponOptions.length === 0,
-        options: weaponOptions.length ? weaponOptions : [{ label: d.query ? "No match" : "Search a weapon first", value: TYPED_WEAPON }],
+        type: 3, custom_id: `gs:class:${id}`, placeholder: "Weapon class (pick one)",
+        options: WEAPON_CLASSES.filter((c) => c !== "Other" || cls === "Other").map((c) => ({ label: c, value: c, default: c === cls })),
       }],
     });
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:duty:${id}`, placeholder: "Duty (optional)",
-        options: [
-          ...DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
-          { label: "None", value: NO_DUTY },
-        ],
+        type: 3, custom_id: `gs:weapon:${id}`,
+        placeholder: weaponOptions.length ? "Weapon (pick one)" : "Weapon (pick a class first)",
+        disabled: weaponOptions.length === 0,
+        options: weaponOptions.length ? weaponOptions : [{ label: "Pick a weapon class first", value: TYPED_WEAPON }],
+      }],
+    });
+    rows.push({
+      type: 1,
+      components: [{
+        // Optional: with min_values 0 the member can deselect the duty, so no "None" entry is needed.
+        type: 3, custom_id: `gs:duty:${id}`, placeholder: "Duty (optional)", min_values: 0, max_values: 1,
+        options: DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
       }],
     });
     const ready = canSave(d);
@@ -105,10 +120,6 @@ export function renderGuidedStep(d: StoredDraft) {
         btn("Cancel", `gs:cancel:${id}`),
       ],
     });
-    const tools = [btn("Search weapon", `gs:search:${id}`, { style: 1 })];
-    if (d.query) tools.push(btn("Clear search", `gs:clear:${id}`));
-    tools.push(btn("Change number", `gs:count:${id}`));
-    rows.push({ type: 1, components: tools });
   }
   return { content: "", embeds: [embed], components: rows, allowed_mentions: { parse: [] as [] } };
 }

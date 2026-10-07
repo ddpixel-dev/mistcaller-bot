@@ -12,27 +12,27 @@ test("a started draft is empty and remembers loot and kind", async () => {
   const sql = await testSql();
   const id = await startDraft(sql, who);
   const d = (await getDraft(sql, id, new Date()))!;
-  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.query, d.loot, d.kind, d.userId, d.type], [null, [], 0, null, null, null, null, true, "zvz", "u1", "pvp"]);
+  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.weaponClass, d.loot, d.kind, d.userId, d.type], [null, [], 0, null, null, null, null, true, "zvz", "u1", "pvp"]);
 });
 
-test("save round-trips the count, slots, card step, pending choices and search text", async () => {
+test("save round-trips the count, slots, card step, pending choices and weapon class", async () => {
   const sql = await testSql();
   const id = await startDraft(sql, who);
-  await saveDraft(sql, id, { count: 6, slots: [{ role: "Tank", weapon: "Mace", duty: "caller" }], step: 1, role: "Healer", weapon: "Holy Staff", duty: "scout", query: "holy" });
+  await saveDraft(sql, id, { count: 6, slots: [{ role: "Tank", weapon: "Mace", duty: "caller" }], step: 1, role: "Healer", weapon: "Holy Staff", duty: "scout", weaponClass: "Holy Staff" });
   const d = (await getDraft(sql, id, new Date()))!;
-  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.query], [6, [{ role: "Tank", weapon: "Mace", duty: "caller" }], 1, "Healer", "Holy Staff", "scout", "holy"]);
-  await saveDraft(sql, id, { count: null, slots: [], step: 0, role: null, weapon: null, duty: null, query: null });
+  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.weaponClass], [6, [{ role: "Tank", weapon: "Mace", duty: "caller" }], 1, "Healer", "Holy Staff", "scout", "Holy Staff"]);
+  await saveDraft(sql, id, { count: null, slots: [], step: 0, role: null, weapon: null, duty: null, weaponClass: null });
   assert.equal((await getDraft(sql, id, new Date()))!.count, null);
 });
 
 test("starting again in the same post replaces the member's draft; others are separate", async () => {
   const sql = await testSql();
   const a = await startDraft(sql, who);
-  await saveDraft(sql, a, { count: 4, slots: [{ role: "Tank", weapon: "X" }], step: 1, role: "DPS", weapon: "Y", duty: "rat", query: "q" });
+  await saveDraft(sql, a, { count: 4, slots: [{ role: "Tank", weapon: "X" }], step: 1, role: "DPS", weapon: "Y", duty: "rat", weaponClass: "Bow" });
   const b = await startDraft(sql, { ...who, loot: false });
   assert.equal(a, b);
   const d = (await getDraft(sql, b, new Date()))!;
-  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.query, d.loot], [null, [], 0, null, null, null, null, false]);
+  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.weaponClass, d.loot], [null, [], 0, null, null, null, null, false]);
   await startDraft(sql, { ...who, userId: "u2" });
   await startDraft(sql, { ...who, threadId: "t2" });
   assert.equal((await sql`select count(*)::int as n from slot_draft`)[0]!.n, 3);
