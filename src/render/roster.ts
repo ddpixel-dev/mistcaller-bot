@@ -1,5 +1,6 @@
 import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
+import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import {
   BANNER_URL, ICON_URL, RULE, SCROLL, TITLE_MARK, WORDS, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
@@ -43,13 +44,52 @@ function voteRow(view: RosterView) {
 
 export function voteLine(view: RosterView): string {
   const { split, regear } = view.votes;
-  if (!view.voteClosed) return `Spoils vote: Split ${split} - Regear ${regear}`;
+  if (!view.voteClosed) {
+    const closes = Math.floor((view.startsAt.getTime() - VOTE_CUTOFF_MS) / 1000);
+    return `Spoils vote: Split ${split} - Regear ${regear} · closes <t:${closes}:R>`;
+  }
   switch (view.voteResult) {
     case "split": return `Spoils vote result: Split won ${split}-${regear}`;
     case "regear": return `Spoils vote result: Regear won ${regear}-${split}`;
     case "tie": return `Spoils vote result: Tie ${split}-${regear}`;
     default: return "Spoils vote result: no votes";
   }
+}
+
+export const LEAVE_VALUE = "leave";
+
+const leaveOption = {
+  label: "Leave the roster",
+  value: LEAVE_VALUE,
+  description: "Only works if you are signed up",
+  emoji: { name: "🚪" },
+};
+
+// One menu for everyone: slots to sign up or move, plus Leave while anyone is signed up.
+// After the start the slots go away and only Leave stays, so members can still leave.
+function signupMenu(view: RosterView, filled: number) {
+  const closed = view.status !== "open" || view.started;
+  const live = view.status === "open" || view.status === "locked";
+  const slotOptions = view.slots.map((s) => ({
+    label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
+    value: s.id,
+    description: s.userId ? "Taken" : "Open",
+  }));
+  if (closed && live && filled > 0) {
+    return {
+      type: 3,
+      custom_id: `signup:${view.id}`,
+      placeholder: "The roll is closed. You can still leave.",
+      options: [leaveOption],
+    };
+  }
+  return {
+    type: 3,
+    custom_id: `signup:${view.id}`,
+    placeholder: closed ? "The roll is closed" : "Pick a position",
+    disabled: closed,
+    options: filled > 0 && !closed ? [...slotOptions, leaveOption] : slotOptions,
+  };
 }
 
 export function renderRosterMessage(view: RosterView): {
@@ -63,7 +103,7 @@ export function renderRosterMessage(view: RosterView): {
   const head = [
     `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · Loot vote: ${view.hasLoot ? "On" : "Off"}`,
     `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
-    `🌍 **Your time** · <t:${epoch}:F> · <t:${epoch}:R>`,
+    `🌍 **Your time** · <t:${epoch}:f> · <t:${epoch}:R>`,
   ];
   const banner = statusBanner(view.status, view.started);
   if (banner) head.push(banner);
@@ -83,7 +123,7 @@ export function renderRosterMessage(view: RosterView): {
   const base = [...head, ...roster].join("\n");
   let description = base;
   if (view.notes) {
-    const withNotes = [...head, `📜 ${escapeText(view.notes)}`, ...roster].join("\n");
+    const withNotes = [...head, `📝 **Notes:** ${escapeText(view.notes)}`, ...roster].join("\n");
     if (withNotes.length <= DESC_LIMIT) description = withNotes;
   }
   if (description.length > DESC_LIMIT) description = description.slice(0, DESC_LIMIT);
@@ -98,22 +138,7 @@ export function renderRosterMessage(view: RosterView): {
   return {
     embeds: [embed],
     components: [
-      {
-        type: 1,
-        components: [
-          {
-            type: 3,
-            custom_id: `signup:${view.id}`,
-            placeholder: "Pick a position",
-            disabled: view.status !== "open" || view.started,
-            options: view.slots.map((s) => ({
-              label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
-              value: s.id,
-              description: s.userId ? "Taken" : "Open",
-            })),
-          },
-        ],
-      },
+      { type: 1, components: [signupMenu(view, filled)] },
       ...(view.hasLoot ? [voteRow(view)] : []),
     ],
     allowed_mentions: { parse: [] },

@@ -158,7 +158,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot through a select menu, move by selecting another slot, and leave with a Leave button. The Leave button is not on the shared roster: after a member signs up or moves, the bot replies privately (visible only to them) with a Leave button, and selecting their own slot again shows it again (owner decision 2026-10-07). The roster message is refreshed through the Discord API after every change. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up for a slot through one select menu, move by selecting another slot, and leave by choosing "Leave the roster" in the same menu (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so the Leave option appears only while at least one member is signed up, and says it works only for signed-up members). After the start the menu keeps only the Leave option, so members can still leave. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
 
 ### FR-006: Atomic slot claim
 status: accepted

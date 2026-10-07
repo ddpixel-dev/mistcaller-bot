@@ -27,7 +27,7 @@ test("formatUtc", () => {
 
 test("description contents", () => {
   const d = desc(view());
-  for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:F>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
+  for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:f>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
     "Loot vote: On", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
     assert.ok(d.includes(s), s);
   }
@@ -79,7 +79,7 @@ test("limits with maximum-length content", () => {
   assert.ok(w.embeds[0]!.title!.length <= 256);
 });
 
-test("components: select with slot options and no public Leave button", () => {
+test("components: one menu with the slots and Leave, no public Leave button", () => {
   const rows = renderRosterMessage(view({ hasLoot: false })).components as any[];
   assert.equal(rows.length, 1);
   assert.equal(rows[0].type, 1);
@@ -91,7 +91,14 @@ test("components: select with slot options and no public Leave button", () => {
   assert.deepEqual(sel.options, [
     { label: "1. Tank - Axe", value: "s1", description: "Taken" },
     { label: "2. Healer - Holy", value: "s2", description: "Open" },
+    { label: "Leave the roster", value: "leave", description: "Only works if you are signed up", emoji: { name: "🚪" } },
   ]);
+});
+
+test("the Leave option appears only while someone is signed up", () => {
+  const empty = view({ slots: view().slots.map((s) => ({ ...s, userId: null })) });
+  const opts = ((renderRosterMessage(empty).components as any[])[0].components[0].options as any[]).map((o) => o.value);
+  assert.deepEqual(opts, ["s1", "s2"]);
 });
 
 test("select labels are truncated to 100 and not markdown-escaped", () => {
@@ -108,21 +115,27 @@ test("label truncation is code-point safe", () => {
   assert.ok(!/[\ud800-\udbff]$/.test(label));
 });
 
-test("select is disabled once started even though status is open", () => {
-  const rows = renderRosterMessage(view({ status: "open", started: true })).components as any[];
-  assert.equal(rows[0].components[0].disabled, true);
-  assert.equal((renderRosterMessage(view({ started: false })).components as any[])[0].components[0].disabled, false);
+const menuOf = (v: RosterView) => (renderRosterMessage(v).components as any[])[0].components[0];
+const nobody = (v: RosterView) => v.slots.map((s) => ({ ...s, userId: null }));
+
+test("after the start or lock the menu keeps only Leave while someone is signed up", () => {
+  for (const over of [{ status: "open", started: true }, { status: "locked" }] as const) {
+    const m = menuOf(view(over));
+    assert.ok(!m.disabled);
+    assert.deepEqual(m.options.map((o: any) => o.value), ["leave"]);
+    assert.ok(m.placeholder.includes("can still leave"));
+  }
 });
 
-test("locked: select disabled", () => {
-  const rows = renderRosterMessage(view({ status: "locked" })).components as any[];
-  assert.equal(rows[0].components[0].disabled, true);
+test("after the start or lock with nobody signed up the menu is disabled", () => {
+  for (const over of [{ status: "open", started: true }, { status: "locked" }] as const) {
+    assert.equal(menuOf(view({ ...over, slots: nobody(view()) })).disabled, true);
+  }
 });
 
-test("cancelled and done: select disabled", () => {
+test("cancelled and done: menu disabled", () => {
   for (const status of ["cancelled", "done"] as const) {
-    const rows = renderRosterMessage(view({ status })).components as any[];
-    assert.equal(rows[0].components[0].disabled, true);
+    assert.equal(menuOf(view({ status })).disabled, true);
   }
 });
 
@@ -144,7 +157,7 @@ test("vote line placement while open", () => {
   const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
   const lines = d.split("\n");
   const t = lines.findIndex((l) => l.includes("Tier **"));
-  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2");
+  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
   assert.ok(d.indexOf("Spoils vote:") < d.indexOf("**The Company"));
   assert.equal(d.split("Spoils vote").length, 2);
 });
@@ -229,5 +242,16 @@ test("cancelled and done are greyed with a status banner and nothing enabled", (
 test("time lines: UTC and Your time are separate labelled lines", () => {
   const lines = desc(view()).split("\n");
   assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
-  assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:F> · <t:1791396000:R>"));
+  assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:f> · <t:1791396000:R>"));
+});
+
+test("notes get a Notes: label and a different icon than the title", () => {
+  const d = desc(view({ notes: "bring food" }));
+  assert.ok(d.includes("📝 **Notes:** bring food"));
+  assert.ok(!d.includes("📜"));
+});
+
+test("the closing time of the vote is shown only while it is open", () => {
+  assert.ok(desc(view()).includes("closes <t:1791395700:R>"));
+  assert.ok(!desc(view({ voteClosed: true, voteResult: "none" })).includes("closes"));
 });
