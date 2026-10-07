@@ -1,7 +1,10 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { modalValues, subOption, textInput } from "../discord/modal.ts";
+import { resolveKind } from "../domain/kinds.ts";
+import { getPreset } from "../db/preset.ts";
+import { formatSlotLines } from "../domain/slots.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -22,12 +25,6 @@ async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null
   return forumContentType(settings, i.channel.parent_id ?? null);
 }
 
-function lootOption(i: Interaction): boolean {
-  const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
-  const create = data?.options?.find((o) => o.name === "create");
-  return create?.options?.find((o) => o.name === "loot-vote")?.value === true;
-}
-
 async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
@@ -42,7 +39,18 @@ function takenMessage(status: string, link: string): string {
 }
 
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  if ((await forumType(deps, i)) === null) return reply(NOT_FORUM);
+  const type = await forumType(deps, i);
+  if (type === null) return reply(NOT_FORUM);
+  const kindOpt = subOption(i, "create", "kind");
+  const kind = resolveKind(type, typeof kindOpt === "string" ? kindOpt : null);
+  if (!kind.ok) return reply(kind.error);
+  const presetOpt = subOption(i, "create", "preset");
+  let presetLines: string | null = null;
+  if (typeof presetOpt === "string" && presetOpt.trim() !== "" && i.guild_id) {
+    const preset = await getPreset(deps.sql, i.guild_id, presetOpt.trim());
+    if (!preset) return reply("There is no preset with that name. Use `/content preset list` to see them.");
+    presetLines = formatSlotLines(preset.slots);
+  }
   if (i.guild_id && i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
@@ -50,13 +58,15 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${lootOption(i) ? 1 : 0}`,
+      custom_id: `create:${subOption(i, "create", "loot-vote") === true ? 1 : 0}:${kind.value}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
         textInput("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
+        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
+          style: 2, placeholder: "Tank - Axe", ...(presetLines ? { value: presetLines } : {}),
+        }),
         textInput("notes", "Notes (optional)", 500, { required: false }),
       ],
     },
@@ -82,7 +92,10 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   if (!notes.ok) return reply(notes.error);
 
   const customId = (i.data as { custom_id?: string }).custom_id ?? "";
-  const hasLoot = customId === "create:1";
+  const [, lootFlag, kindId] = customId.split(":");
+  const hasLoot = lootFlag === "1";
+  const kind = resolveKind(type, kindId ?? null);
+  if (!kind.ok) return reply(kind.error);
 
   let id: string;
   try {
@@ -90,6 +103,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
       guildId: i.guild_id,
       threadId,
       type,
+      kind: kind.value,
       title: title.value,
       notes: notes.value,
       startsAt: start.value,

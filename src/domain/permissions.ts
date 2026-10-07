@@ -23,3 +23,9 @@ export function hasManageServer(permissions: string | undefined): boolean {
   const bits = BigInt(permissions);
   return (bits & (ADMINISTRATOR | MANAGE_GUILD)) !== 0n;
 }
+
+// ADR 0012: presets are managed only by Manage Server (or Administrator) and the officer role.
+export function canManagePresets(actor: Actor, officerRoleId: string | null): boolean {
+  if (officerRoleId !== null && actor.roles.includes(officerRoleId)) return true;
+  return hasManageServer(actor.permissions);
+}

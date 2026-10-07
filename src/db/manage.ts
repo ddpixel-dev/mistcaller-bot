@@ -39,6 +39,7 @@ export type EditInput = {
   startsAt: Date;
   tier: TierRange;
   hasLoot: boolean | null; // null keeps the current value
+  kind: string | null; // null keeps the current value
   slots: SlotDef[];
 };
 
@@ -49,7 +50,7 @@ export type EditResult =
 
 export async function editContent(sql: Sql, id: string, input: EditInput, now: Date): Promise<EditResult> {
   return await sql.begin(async (tx): Promise<EditResult> => {
-    const [c] = await tx`select status, starts_at, has_loot from content where id = ${id} for update`;
+    const [c] = await tx`select status, starts_at, has_loot, kind from content where id = ${id} for update`;
     if (!c || c.status !== "open" || c.starts_at <= now) return { result: "unavailable" };
 
     const slotRows = await tx`
@@ -86,7 +87,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         title = ${input.title}, notes = ${input.notes}, starts_at = ${input.startsAt},
         min_tier = ${min.tier}, min_enchant = ${min.enchant},
         max_tier = ${max ? max.tier : null}, max_enchant = ${max ? max.enchant : null},
-        has_loot = ${input.hasLoot ?? c.has_loot}
+        has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind}
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== input.startsAt.getTime();

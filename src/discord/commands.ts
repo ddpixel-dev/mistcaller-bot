@@ -1,6 +1,23 @@
 import { USER_AGENT } from "./rest.ts";
+import { kindChoices } from "../domain/kinds.ts";
 
-export type CommandOption = { type: number; name: string; description: string; required?: boolean; options?: CommandOption[] };
+const kindOption = (description: string): CommandOption => ({
+  type: 3, name: "kind", description, required: false, choices: kindChoices(),
+});
+
+export type CommandOption = {
+  type: number;
+  name: string;
+  description: string;
+  required?: boolean;
+  options?: CommandOption[];
+  choices?: { name: string; value: string }[];
+  channel_types?: number[];
+  autocomplete?: boolean;
+  max_length?: number;
+  min_value?: number;
+  max_value?: number;
+};
 export type Command = { name: string; description: string; options: CommandOption[] };
 
 export const commands = [
@@ -14,6 +31,8 @@ export const commands = [
         description: "Create a content signup in this forum post",
         options: [
           { type: 5, name: "loot-vote", description: "Run a split-or-regear loot vote for this content?", required: false },
+          kindOption("Kind of content (defaults to Other)"),
+          { type: 3, name: "preset", description: "Start from a saved slot preset", required: false, autocomplete: true },
         ],
       },
       {
@@ -22,6 +41,37 @@ export const commands = [
         description: "Edit this post's content in a form (creator, officers, Manage Server)",
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
+          kindOption("Change the kind of content (leave empty to keep it)"),
+        ],
+      },
+      {
+        type: 1,
+        name: "setup",
+        description: "Set the officer role and the content forums (Manage Server)",
+        options: [
+          { type: 8, name: "officer-role", description: "Role allowed to manage any content", required: false },
+          { type: 7, name: "pvp-forum", description: "Forum for PvP content", required: false, channel_types: [15] },
+          { type: 7, name: "pve-forum", description: "Forum for PvE content", required: false, channel_types: [15] },
+          {
+            type: 4, name: "daily-cap", description: "Contents one member may create per day (default 5)",
+            required: false, min_value: 1, max_value: 50,
+          },
+        ],
+      },
+      {
+        type: 2,
+        name: "preset",
+        description: "Saved slot presets (save and delete: Manage Server or officer role)",
+        options: [
+          {
+            type: 1, name: "save", description: "Save this post's slots as a preset",
+            options: [{ type: 3, name: "name", description: "Preset name", required: true, max_length: 50 }],
+          },
+          { type: 1, name: "list", description: "Show the saved presets" },
+          {
+            type: 1, name: "delete", description: "Delete a preset",
+            options: [{ type: 3, name: "name", description: "Preset name", required: true, autocomplete: true }],
+          },
         ],
       },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },

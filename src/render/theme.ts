@@ -1,6 +1,7 @@
 // Medieval Banner theme (ADR 0008, FR-022). Colors, marks and words live here so the
 // look can change without touching the signup rules.
 import type { ContentStatus, ContentType } from "../domain/types.ts";
+import { kindDef } from "../domain/kinds.ts";
 
 export const COLORS = {
   pvp: 0x2b4db0, // royal blue
@@ -23,12 +24,14 @@ export const WORDS = {
 export const RULE = "═══════════════════════";
 export const TITLE_MARK = "⚜";
 export const SCROLL = "📜";
+export const VOTE_ICON = "💰";
+export const CANCELLED_TAG = "✖ CANCELLED —";
 const BAR_CELLS = 10;
 
-export function embedColor(type: ContentType, status: ContentStatus): number {
+export function embedColor(type: ContentType, status: ContentStatus, kind?: string): number {
   if (status === "cancelled") return COLORS.cancelled;
   if (status === "done") return COLORS.done;
-  return COLORS[type];
+  return (kind ? kindDef(type, kind)?.color : undefined) ?? COLORS[type];
 }
 
 export function fillBar(filled: number, total: number): string {
@@ -54,4 +57,13 @@ export function statusBanner(status: ContentStatus, started: boolean): string | 
   if (status === "done") return "🏁 **Concluded.**";
   if (status === "locked" || started) return "🔒 **The roll is closed.**";
   return null;
+}
+
+// Discord only colors text inside ```ansi code blocks (desktop and web). Bold bright colors read as neon.
+// Only fixed system text goes in these blocks: mentions and timestamps do not render inside code.
+const ESC = "\u001b";
+export const NEON = { tier: "1;36", on: "1;32", off: "1;31", time: "1;33" } as const;
+
+export function ansi(code: string, text: string): string {
+  return `${ESC}[${code}m${text}${ESC}[0m`;
 }
