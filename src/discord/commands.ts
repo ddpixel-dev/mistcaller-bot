@@ -115,6 +115,8 @@ export const commands = [
           },
         ],
       },
+      { type: 1, name: "lock", description: "Close signups now (creator, officers, Manage Server)" },
+      { type: 1, name: "list", description: "Upcoming content in this server, with links" },
       { type: 1, name: "end", description: "End this content once it has started (creator, officers, Manage Server)" },
       { type: 1, name: "attendance", description: "Open the attendance form privately (creator, officers, Manage Server)" },
       {
