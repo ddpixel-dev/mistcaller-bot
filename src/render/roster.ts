@@ -3,7 +3,7 @@ import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
 import {
-  BANNER_URL, CANCELLED_TAG, ICON_URL, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner,
+  BANNER_URL, CANCELLED_TAG, ICON_URL, NEON, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, ansi, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
 
 export type Embed = {
@@ -108,8 +108,13 @@ export function renderRosterMessage(view: RosterView): {
   const def = kindDef(view.type, view.kind);
   const kind = def && def.id !== DEFAULT_KIND ? `${typeLabel} · ${def.label}` : typeLabel;
   const head = [
-    `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · Loot vote: ${view.hasLoot ? "On" : "Off"}`,
-    `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
+    `## ⚔️ ${kind}`,
+    "```ansi",
+    `${ansi(NEON.tier, `Tier ${formatTier(view.tier)}`)}   ${
+      view.hasLoot ? ansi(NEON.on, "Loot vote ON") : ansi(NEON.off, "Loot vote OFF")
+    }`,
+    ansi(NEON.time, `UTC  ${formatUtc(view.startsAt)}`),
+    "```",
     `🌍 **Your time** · <t:${epoch}:f> · <t:${epoch}:R>`,
   ];
   const banner = statusBanner(view.status, view.started);
@@ -123,7 +128,7 @@ export function renderRosterMessage(view: RosterView): {
   );
   const roster = [
     RULE,
-    `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`,
+    `### ${WORDS.company} (${filled}/${view.slots.length}) ${fillBar(filled, view.slots.length)}`,
     ...slotLines,
     RULE,
   ];
