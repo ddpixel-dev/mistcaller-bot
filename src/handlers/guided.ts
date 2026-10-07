@@ -5,7 +5,7 @@ import { leafOption, modalValues, textInput } from "../discord/modal.ts";
 import { WEAPONS } from "../data/weapons.ts";
 import { deleteDraft, findDraft, getDraft, saveDraft, startDraft, type StoredDraft } from "../db/draft.ts";
 import {
-  GUIDED_ROLES, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon,
+  GUIDED_ROLES, NO_DUTY, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon,
   type GuidedDraft,
 } from "../domain/guided.ts";
 import { resolveKind } from "../domain/kinds.ts";
@@ -76,7 +76,12 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
 
   switch (action) {
     case "role": return update(await store(deps, d, typeof value === "string" ? setRole(d, value) : d));
-    case "duty": return update(await store(deps, d, typeof value === "string" ? setDuty(d, value) : d));
+    case "duty": {
+      // Deselecting sends no value: that clears the duty.
+      const picks = Array.isArray(data?.values) ? data!.values : null;
+      if (picks && picks.length === 0) return update(await store(deps, d, setDuty(d, NO_DUTY)));
+      return update(await store(deps, d, typeof value === "string" ? setDuty(d, value) : d));
+    }
     case "weapon": {
       if (value === TYPED_WEAPON) return update(d);
       const w = typeof value === "string" ? WEAPONS.find((x) => x.base === value) : undefined;

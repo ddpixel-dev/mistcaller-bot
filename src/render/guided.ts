@@ -1,6 +1,6 @@
 import type { StoredDraft } from "../db/draft.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { GUIDED_ROLES, NO_DUTY, canSave, isComplete } from "../domain/guided.ts";
+import { GUIDED_ROLES, canSave, isComplete } from "../domain/guided.ts";
 import { DUTIES, dutyDef } from "../domain/duties.ts";
 import { SLOT_LABEL, searchWeapons, weaponIconUrl, type Weapon } from "../domain/weapons.ts";
 import { escapeText } from "./roster.ts";
@@ -87,11 +87,9 @@ export function renderGuidedStep(d: StoredDraft) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:duty:${id}`, placeholder: "Duty (optional)",
-        options: [
-          ...DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
-          { label: "None", value: NO_DUTY },
-        ],
+        // Optional: with min_values 0 the member can deselect the duty, so no "None" entry is needed.
+        type: 3, custom_id: `gs:duty:${id}`, placeholder: "Duty (optional)", min_values: 0, max_values: 1,
+        options: DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
       }],
     });
     const ready = canSave(d);
