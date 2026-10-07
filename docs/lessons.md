@@ -9,6 +9,11 @@ date: 2026-10-06
 
 Dated entries, newest first. Record what surprised us, what we would do differently, and any rule worth adding to `AGENTS.md`.
 
+## 2026-10-07: A button emoji must be a real emoji, and logs must carry Discord's reason
+- What happened: after release 0.8.0, creating a roster with a Healer slot failed with "Could not create the content". The log showed only `create_failed` and `DiscordApiError`. The Healer icon was "✚", a dingbat that looks like an emoji but is not one, and Discord rejects a button carrying it, so the whole roster message was refused.
+- What we learned: text can use any symbol, but a component's `emoji` must be a real emoji. Also, logging only an error's class name hid the cause. Discord's own error code and message are safe to log (they never contain the token).
+- Follow-up: Healer uses 💚; a test checks every button icon is a real emoji; `DiscordApiError` keeps Discord's code and message and `create_failed` logs status, code and reason.
+
 ## 2026-10-07: Pin the function region next to the database
 - What happened: after release 0.2.0, button and menu clicks took 1.9 to 4.0 s and Discord showed "didn't respond in time" (the private Leave reply, the cancel confirmation). The logs showed the functions ran in `iad1` (US east) while Supabase is in eu-west-1, and a signup makes about a dozen queries.
 - What we learned: Vercel's default region is not near the database. Q13 had flagged this but was left as a dashboard step that never happened.

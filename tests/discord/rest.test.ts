@@ -113,3 +113,16 @@ test("every REST method sends the User-Agent header", async () => {
   assert.equal(seen.length, 3);
   for (const h of seen) assert.equal(h["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
 });
+
+test("a Discord error keeps its code and message, never the token, in the error object", async () => {
+  const body = { code: 50035, message: "Invalid Form Body", errors: { components: { _errors: [{ code: "INVALID_EMOJI" }] } } };
+  const rest = createRest("SECRET", (async () => res(400, body)) as unknown as typeof fetch);
+  const err: any = await rest.createMessage("c1", {}).catch((e) => e);
+  assert.equal(err.name, "DiscordApiError");
+  assert.equal(err.status, 400);
+  assert.equal(err.code, 50035);
+  assert.ok(err.detail.includes("Invalid Form Body") && err.detail.includes("INVALID_EMOJI"));
+  assert.ok(!JSON.stringify([err.message, err.detail]).includes("SECRET"));
+  const bare: any = await createRest("SECRET", (async () => res(500, {})) as unknown as typeof fetch).createMessage("c1", {}).catch((e) => e);
+  assert.deepEqual([bare.status, bare.code, bare.detail], [500, undefined, undefined]);
+});

@@ -6,6 +6,7 @@ import type { Deps } from "../../src/discord/dispatch.ts";
 import { createDispatch } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
+import { DiscordApiError } from "../../src/discord/rest.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const GUILD = "g1";
@@ -112,11 +113,11 @@ test("command opens a private panel with nothing chosen: type, kind (waiting for
   const p = panelOf(r);
   assert.equal(p.type.custom_id, "cp:type:-:-:-:-");
   assert.equal(p.type.placeholder, "Type of content");
-  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["Type: PvP", "pvp", false], ["Type: PvE", "pve", false]]);
+  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["PvP", "pvp", false], ["PvE", "pve", false]]);
   assert.equal(p.kind.disabled, true);
   assert.match(p.kind.placeholder, /pick the type first/);
   assert.equal(p.loot.placeholder, "Loot vote (optional, default Off)");
-  assert.ok(p.loot.options.every((o: any) => o.label.startsWith("Loot vote: ") && !o.default));
+  assert.deepEqual(p.loot.options.map((o: any) => [o.label, !!o.default]), [["Off", false], ["On (split or regear)", false]]);
   assert.equal(p.go.custom_id, "cpgo:-:-:-:-");
   assert.equal(p.go.disabled, true);
   assert.equal(r.data.components.length, 4);
@@ -130,7 +131,7 @@ test("it works in either configured forum and does not assume the type from the 
   }
 });
 
-test("choosing the type loads that type's kinds; labels name their field so the box is clear", async () => {
+test("choosing the type loads that type's categories, shown as plain values", async () => {
   const { deps } = await setup();
   const d = createDispatch(deps);
   const pvp: any = await d(component("cp:type:-:-:-:-", ["pvp"]));
@@ -139,7 +140,8 @@ test("choosing the type loads that type's kinds; labels name their field so the 
   assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false]);
   assert.equal(p.kind.disabled, false);
   assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
-  assert.ok(p.kind.options.every((o: any) => o.label.startsWith("Category: ") && !o.default));
+  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
+  assert.ok(p.kind.options.every((o: any) => !o.default));
   assert.equal(p.go.disabled, false);
   assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-");
   const pve: any = await d(component("cp:type:-:-:-:-", ["pve"]));
@@ -417,4 +419,30 @@ test("kind travels through the modal and is stored; no kind stores Other", async
   const bad = await handleCreateModal(deps, modal(good, "0:world-boss"));
   assert.ok(content(bad).includes("PvE category"));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
+});
+
+test("a Discord rejection when posting is logged with its status, code and reason, and the reply stays generic", async () => {
+  const { deps, sql } = await setup();
+  deps.rest.createMessage = async () => { throw new DiscordApiError(400, "Discord API POST /channels/c/messages failed with status 400", 50035, "Invalid Form Body"); };
+  const logged: string[] = [];
+  const original = console.error;
+  console.error = (line: string) => { logged.push(String(line)); };
+  try {
+    const r = await handleCreateModal(deps, modal(good));
+    assert.ok(content(r).includes("Could not create the content"));
+    assert.ok(!content(r).includes("Invalid Form Body"));
+  } finally {
+    console.error = original;
+  }
+  const entry = JSON.parse(logged.find((l) => l.includes("create_failed"))!);
+  assert.deepEqual([entry.name, entry.status, entry.code, entry.detail], ["DiscordApiError", 400, 50035, "Invalid Form Body"]);
+  assert.equal((await sql`select 1 from content`).length, 0);
+});
+
+test("a roster with a Healer slot posts a message Discord accepts: valid emoji on every button", async () => {
+  const { deps, posts } = await setup();
+  await handleCreateModal(deps, modal({ ...good, slots: "Tank - Axe\nHealer - Holy Staff\nSupport - Occult Staff\nDPS - Bow" }));
+  const buttons = posts[0]!.body.components.flatMap((r: any) => r.components).filter((c: any) => c.emoji);
+  assert.ok(buttons.length >= 4);
+  assert.ok(buttons.every((b: any) => /\p{Emoji_Presentation}|️/u.test(b.emoji.name)), JSON.stringify(buttons.map((b: any) => b.emoji.name)));
 });

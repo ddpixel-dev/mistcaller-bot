@@ -4,10 +4,14 @@ const MAX_RETRY_WAIT_MS = 2000;
 
 export class DiscordApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code: number | undefined;
+  detail: string | undefined;
+  constructor(status: number, message: string, code?: number, detail?: string) {
     super(message);
     this.name = "DiscordApiError";
     this.status = status;
+    this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -38,7 +42,17 @@ export function createRest(
       res = await fetchFn(`${API}${path}`, init);
     }
     if (!res.ok && !okStatuses.includes(res.status)) {
-      throw new DiscordApiError(res.status, `Discord API ${method} ${path} failed with status ${res.status}`);
+      // Discord's own reason ("Invalid emoji", ...) is safe to keep; it never contains the token.
+      const body = (await res.json().catch(() => ({}))) as { code?: unknown; message?: unknown; errors?: unknown };
+      const code = typeof body.code === "number" ? body.code : undefined;
+      const text = typeof body.message === "string" ? body.message : undefined;
+      const where = body.errors ? ` ${JSON.stringify(body.errors)}` : "";
+      throw new DiscordApiError(
+        res.status,
+        `Discord API ${method} ${path} failed with status ${res.status}`,
+        code,
+        text ? `${text}${where}`.slice(0, 400) : undefined,
+      );
     }
     return await res.json().catch(() => ({}));
   }
