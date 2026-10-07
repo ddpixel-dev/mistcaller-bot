@@ -346,18 +346,20 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP (the owner accepted the POC on 2026-10-06 with CHK-002 to CHK-005 and CHK-007 still open, see docs/decisions/0007-poc-accepted-with-open-checks.md)
-Last updated: 2026-10-06
-Next step: new session. Design and build FT-005 (edit and cancel), FT-012 (one content per post) and FT-013 (fantasy style) as MVP milestone M4, and run the open checks CHK-004 and CHK-005 first.
+Phase: MVP, release 0.4.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Last updated: 2026-10-07
+Next step: owner runs migrations 0003 and 0004, deploys, re-registers the commands and tests. Then FT-015 phase 2 (weapon data and search) and phase 3 (guided steps), then waitlist, lock and cap, reminders, `/content list`, attendance.
 
 | Item | Status | Note |
 |---|---|---|
-| FT-001 | in progress | Code done and reviewed; live check CHK-002 pending |
-| FT-002 | in progress | Code done and reviewed; live check CHK-003 pending |
-| FT-004 | in progress | Code done and reviewed; live check CHK-005 pending |
-| FT-003, FT-005, FT-006 | not started | MVP |
-| FT-007, FT-008, FT-009 | not started | MVP |
+| FT-001, FT-002, FT-004 | built, live | Live checks CHK-002, CHK-003, CHK-005 still to record |
+| FT-012 one content per post | live (0.2.0) | |
+| FT-005 edit and cancel | live (0.2.0) | Lock and the creation cap are not built |
+| FT-013 banner style | live, art pending | Headers and a neon ANSI block in 0.4.0 |
+| FT-014 content kinds | in 0.4.0 | Needs migration 0003 |
+| FT-006 `/content setup` | in 0.4.0 | |
+| FT-015 slot builder and presets | phase 1 (presets) in 0.4.0 | Needs migration 0004; phases 2 and 3 not started |
+| FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
-| CHK-006 | done | 2026-10-06 |
-| CHK-001 | done | 2026-10-06 |
-| CHK-002 to CHK-005, CHK-007 | in progress | First roster posted live; remaining live checks pending |
+| CHK-001, CHK-006 | done | 2026-10-06 |
+| CHK-002 to CHK-005, CHK-007 | in progress | Cron workflow green since 2026-10-07; clicks fast after the dub1 region fix |
