@@ -144,7 +144,7 @@ test("vote line placement while open", () => {
   const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
   const lines = d.split("\n");
   const t = lines.findIndex((l) => l.includes("Tier **"));
-  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2");
+  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
   assert.ok(d.indexOf("Spoils vote:") < d.indexOf("**The Company"));
   assert.equal(d.split("Spoils vote").length, 2);
 });
@@ -230,4 +230,15 @@ test("time lines: UTC and Your time are separate labelled lines", () => {
   const lines = desc(view()).split("\n");
   assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:F> · <t:1791396000:R>"));
+});
+
+test("notes get a Notes: label and a different icon than the title", () => {
+  const d = desc(view({ notes: "bring food" }));
+  assert.ok(d.includes("📝 **Notes:** bring food"));
+  assert.ok(!d.includes("📜"));
+});
+
+test("the closing time of the vote is shown only while it is open", () => {
+  assert.ok(desc(view()).includes("closes <t:1791395700:R>"));
+  assert.ok(!desc(view({ voteClosed: true, voteResult: "none" })).includes("closes"));
 });
