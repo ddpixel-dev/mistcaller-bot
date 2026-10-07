@@ -68,7 +68,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   const create = commands[0]!.options[0]!;
   assert.equal(commands[0]!.name, "content");
   assert.equal(create.name, "create");
-  assert.deepEqual(create.options![0], { type: 5, name: "loot-vote", description: create.options![0]!.description, required: false });
+  assert.equal(create.options, undefined);
   assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "cancel"]);
 });
 

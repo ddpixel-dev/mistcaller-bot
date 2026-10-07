@@ -1,10 +1,8 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
-import { modalValues, subOption, textInput } from "../discord/modal.ts";
+import { modalValues, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
-import { getPreset } from "../db/preset.ts";
-import { formatSlotLines } from "../domain/slots.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -13,11 +11,12 @@ import { forumContentType } from "../domain/forum.ts";
 import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
 import type { ContentType } from "../domain/types.ts";
+import { DEFAULT_DRAFT, createPanel, type CreateDraft } from "./create-panel.ts";
 
 const NOT_FORUM = "Use this command inside a post in the PvP or PvE content forum.";
 const FAILED = "Could not create the content right now. Nothing was saved, please try again.";
 
-async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null> {
+export async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null> {
   if (!i.guild_id) return null;
   const settings = await getGuildSettings(deps.sql, i.guild_id);
   if (!settings) return null;
@@ -25,7 +24,7 @@ async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null
   return forumContentType(settings, i.channel.parent_id ?? null);
 }
 
-async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
+export async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
   const link = existing.messageId ? ` https://discord.com/channels/${guildId}/${threadId}/${existing.messageId}` : "";
@@ -38,27 +37,22 @@ function takenMessage(status: string, link: string): string {
     : `This post already has content.${link} Cancel it first to create a new one.`;
 }
 
+// Step 1 of creation: a private panel to pick kind, loot vote and preset. Step 2 is the form.
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const type = await forumType(deps, i);
-  if (type === null) return reply(NOT_FORUM);
-  const kindOpt = subOption(i, "create", "kind");
-  const kind = resolveKind(type, typeof kindOpt === "string" ? kindOpt : null);
-  if (!kind.ok) return reply(kind.error);
-  const presetOpt = subOption(i, "create", "preset");
-  let presetLines: string | null = null;
-  if (typeof presetOpt === "string" && presetOpt.trim() !== "" && i.guild_id) {
-    const preset = await getPreset(deps.sql, i.guild_id, presetOpt.trim());
-    if (!preset) return reply("There is no preset with that name. Use `/content preset list` to see them.");
-    presetLines = formatSlotLines(preset.slots);
-  }
-  if (i.guild_id && i.channel?.id) {
+  if (type === null || !i.guild_id) return reply(NOT_FORUM);
+  if (i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
   }
+  return await createPanel(deps, i.guild_id, type, DEFAULT_DRAFT, "new");
+}
+
+export function createForm(draft: CreateDraft, presetLines: string | null): InteractionResponse {
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${subOption(i, "create", "loot-vote") === true ? 1 : 0}:${kind.value}`,
+      custom_id: `create:${draft.loot ? 1 : 0}:${draft.kind}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),

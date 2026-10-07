@@ -18,6 +18,12 @@ Satisfies FR-024, FR-025, FR-026. Decisions: ADR 0004 (slot model), 0009 (weapon
 - A script reads the weapon category of `ao-bin-dumps` and stores weapon id, display name, class and a base id (tier and enchant stripped) in a `weapon` table with its source and fetch date. The bot reads only this table.
 - A weapon is found by typing part of its name in a small form. The result is a menu of up to 25 matches. Icons are links to the render service built from the item id in the adapter (ADR 0013); where Discord can show them (a thumbnail in the builder) is checked with a real test message.
 
+### Spike result (2026-10-07)
+- `formatted/items.txt` (1.1 MB, lines like `  3: T4_2H_TOOL_TRACKING : Adept's Tracking Toolkit`) is enough: no need for the 94 MB localization file.
+- Weapons are ids matching `T<n>_(MAIN|2H|OFF)_*` without `@` (enchant). After dropping 15 `_TOOL_` items there are 155 base weapons: 35 one-handed, 102 two-handed, 18 off-hands, with 155 distinct names once the tier word ("Adept's ", "Master's " and so on) is removed.
+- The render service answers 200 for tiered ids such as `T4_MAIN_SWORD` and 404 for ids without a tier, so the icon id is `T4_<base>` (or the lowest tier that exists).
+- Files fetched for the spike stay outside the repo.
+
 ## Phase 3: guided steps (FR-024)
 - `/content create mode:guided` starts a draft saved in the database (no memory state): the member count, then for each slot a role menu and a weapon search, with "same as previous" and "fill the rest". The draft ends as the same slot list, at most 20, handed to the usual create form.
 - Drafts expire after one hour and are cleaned by the scheduled job.

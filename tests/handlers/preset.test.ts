@@ -4,7 +4,7 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, setMessageId } from "../../src/db/content.ts";
 import { listPresets, savePreset, MAX_PRESETS } from "../../src/db/preset.ts";
 import { handlePresetCommand, handleAutocomplete } from "../../src/handlers/preset.ts";
-import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
+import { handleCreateCommand } from "../../src/handlers/create.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
@@ -88,35 +88,54 @@ test("presets are per guild", async () => {
   assert.ok(text(await handlePresetCommand(deps, { ...preset("list"), guild_id: "g2" } as Interaction)).includes("No presets"));
 });
 
-test("create with a preset opens the form with the slots already filled", async () => {
+test("the create panel lists presets; picking one fills the slots box; clearing it empties the choice", async () => {
   const { deps, sql, id } = await setup();
   await handlePresetCommand(deps, preset("save", { name: "Ava" }));
   await sql`update content set status = 'cancelled' where id = ${id}`;
-  const cmd = (value: string): Interaction => ({
+  const [{ id: presetId }] = await sql`select id from slot_preset`;
+  const base: Interaction = {
     id: "i", type: 2, application_id: "a", token: "t", guild_id: "g1", channel_id: "t1",
     channel: { id: "t1", type: 11, parent_id: "fp" }, member: who("u1"),
-    data: { name: "content", options: [{ name: "create", type: 1, options: [{ name: "preset", type: 3, value }] }] },
+    data: { name: "content", options: [{ name: "create", type: 1 }] },
+  };
+  const panel: any = await handleCreateCommand(deps, base);
+  const presetMenu = panel.data.components[2].components[0];
+  assert.equal(presetMenu.custom_id, "cp:preset:0:other:-");
+  assert.equal(presetMenu.min_values, 0);
+  assert.deepEqual(presetMenu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
+  const press = (customId: string, values?: unknown[]): Interaction => ({
+    ...base, type: 3, data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) },
   });
-  const r: any = await handleCreateCommand(deps, cmd("AVA"));
-  assert.equal(r.type, 9);
-  const slotsInput = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots");
+  const d = createDispatch(deps);
+  const picked: any = await d(press("cp:preset:0:other:-", [presetId]));
+  assert.equal(picked.data.components[3].components[0].custom_id, `cpgo:0:other:${presetId}`);
+  const form: any = await d(press(`cpgo:0:other:${presetId}`));
+  assert.equal(form.type, 9);
+  const slotsInput = form.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots");
   assert.equal(slotsInput.value, "Tank - Mace\nHealer - Holy");
-  assert.ok(text(await handleCreateCommand(deps, cmd("missing"))).includes("no preset"));
+  const cleared: any = await d(press(`cp:preset:0:other:${presetId}`, []));
+  assert.equal(cleared.data.components[3].components[0].custom_id, "cpgo:0:other:-");
+  assert.ok(text(await d(press("cp:preset:0:other:-", ["00000000-0000-4000-8000-000000000000"]))).includes("out of date"));
+  await handlePresetCommand(deps, preset("delete", { name: "Ava" }));
+  assert.ok(text(await d(press(`cpgo:0:other:${presetId}`))).includes("no longer exists"));
 });
 
 test("autocomplete filters the guild's names and answers with type 8", async () => {
   const { deps } = await setup();
   await handlePresetCommand(deps, preset("save", { name: "Ava raid" }));
   await handlePresetCommand(deps, preset("save", { name: "Roam" }));
-  const ac = (name: string, value: string, sub = "create"): Interaction => ({
+  const ac = (name: string, value: string): Interaction => ({
     id: "i", type: 4, application_id: "a", token: "t", guild_id: "g1",
     member: who("u1"),
-    data: { name: "content", options: [{ name: sub, type: 1, options: [{ name, type: 3, value, focused: true }] }] },
+    data: {
+      name: "content",
+      options: [{ name: "preset", type: 2, options: [{ name: "delete", type: 1, options: [{ name, type: 3, value, focused: true }] }] }],
+    },
   });
-  const r: any = await createDispatch(deps)(ac("preset", "av"));
+  const r: any = await createDispatch(deps)(ac("name", "av"));
   assert.equal(r.type, 8);
   assert.deepEqual(r.data.choices, [{ name: "Ava raid", value: "Ava raid" }]);
-  assert.deepEqual(((await handleAutocomplete(deps, ac("preset", "")) ) as any).data.choices.map((c: any) => c.name), ["Ava raid", "Roam"]);
+  assert.deepEqual(((await handleAutocomplete(deps, ac("name", "")) ) as any).data.choices.map((c: any) => c.name), ["Ava raid", "Roam"]);
   assert.deepEqual(((await handleAutocomplete(deps, ac("title", "av")) ) as any).data.choices, []);
-  assert.deepEqual(((await handleAutocomplete(deps, ac("preset", "%")) ) as any).data.choices, []);
+  assert.deepEqual(((await handleAutocomplete(deps, ac("name", "%")) ) as any).data.choices, []);
 });

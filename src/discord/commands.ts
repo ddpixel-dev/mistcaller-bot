@@ -29,11 +29,6 @@ export const commands = [
         type: 1,
         name: "create",
         description: "Create a content signup in this forum post",
-        options: [
-          { type: 5, name: "loot-vote", description: "Run a split-or-regear loot vote for this content?", required: false },
-          kindOption("Kind of content (defaults to Other)"),
-          { type: 3, name: "preset", description: "Start from a saved slot preset", required: false, autocomplete: true },
-        ],
       },
       {
         type: 1,
