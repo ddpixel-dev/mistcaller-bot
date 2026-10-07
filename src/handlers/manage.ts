@@ -71,7 +71,7 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
   if (checked.target.status !== "open") return reply("Only open content can be edited. Locked, finished or cancelled content cannot.");
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view) return reply(NO_CONTENT);
-  const kindOpt = subOption(i, "edit", "kind");
+  const kindOpt = subOption(i, "edit", "category");
   const kind = typeof kindOpt === "string" ? resolveKind(view.type, kindOpt) : null;
   if (kind && !kind.ok) return reply(kind.error);
   return {

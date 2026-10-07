@@ -40,7 +40,7 @@ const embed = (r: any) => r.data.embeds[0];
 const ids = (r: any) => r.data.components.flatMap((row: any) => row.components.map((c: any) => c.custom_id));
 const refused = (r: any) => r.data.flags === 64 && r.data.content.includes("expired or are not yours");
 
-async function start(d: any, suffix = "1:zvz:-") {
+async function start(d: any, suffix = "pvp:1:zvz:-") {
   const r: any = await d(press(`cpgs:${suffix}`));
   const id = ids(r)[0].split(":")[2] as string;
   return { r, id };
@@ -50,14 +50,14 @@ test("Continue without a preset offers a form or guided steps; the first panel h
   const { d } = await setup();
   const cmd: any = await d(base({ type: 2, data: { name: "content", options: [{ name: "create", type: 1 }] } }));
   const last = cmd.data.components[cmd.data.components.length - 1].components;
-  assert.deepEqual(last.map((c: any) => c.custom_id), ["cpgo:0:other:-"]);
-  const choice: any = await d(press("cpgo:1:zvz:-"));
+  assert.deepEqual(last.map((c: any) => c.custom_id), ["cpgo:-:-:-:-"]);
+  const choice: any = await d(press("cpgo:pvp:1:zvz:-"));
   assert.equal(choice.type, 7);
   assert.ok(choice.data.content.includes("How do you want to set the slots?"));
-  assert.deepEqual(ids(choice), ["cpform:1:zvz:-", "cpgs:1:zvz:-"]);
-  const plain: any = await d(press("cpform:1:zvz:-"));
+  assert.deepEqual(ids(choice), ["cpform:pvp:1:zvz:-", "cpgs:pvp:1:zvz:-"]);
+  const plain: any = await d(press("cpform:pvp:1:zvz:-"));
   assert.equal(plain.type, 9);
-  assert.equal(plain.data.custom_id, "create:1:zvz");
+  assert.equal(plain.data.custom_id, "create:pvp:1:zvz");
   assert.equal(plain.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots").value, undefined);
 });
 
@@ -119,10 +119,10 @@ test("the whole flow: numbers, weapon search and pick, same as previous, fill th
   assert.ok(ids(r).includes(`gs:done:${id}`));
   const f: any = await d(press(`gs:done:${id}`));
   assert.equal(f.type, 9);
-  assert.equal(f.data.custom_id, "create:1:zvz");
+  assert.equal(f.data.custom_id, "create:pvp:1:zvz");
   const lines = f.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots").value.split("\n");
   assert.deepEqual(lines.map((l: string) => l.split(" - ")[0]), ["Tank", "Tank", "Healer", "DPS", "DPS"]);
-  const submit = form("create:1:zvz", { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots: lines.join("\n") });
+  const submit = form("create:pvp:1:zvz", { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots: lines.join("\n") });
   assert.equal(((await handleCreateModal(deps, submit)) as any).data.content, "Created");
 });
 
@@ -201,7 +201,7 @@ test("tampered ids and values are refused and change nothing", async () => {
   }
   assert.equal(((await d(press(`gs:pick:${id}`, ["NOT_A_WEAPON"]))) as any).data.flags, 64);
   assert.equal(((await d(form(`gsr:${id}:x`, { r0: "1" }))) as any).data.flags, 64);
-  assert.equal(((await d(press("cpgs:9:other:-"))) as any).data.flags, 64);
+  assert.equal(((await d(press("cpgs:xx:9:other:-"))) as any).data.flags, 64);
   assert.equal((await getDraft(sql, id, NOW))!.counts, null);
 });
 
@@ -214,7 +214,7 @@ test("Continue to form and the choice buttons are refused while the post already
     guildId: "g1", threadId: "t1", type: "pvp", title: "x", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
     tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
   });
-  for (const cid of [`gs:done:${id}`, "cpgs:0:other:-", "cpform:0:other:-", "cpgo:0:other:-"]) {
+  for (const cid of [`gs:done:${id}`, "cpgs:pvp:0:other:-", "cpform:pvp:0:other:-", "cpgo:pvp:0:other:-"]) {
     const r: any = await d(press(cid));
     assert.equal(r.data.flags, 64, cid);
     assert.ok(r.data.content.includes("already has content"), cid);

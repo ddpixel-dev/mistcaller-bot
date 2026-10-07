@@ -10,8 +10,8 @@ import {
 import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep } from "../render/guided.ts";
-import { createForm, forumType, postTakenReply } from "./create.ts";
-import { decodeDraft } from "./create-panel.ts";
+import { createForm, inContentPost, postTakenReply } from "./create.ts";
+import { checked } from "./create-panel.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
@@ -27,20 +27,13 @@ async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, query: strin
 
 // The "Guided steps" choice after Continue: start (or restart) this member's draft for this post.
 export async function handleGuidedStart(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
-  const parts = typeof raw === "string" ? raw.split(":") : [];
-  const draft = parts[0] === "cpgs" ? decodeDraft(parts.slice(1)) : null;
   const userId = i.member?.user?.id;
   const threadId = i.channel?.id;
-  if (!draft || !i.guild_id || !userId || !threadId) return reply(EXPIRED);
-  const type = await forumType(deps, i);
-  if (type === null) return reply(NOT_FORUM);
-  const kind = resolveKind(type, draft.kind);
-  if (!kind.ok) return reply(kind.error);
-  const taken = await postTakenReply(deps, i.guild_id, threadId);
-  if (taken) return taken;
+  if (!i.guild_id || !userId || !threadId) return reply(EXPIRED);
+  const c = await checked(deps, i, "cpgs");
+  if (!c.ok) return c.response;
   const id = await startDraft(deps.sql, {
-    guildId: i.guild_id, userId, threadId, loot: draft.loot, kind: kind.value,
+    guildId: i.guild_id, userId, threadId, type: c.draft.type, loot: c.draft.loot, kind: c.draft.kind,
   });
   const d = await getDraft(deps.sql, id, deps.now());
   return d ? update(d) : reply(EXPIRED);
@@ -102,13 +95,12 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     }
     case "done": {
       if (!isComplete(d)) return update(d);
-      const type = await forumType(deps, i);
-      if (type === null || !i.guild_id) return reply(NOT_FORUM);
-      const kind = resolveKind(type, d.kind);
+      if (!i.guild_id || !(await inContentPost(deps, i))) return reply(NOT_FORUM);
+      const kind = resolveKind(d.type, d.kind);
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ loot: d.loot, kind: kind.value, presetId: null }, formatSlotLines(d.slots));
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value }, formatSlotLines(d.slots));
     }
     default: return reply(EXPIRED);
   }
