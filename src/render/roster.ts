@@ -1,24 +1,15 @@
-import type { RosterView } from "../domain/types.ts";
+import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
-import {
-  BANNER_URL, CANCELLED_TAG, ICON_URL, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner,
-} from "./theme.ts";
-
-export type Embed = {
-  title?: string;
-  description?: string;
-  color?: number;
-  image?: { url: string };
-  thumbnail?: { url: string };
-};
+import { CANCELLED_TAG, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
+import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DESC_LIMIT = 4096;
-const TITLE_LIMIT = 256;
+const TEXT_LIMIT = 4000; // Discord: the text of a V2 message
+const TITLE_LIMIT = 200;
 
 export function formatUtc(d: Date): string {
   const hh = String(d.getUTCHours()).padStart(2, "0");
@@ -41,113 +32,139 @@ function voteButtons(view: RosterView) {
   ];
 }
 
-export function voteLine(view: RosterView): string {
-  return `${VOTE_ICON} ${voteText(view)}`;
-}
+// The roster is a Components V2 message (ADR 0018): a coloured container with text blocks, one row per position,
+// a menu of the open positions and the vote buttons. Discord allows 40 components in total and no embeds.
+export const IS_COMPONENTS_V2 = 1 << 15;
+export const MAX_PER_ROW_LEAVE = 11; // a row with its own Leave button costs 3 components
 
-function voteText(view: RosterView): string {
+export function voteResultText(view: RosterView): string {
   const { split, regear } = view.votes;
-  if (!view.voteClosed) {
-    const closes = Math.floor((view.startsAt.getTime() - VOTE_CUTOFF_MS) / 1000);
-    return `Spoils vote: Split ${split} - Regear ${regear} · closes <t:${closes}:R>`;
-  }
   switch (view.voteResult) {
-    case "split": return `Spoils vote result: Split won ${split}-${regear}`;
-    case "regear": return `Spoils vote result: Regear won ${regear}-${split}`;
-    case "tie": return `Spoils vote result: Tie ${split}-${regear}`;
-    default: return "Spoils vote result: no votes";
+    case "split": return `Split won ${split}-${regear}`;
+    case "regear": return `Regear won ${regear}-${split}`;
+    case "tie": return `Tie ${split}-${regear}`;
+    default: return "no votes";
   }
 }
 
-// Kept so roster messages from release 0.3 to 0.5, which still carry the old menu option, keep working.
-export const LEAVE_VALUE = "leave";
-
-// One button per position (owner choice 2026-10-07). A held position is dimmed for everyone, which also
-// stops the holder from picking it again. Everything is dimmed once the roll is closed.
-function slotRows(view: RosterView) {
-  const closed = view.status !== "open" || view.started;
-  const buttons = view.slots.map((s) => ({
-    type: 2,
-    style: 2,
-    label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 80).join(""),
-    emoji: { name: roleIcon(s.role) },
-    custom_id: `pick:${view.id}:${s.id}`,
-    disabled: closed || s.userId !== null,
-  }));
-  const rows: unknown[] = [];
-  for (let at = 0; at < buttons.length; at += 5) rows.push({ type: 1, components: buttons.slice(at, at + 5) });
-  return rows;
+// The line the scheduled job posts when the vote closes.
+export function voteLine(view: RosterView): string {
+  return `${VOTE_ICON} Loot vote result: ${voteResultText(view)}`;
 }
 
-// Leave is shared by everyone, so it is dimmed while nobody is signed up and enabled once anyone is.
-// Pressing it without a signup only tells that person so. Leaving stays possible after the start.
-// With a loot vote, its two buttons share this last row, so 20 positions plus this row fit five rows.
-function bottomRow(view: RosterView, filled: number) {
-  const live = view.status === "open" || view.status === "locked";
-  return {
-    type: 1,
-    components: [
-      {
-        type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
-        disabled: !(live && filled > 0),
-      },
-      ...(view.hasLoot ? voteButtons(view) : []),
-    ],
-  };
+function lootLine(view: RosterView): string {
+  if (!view.hasLoot) return `${VOTE_ICON} **Loot vote:** Off`;
+  if (view.voteClosed) return `${VOTE_ICON} **Loot vote:** On · Result: ${voteResultText(view)}`;
+  const closes = Math.floor((view.startsAt.getTime() - VOTE_CUTOFF_MS) / 1000);
+  return `${VOTE_ICON} **Loot vote:** On · Split ${view.votes.split} · Regear ${view.votes.regear} · closes <t:${closes}:R>`;
 }
 
-export function renderRosterMessage(view: RosterView): {
-  embeds: Embed[];
-  components: unknown[];
-  allowed_mentions: { parse: [] };
-} {
+// roleIcon Role - WeaponIcon Weapon - Duty (if any) · Sworn: Player (or Open)
+function rowText(s: RosterSlot, withEmoji: boolean): string {
+  const emoji = withEmoji ? weaponEmojiTag(s.weapon) : "";
+  const duty = dutyDef(s.duty);
+  return `${s.position}. ${roleIcon(s.role)} ${escapeText(s.role)} - ${emoji ? `${emoji} ` : ""}${escapeText(s.weapon)}${
+    duty ? ` - ${duty.icon} ${duty.label}` : ""
+  } · ${s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open}`;
+}
+
+function headerText(view: RosterView, filled: number, notes: boolean): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
-  const filled = view.slots.filter((s) => s.userId !== null).length;
   const typeLabel = view.type === "pvp" ? "PvP" : "PvE";
   const def = kindDef(view.type, view.kind);
   const kind = def && def.id !== DEFAULT_KIND ? `${typeLabel} · ${def.label}` : typeLabel;
-  const head = [
-    `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · Loot vote: ${view.hasLoot ? "On" : "Off"}`,
+  const title = view.status === "cancelled"
+    ? `${CANCELLED_TAG} ${escapeText(view.title)}`
+    : `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
+  const lines = [
+    `**${Array.from(title).slice(0, TITLE_LIMIT).join("")}**`,
+    `⚔️ **${kind}**`,
+    `🛡️ **Tier:** ${formatTier(view.tier)}`,
+    lootLine(view),
     `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
     `🌍 **Your time** · <t:${epoch}:f> · <t:${epoch}:R>`,
   ];
   const banner = statusBanner(view.status, view.started);
-  if (banner) head.push(banner);
-  if (view.hasLoot) head.push(voteLine(view));
-  const slotLines = view.slots.map(
-    (s) =>
-      `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)}${
-        dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""
-      } · ${s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open}`,
-  );
-  const roster = [
-    RULE,
-    `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`,
-    ...slotLines,
-    RULE,
-  ];
-  const base = [...head, ...roster].join("\n");
-  let description = base;
-  if (view.notes) {
-    const withNotes = [...head, `📝 **Notes:** ${escapeText(view.notes)}`, ...roster].join("\n");
-    if (withNotes.length <= DESC_LIMIT) description = withNotes;
+  if (banner) lines.push(banner);
+  if (notes && view.notes) lines.push(`📝 **Notes:** ${escapeText(view.notes)}`);
+  lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
+  return lines.join("\n");
+}
+
+const text = (content: string) => ({ type: 10, content });
+
+export function renderRosterMessage(view: RosterView): {
+  flags: number;
+  components: unknown[];
+  allowed_mentions: { parse: [] };
+} {
+  const filled = view.slots.filter((s) => s.userId !== null).length;
+  const live = view.status === "open" || view.status === "locked";
+  const perRow = view.slots.length <= MAX_PER_ROW_LEAVE;
+
+  // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
+  let withEmoji = true;
+  let notes = true;
+  const fits = () => headerText(view, filled, notes).length + view.slots.reduce((n, s) => n + rowText(s, withEmoji).length + 1, 0) <= TEXT_LIMIT;
+  if (!fits()) withEmoji = false;
+  if (!fits()) notes = false;
+
+  const rows = view.slots.map((s) => ({ s, text: rowText(s, withEmoji) }));
+  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - 1;
+  let used = 0;
+  const kept = rows.filter((r) => (used += r.text.length + 1) <= budget);
+
+  const body: unknown[] = [text(headerText(view, filled, notes))];
+  if (perRow) {
+    // Each sworn row carries its own Leave button; runs of open rows share one text block.
+    let pending: string[] = [];
+    const flush = () => { if (pending.length) body.push(text(pending.join("\n"))); pending = []; };
+    for (const r of kept) {
+      if (r.s.userId) {
+        flush();
+        body.push({
+          type: 9,
+          components: [text(r.text)],
+          accessory: {
+            type: 2, style: 4, label: "Leave", emoji: { name: "🚪" },
+            custom_id: `leaveslot:${view.id}:${r.s.id}`, disabled: !live,
+          },
+        });
+      } else {
+        pending.push(r.text);
+      }
+    }
+    flush();
+  } else {
+    body.push(text(kept.map((r) => r.text).join("\n")));
   }
-  if (description.length > DESC_LIMIT) description = description.slice(0, DESC_LIMIT);
-  const marked = `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
-  const title = view.status === "cancelled" ? `${CANCELLED_TAG} ${escapeText(view.title)}` : marked;
-  const embed: Embed = {
-    title: Array.from(title).slice(0, TITLE_LIMIT).join(""),
-    description,
-    color: embedColor(view.type, view.status, view.kind),
-    ...(BANNER_URL ? { image: { url: BANNER_URL } } : {}),
-    ...(ICON_URL ? { thumbnail: { url: ICON_URL } } : {}),
-  };
+
+  const open = view.slots.filter((s) => s.userId === null);
+  if (view.status === "open" && !view.started && open.length > 0) {
+    body.push({
+      type: 1,
+      components: [{
+        type: 3, custom_id: `join:${view.id}`, placeholder: `Pick an open position (${open.length})`,
+        options: open.slice(0, 25).map((s) => ({
+          label: Array.from(`${s.position}. ${s.role} - ${s.weapon}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+          value: s.id,
+          emoji: weaponEmojiByName(s.weapon) ?? { name: roleIcon(s.role) },
+        })),
+      }],
+    });
+  }
+  const buttons: unknown[] = [];
+  if (!perRow) {
+    buttons.push({
+      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`, disabled: !(live && filled > 0),
+    });
+  }
+  if (view.hasLoot) buttons.push(...voteButtons(view));
+  if (buttons.length) body.push({ type: 1, components: buttons });
+
   return {
-    embeds: [embed],
-    components: [
-      ...slotRows(view),
-      bottomRow(view, filled),
-    ],
+    flags: IS_COMPONENTS_V2,
+    components: [{ type: 17, accent_color: embedColor(view.type, view.status, view.kind), components: body }],
     allowed_mentions: { parse: [] },
   };
 }

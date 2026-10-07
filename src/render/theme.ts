@@ -16,8 +16,8 @@ export const ICON_URL: string | null = null;
 
 export const WORDS = {
   company: "The Company",
-  sworn: "sworn",
-  open: "open",
+  sworn: "Sworn",
+  open: "Open",
   spoils: "Spoils",
 } as const;
 

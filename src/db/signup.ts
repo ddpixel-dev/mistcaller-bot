@@ -1,7 +1,7 @@
 import type { Sql } from "./client.ts";
 
 export type ClaimResult = "claimed" | "moved" | "unchanged" | "taken" | "locked" | "not_found";
-export type LeaveResult = "left" | "not_signed" | "unavailable" | "not_found";
+export type LeaveResult = "left" | "not_signed" | "unavailable" | "not_found" | "not_yours";
 
 function isSlotTaken(err: unknown): boolean {
   const e = err as { code?: string; constraint_name?: string } | null;
@@ -63,12 +63,19 @@ async function claimOnce(
 
 export async function leaveContent(
   sql: Sql,
-  a: { contentId: string; userId: string; guildId?: string },
+  a: { contentId: string; userId: string; guildId?: string; slotId?: string },
 ): Promise<LeaveResult> {
   return await sql.begin(async (tx): Promise<LeaveResult> => {
     const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
     if (c && a.guildId !== undefined && c.guild_id !== a.guildId) return "not_found";
     if (!c || (c.status !== "open" && c.status !== "locked")) return "unavailable";
+    if (a.slotId !== undefined) {
+      // A Leave button on a roster row only works for the member who holds that position.
+      const [mine] = await tx`
+        select slot_id from signup where content_id = ${a.contentId} and user_id = ${a.userId} and status = 'signed'`;
+      if (!mine) return "not_signed";
+      if (mine.slot_id !== a.slotId) return "not_yours";
+    }
     const rows = await tx`
       delete from signup where content_id = ${a.contentId} and user_id = ${a.userId}
       returning user_id`;

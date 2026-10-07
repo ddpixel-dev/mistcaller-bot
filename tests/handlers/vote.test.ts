@@ -1,5 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { discordProblems, flatComponents, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
 import { claimSlot } from "../../src/db/signup.ts";
@@ -44,8 +45,8 @@ const isEphemeral = (r: any, text?: string) => {
   assert.equal(r.data.flags, 64);
   if (text) assert.ok(r.data.content.includes(text), r.data.content);
 };
-const bottom = (r: any) => r.data.components[r.data.components.length - 1].components;
-const labels = (r: any) => bottom(r).slice(1).map((b: any) => b.label);
+const voteButtons = (data: any) => flatComponents(data).filter((c) => String(c.custom_id ?? "").startsWith("vote:"));
+const labels = (r: any) => voteButtons(r.data).map((b: any) => b.label);
 
 test("signed user votes Split: type 7 with updated count", async () => {
   const { deps, contentId, sign } = await setup();
@@ -53,7 +54,8 @@ test("signed user votes Split: type 7 with updated count", async () => {
   const r: any = await handleVote(deps, click(`vote:${contentId}:split`));
   assert.equal(r.type, 7);
   assert.deepEqual(labels(r), ["Split (1)", "Regear (0)"]);
-  assert.ok(r.data.embeds[0].description.includes("Spoils vote: Split 1 - Regear 0"));
+  assert.ok(textOf(r.data).includes("💰 **Loot vote:** On · Split 1 · Regear 0"));
+  assert.deepEqual(discordProblems(r.data), []);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
@@ -108,8 +110,8 @@ test("response after the cutoff shows the result line and disabled buttons", asy
   const { getRosterView: g } = await import("../../src/db/content.ts");
   const { renderRosterMessage } = await import("../../src/render/roster.ts");
   const m: any = renderRosterMessage((await g(deps.sql, contentId, CUTOFF))!);
-  assert.ok(m.embeds[0].description.includes("Spoils vote result: Split won 1-0"));
-  assert.ok(m.components[m.components.length - 1].components.slice(1).every((b: any) => b.disabled === true));
+  assert.ok(textOf(m).includes("💰 **Loot vote:** On · Result: Split won 1-0"));
+  assert.ok(voteButtons(m).length === 2 && voteButtons(m).every((b: any) => b.disabled === true));
 });
 
 test("not signed up and waitlisted users are refused, no change", async () => {
