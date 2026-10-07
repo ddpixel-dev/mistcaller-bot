@@ -229,8 +229,8 @@ status: accepted
 The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold embed colors by content type, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line dividers, and the words "company", "sworn" and "spoils". The roster lists one slot per line (Lines layout). The owner supplies the bot icon and banner art. No third-party game art is used without permission, and the style stays readable for screen readers and under Discord's embed limits.
 
 ### FR-023: Content kinds
-status: proposed
-Each content shall have a kind inside its forum type (a PvP kind or a PvE kind), chosen when the content is created, shown on the roster and used for its label and color. The list of kinds is configurable per server. The initial list is decided at design time (open question Q18).
+status: accepted
+Each content shall have a kind inside its forum type (a PvP kind or a PvE kind), chosen when the content is created, shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted
@@ -238,11 +238,11 @@ An officer shall be able to define the slots in three ways: typing the lines (as
 
 ### FR-025: Saved presets
 status: accepted
-An officer shall be able to save the slots defined in the typed-lines mode or the guided-steps mode as a named preset for the server, and later start a content from a preset and adjust it. Who may save and delete presets, and how many presets a server may hold, are open (Q20).
+An officer shall be able to save the slots defined in the typed-lines mode or the guided-steps mode as a named preset for the server, and later start a content from a preset and adjust it. Only members with Manage Server or the officer role may save and delete presets, and a server holds at most 25 (ADR 0012).
 
 ### FR-026: Weapon list and icons
-status: proposed
-Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter, shown with icons made from art the owner owns or has permission to use. Whether and how icons may be sourced is open (Q19).
+status: accepted
+Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). Roster lines shall show a small weapon icon beside the role and weapon name, using application emoji made from Albion's render service (ADR 0011). The rights to use those icons are unconfirmed, so the owner confirms them with Sandbox Interactive before this ships; without permission the roster shows names only.
 
 ## Non-functional requirements
 

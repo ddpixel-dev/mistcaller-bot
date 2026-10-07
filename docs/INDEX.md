@@ -20,7 +20,10 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0006 Docker tooling](decisions/0006-docker-tooling-minimal-dependencies.md): no host installs, minimal dependencies
 - [0007 POC accepted](decisions/0007-poc-accepted-with-open-checks.md): owner accepts the POC with live checks still open
 - [0008 Medieval Banner style](decisions/0008-medieval-banner-roster-style.md): theme, Lines layout, owner-made art
-- [0009 Weapon data from ao-bin-dumps](decisions/0009-weapon-data-from-ao-bin-dumps.md): proposed, rights open
+- [0009 Weapon data from ao-bin-dumps](decisions/0009-weapon-data-from-ao-bin-dumps.md): accepted, no license on the data
+- [0010 Content kinds](decisions/0010-content-kinds-fixed-list.md): fixed list in code
+- [0011 Weapon icons](decisions/0011-weapon-icons-as-application-emoji.md): application emoji from the render service, rights unconfirmed
+- [0012 Preset permissions](decisions/0012-preset-permissions-and-cap.md): Manage Server and officer role, 25 per server
 
 ## Architecture
 - [Overview](architecture/overview.md)
