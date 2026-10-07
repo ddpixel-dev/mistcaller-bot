@@ -50,6 +50,24 @@ export async function handleSignup(deps: Deps, i: Interaction): Promise<Interact
   return await refreshed(deps, id);
 }
 
+// A position button on the roster: sign up, or move from the position you hold.
+export async function handlePick(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const [prefix, id, slotId, extra] = typeof raw === "string" ? raw.split(":") : [];
+  const userId = i.member?.user?.id;
+  const guildId = i.guild_id;
+  if (prefix !== "pick" || extra !== undefined || !id || !slotId || !UUID.test(id) || !UUID.test(slotId)) {
+    return reply(INVALID);
+  }
+  if (!userId || !guildId) return reply(INVALID);
+  const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now() });
+  if (result === "unchanged") return reply("You already hold this position. Pick another one to move, or press Leave.");
+  if (result === "taken") return reply("That position is already taken. Pick another one.");
+  if (result === "locked") return reply("Signups are locked for this content.");
+  if (result === "not_found") return reply(NOT_FOUND);
+  return await refreshed(deps, id);
+}
+
 // The roster's Leave button. It is shared, so anyone can press it; only signed-up members are affected.
 export async function handleLeave(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const id = contentId(i, "leave");

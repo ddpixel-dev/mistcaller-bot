@@ -44,7 +44,8 @@ const isEphemeral = (r: any, text?: string) => {
   assert.equal(r.data.flags, 64);
   if (text) assert.ok(r.data.content.includes(text), r.data.content);
 };
-const labels = (r: any) => r.data.components[2].components.map((b: any) => b.label);
+const bottom = (r: any) => r.data.components[r.data.components.length - 1].components;
+const labels = (r: any) => bottom(r).slice(1).map((b: any) => b.label);
 
 test("signed user votes Split: type 7 with updated count", async () => {
   const { deps, contentId, sign } = await setup();
@@ -108,7 +109,7 @@ test("response after the cutoff shows the result line and disabled buttons", asy
   const { renderRosterMessage } = await import("../../src/render/roster.ts");
   const m: any = renderRosterMessage((await g(deps.sql, contentId, CUTOFF))!);
   assert.ok(m.embeds[0].description.includes("Spoils vote result: Split won 1-0"));
-  assert.ok(m.components[2].components.every((b: any) => b.disabled === true));
+  assert.ok(m.components[m.components.length - 1].components.slice(1).every((b: any) => b.disabled === true));
 });
 
 test("not signed up and waitlisted users are refused, no change", async () => {
