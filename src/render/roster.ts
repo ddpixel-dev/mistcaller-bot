@@ -116,9 +116,9 @@ export function renderRosterMessage(view: RosterView): {
   if (view.hasLoot) head.push(voteLine(view));
   const slotLines = view.slots.map(
     (s) =>
-      `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${
-        s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
-      }${s.userId && dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`,
+      `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)}${
+        dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""
+      } · ${s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open}`,
   );
   const roster = [
     RULE,

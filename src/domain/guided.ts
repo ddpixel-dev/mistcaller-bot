@@ -1,75 +1,92 @@
 import type { Result, SlotDef } from "./types.ts";
+import { DUTIES } from "./duties.ts";
 
 export const MAX_SLOTS = 20;
 
-// Owner decision 2026-10-07: only four roles. Jobs such as Caller or Scout are duties, assigned later.
+// Owner decision 2026-10-07: only four roles. Jobs such as Caller or Scout are duties, set per slot.
 export const GUIDED_ROLES = ["Tank", "Healer", "Support", "DPS"] as const;
+export const NO_DUTY = "none";
 
+// One card per slot. `step` is the card being filled; role, weapon and duty are its unsaved choices.
 export type GuidedDraft = {
-  counts: number[] | null; // one number per role, in the order of GUIDED_ROLES
+  count: number | null;
   slots: SlotDef[];
+  step: number;
+  role: string | null;
+  weapon: string | null;
+  duty: string | null;
 };
 
-export const emptyDraft = (): GuidedDraft => ({ counts: null, slots: [] });
+export const emptyDraft = (): GuidedDraft => ({ count: null, slots: [], step: 0, role: null, weapon: null, duty: null });
 
-export const total = (d: GuidedDraft): number => (d.counts ? d.counts.reduce((a, b) => a + b, 0) : 0);
-export const isComplete = (d: GuidedDraft): boolean => d.counts !== null && d.slots.length >= total(d);
+export const isComplete = (d: GuidedDraft): boolean => d.count !== null && d.step >= d.count;
+export const canSave = (d: GuidedDraft): boolean => d.count !== null && d.step < d.count && !!d.role && !!d.weapon;
 
-// The role of the next slot follows the typed numbers: all Tanks first, then Healers, Support, DPS.
-export function roleAt(d: GuidedDraft, index: number): string | null {
-  if (!d.counts) return null;
-  let left = index;
-  for (let r = 0; r < GUIDED_ROLES.length; r++) {
-    if (left < d.counts[r]!) return GUIDED_ROLES[r]!;
-    left -= d.counts[r]!;
-  }
-  return null;
+// "How many players needed?" typed as a number, 1 to 20.
+export function parseCount(input: string): Result<number> {
+  const text = input.trim();
+  if (!/^\d{1,3}$/.test(text)) return { ok: false, error: "Type a whole number from 1 to 20, like 10." };
+  const n = Number(text);
+  if (n < 1) return { ok: false, error: "At least 1 player is needed." };
+  if (n > MAX_SLOTS) return { ok: false, error: `The maximum is ${MAX_SLOTS} players.` };
+  return { ok: true, value: n };
 }
 
-export const nextRole = (d: GuidedDraft): string | null => roleAt(d, d.slots.length);
-
-// Typed text from the form, one value per role. Empty means 0.
-export function parseCounts(inputs: string[]): Result<number[]> {
-  const counts: number[] = [];
-  for (let r = 0; r < GUIDED_ROLES.length; r++) {
-    const text = (inputs[r] ?? "").trim();
-    if (text === "") {
-      counts.push(0);
-      continue;
-    }
-    if (!/^\d{1,2}$/.test(text)) return { ok: false, error: `${GUIDED_ROLES[r]} must be a whole number, like 2.` };
-    counts.push(Number(text));
-  }
-  const sum = counts.reduce((a, b) => a + b, 0);
-  if (sum < 1) return { ok: false, error: "Type at least one member in total." };
-  if (sum > MAX_SLOTS) return { ok: false, error: `That is ${sum} members. The maximum is ${MAX_SLOTS}.` };
-  return { ok: true, value: counts };
+// Show the saved slot of the current card (when going back or forward), or an empty card.
+function load(d: GuidedDraft): GuidedDraft {
+  const s = d.slots[d.step];
+  return { ...d, role: s?.role ?? null, weapon: s?.weapon ?? null, duty: s?.duty ?? null };
 }
 
-// New numbers start the slots over, because the roles of the finished slots may no longer fit.
-export function setCounts(d: GuidedDraft, counts: number[]): GuidedDraft {
-  const same = d.counts && d.counts.every((n, i) => n === counts[i]);
-  return same ? d : { counts, slots: [] };
+export function setCount(d: GuidedDraft, n: number): GuidedDraft {
+  if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return d;
+  const slots = d.slots.slice(0, n);
+  return load({ ...d, count: n, slots, step: Math.min(d.step, n) });
 }
+
+const live = (d: GuidedDraft) => d.count !== null && d.step < d.count;
+
+export const setRole = (d: GuidedDraft, role: string): GuidedDraft =>
+  live(d) && (GUIDED_ROLES as readonly string[]).includes(role) ? { ...d, role } : d;
 
 export function setWeapon(d: GuidedDraft, weapon: string): GuidedDraft {
   const w = weapon.trim();
-  const role = nextRole(d);
-  if (!role || w.length < 1 || w.length > 40) return d;
-  return { ...d, slots: [...d.slots, { role, weapon: w }] };
+  return live(d) && w.length >= 1 && w.length <= 40 ? { ...d, weapon: w } : d;
 }
 
+// "none" clears the duty.
+export function setDuty(d: GuidedDraft, duty: string): GuidedDraft {
+  if (!live(d)) return d;
+  if (duty === NO_DUTY) return { ...d, duty: null };
+  return DUTIES.some((x) => x.id === duty) ? { ...d, duty } : d;
+}
+
+// Next: save the card's slot and move on. The last card moves to the end (complete).
+export function next(d: GuidedDraft): GuidedDraft {
+  if (!canSave(d)) return d;
+  const slot: SlotDef = d.duty ? { role: d.role!, weapon: d.weapon!, duty: d.duty } : { role: d.role!, weapon: d.weapon! };
+  const slots = [...d.slots];
+  slots[d.step] = slot;
+  return load({ ...d, slots, step: d.step + 1 });
+}
+
+// Back: the previous card, showing its saved choices. Unsaved choices on this card are dropped.
+export function back(d: GuidedDraft): GuidedDraft {
+  return d.step > 0 ? load({ ...d, step: d.step - 1 }) : d;
+}
+
+// Same as previous: put the previous slot's choices on this card (not saved until Next).
 export function sameAsPrevious(d: GuidedDraft): GuidedDraft {
-  const last = d.slots[d.slots.length - 1];
-  return last ? setWeapon(d, last.weapon) : d;
+  const prev = d.slots[d.step - 1];
+  if (!live(d) || !prev) return d;
+  return { ...d, role: prev.role, weapon: prev.weapon, duty: prev.duty ?? null };
 }
 
+// Fill the rest: this card's choices go to this slot and every one after it.
 export function fillRest(d: GuidedDraft): GuidedDraft {
-  const last = d.slots[d.slots.length - 1];
-  if (!last || isComplete(d)) return d;
-  let next = d;
-  while (!isComplete(next)) next = setWeapon(next, last.weapon);
-  return next;
+  if (!canSave(d)) return d;
+  const slot: SlotDef = d.duty ? { role: d.role!, weapon: d.weapon!, duty: d.duty } : { role: d.role!, weapon: d.weapon! };
+  const slots = [...d.slots.slice(0, d.step)];
+  for (let i = d.step; i < d.count!; i++) slots.push({ ...slot });
+  return { ...d, slots, step: d.count!, role: null, weapon: null, duty: null };
 }
-
-export const back = (d: GuidedDraft): GuidedDraft => ({ ...d, slots: d.slots.slice(0, -1) });

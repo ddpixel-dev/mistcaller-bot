@@ -24,11 +24,13 @@ Satisfies FR-024, FR-025, FR-026. Decisions: ADR 0004 (slot model), 0009 (weapon
 - The render service answers 200 for tiered ids such as `T4_MAIN_SWORD` and 404 for ids without a tier, so the icon id is `T4_<base>` (or the lowest tier that exists).
 - Files fetched for the spike stay outside the repo.
 
-## Phase 3: guided steps (FR-024) - built, reworked the same day
-- Entry: after Continue in the create panel, a choice between "Write them in a form" and "Guided steps". It starts a draft in the `slot_draft` table (migrations 0005 and 0007): one per member per post, replaced when started again, purged after an hour by the scheduled job.
-- Steps: the member types how many Tanks, Healers, Support and DPS (a small form, four number boxes, at most 20 in total). Slot roles then follow in that order, so only the weapon is chosen per slot: with `/content slot weapon:<type to search>` (Discord's only searchable list is the autocomplete of a command option) or the Find weapon button (type text, then pick from up to 25 matches). "Same as previous", "Fill the rest" and "Back" are available; changing the numbers starts the slots over.
-- The end opens the create form with the slots filled in. Decisions come from pure functions in `src/domain/guided.ts`; a handler loads the draft, applies one, saves and redraws. Only the draft's owner, in its post, may use it.
-- Duties (Caller, Scout, Rat) are not part of this flow; managers assign them later with `/content duty` (FR-027).
+## Phase 3: guided steps (FR-024) - built, reworked three times on the same day
+Approved by the owner on 2026-10-07 after reading the Roster Studio artifact:
+- Continue in the create panel goes straight to "How many players needed?" (one number box, 1 to 20). No "how to set the slots" step. A chosen preset skips the cards and opens the filled form.
+- One card per slot, "Slot k of n" with progress dots: three lists with placeholders (Role, Weapon, Duty). The weapon list shows the first 25 A to Z, or the matches of the Search weapon form. **Next** saves the slot (Finish on the last). Back, Same as previous, Fill the rest, Change number and Cancel are on the card; Back on the first card returns to the create panel.
+- `/content slot role weapon duty` fills the card in one command, with a searchable weapon autocomplete.
+- Progress is in the `slot_draft` table (migrations 0005, 0007, 0008): one per member per post, replaced when restarted, purged after an hour by the scheduled job. Decisions come from pure functions in `src/domain/guided.ts`.
+- The duty belongs to the slot (FR-027) and travels in typed lines as `(Caller)`.
 
 ## Limits to remember
 - A roster line cannot carry an image. Per-line weapon icons are not possible in Discord embed text, so the roster shows the role icon and the weapon name; icons live in the builder.

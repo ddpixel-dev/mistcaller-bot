@@ -20,7 +20,7 @@ test("unchanged lines produce an empty plan", () => {
 
 test("a changed line renames that slot, even when held", () => {
   const r = planSlotEdit(slots(["a", null, null]), [def("Off-Tank", "Mace"), ...same.slice(1)]);
-  assert.deepEqual(r, { ok: true, value: { rename: [{ id: "s1", role: "Off-Tank", weapon: "Mace" }], add: [], remove: [] } });
+  assert.deepEqual(r, { ok: true, value: { rename: [{ id: "s1", role: "Off-Tank", weapon: "Mace", duty: null }], add: [], remove: [] } });
 });
 
 test("extra lines add slots", () => {
@@ -37,4 +37,10 @@ test("dropping a held trailing line is refused and names the slot", () => {
   const r = planSlotEdit(slots([null, null, "c"]), same.slice(0, 2));
   assert.equal(r.ok, false);
   assert.match((r as { error: string }).error, /3\. DPS - Bow/);
+});
+
+test("a changed duty alone renames the slot, and the lines carry the duty in brackets", () => {
+  const r = planSlotEdit(slots(), [{ ...same[0]!, duty: "caller" }, ...same.slice(1)]);
+  assert.deepEqual(r, { ok: true, value: { rename: [{ id: "s1", role: "Tank", weapon: "Axe", duty: "caller" }], add: [], remove: [] } });
+  assert.equal(formatSlotLines([{ role: "Tank", weapon: "Axe", duty: "caller" }, { role: "DPS", weapon: "Bow", duty: null }, { role: "DPS", weapon: "Bow", duty: "bogus" }]), "Tank - Axe (Caller)\nDPS - Bow\nDPS - Bow");
 });

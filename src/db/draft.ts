@@ -23,8 +23,12 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   type: (r.type === "pve" ? "pve" : "pvp") as ContentType,
   loot: r.loot,
   kind: r.kind,
-  counts: (r.counts as number[] | null) ?? null,
+  count: r.count ?? null,
   slots: r.slots as SlotDef[],
+  step: r.step ?? 0,
+  role: r.role ?? null,
+  weapon: r.weapon ?? null,
+  duty: r.duty ?? null,
   query: r.query,
 });
 
@@ -37,8 +41,8 @@ export async function startDraft(
     insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, slots)
     values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, '[]'::jsonb)
     on conflict (guild_id, thread_id, user_id) do update set
-      type = excluded.type, loot = excluded.loot, kind = excluded.kind, counts = null, slots = '[]'::jsonb,
-      query = null, created_at = now()
+      type = excluded.type, loot = excluded.loot, kind = excluded.kind, count = null, counts = null,
+      slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -51,8 +55,8 @@ export async function getDraft(sql: Sql, id: string, now: Date): Promise<StoredD
 
 export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { query: string | null }): Promise<void> {
   await sql`
-    update slot_draft set counts = ${d.counts === null ? null : sql.json(d.counts as never)},
-      slots = ${sql.json(d.slots as never)}, query = ${d.query}
+    update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)}, step = ${d.step},
+      role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, query = ${d.query}
     where id = ${id}`;
 }
 

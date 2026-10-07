@@ -1,87 +1,136 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  GUIDED_ROLES, back, emptyDraft, fillRest, isComplete, nextRole, parseCounts, roleAt, sameAsPrevious, setCounts,
-  setWeapon, total,
+  GUIDED_ROLES, back, canSave, emptyDraft, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty,
+  setRole, setWeapon,
 } from "../../src/domain/guided.ts";
 import { parseSlots } from "../../src/domain/parse.ts";
 import { formatSlotLines } from "../../src/domain/slots.ts";
 
-const ok = (inputs: string[]) => {
-  const r = parseCounts(inputs);
-  assert.equal(r.ok, true);
-  return (r as { value: number[] }).value;
-};
-const with2121 = () => setCounts(emptyDraft(), [2, 1, 2, 1]);
+const card = (d: ReturnType<typeof emptyDraft>, role: string, weapon: string, duty = "none") =>
+  setDuty(setWeapon(setRole(d, role), weapon), duty);
+const five = () => setCount(emptyDraft(), 5);
 
 test("there are exactly four roles", () => {
   assert.deepEqual([...GUIDED_ROLES], ["Tank", "Healer", "Support", "DPS"]);
 });
 
-test("typed numbers: empty means zero, only whole numbers, at least 1 and at most 20 in total", () => {
-  assert.deepEqual(ok(["1", "", " 2 ", "3"]), [1, 0, 2, 3]);
-  assert.deepEqual(ok(["0", "0", "0", "1"]), [0, 0, 0, 1]);
-  assert.deepEqual(ok(["5", "5", "5", "5"]), [5, 5, 5, 5]);
-  for (const bad of [["a", "", "", ""], ["1.5", "", "", ""], ["-1", "", "", ""], ["100", "", "", ""], ["1e1", "", "", ""]]) {
-    assert.equal(parseCounts(bad).ok, false, bad.join());
+test("the count is a whole number from 1 to 20", () => {
+  for (const [text, n] of [["1", 1], ["20", 20], [" 7 ", 7], ["05", 5]] as const) {
+    assert.deepEqual(parseCount(text), { ok: true, value: n });
   }
-  const none = parseCounts(["", "0", "", ""]);
-  assert.equal(none.ok, false);
-  assert.match((none as { error: string }).error, /at least one/);
-  const many = parseCounts(["10", "5", "5", "1"]);
-  assert.equal(many.ok, false);
-  assert.match((many as { error: string }).error, /21 members/);
-  assert.match((parseCounts(["", "x", "", ""]) as { error: string }).error, /Healer/);
+  for (const bad of ["", "abc", "1.5", "-3", "2e1", "21", "100", "0", "00", "1000"]) assert.equal(parseCount(bad).ok, false, bad);
+  assert.match((parseCount("0") as { error: string }).error, /At least 1/);
+  assert.match((parseCount("21") as { error: string }).error, /maximum is 20/);
+  assert.match((parseCount("x") as { error: string }).error, /whole number from 1 to 20/);
 });
 
-test("the role of each slot follows the numbers: Tanks, then Healers, Support, DPS", () => {
-  const d = with2121();
-  assert.equal(total(d), 6);
-  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((i) => roleAt(d, i)), ["Tank", "Tank", "Healer", "Support", "Support", "DPS", null]);
-  assert.equal(roleAt(emptyDraft(), 0), null);
-});
-
-test("a weapon makes the next slot with that slot's role; nothing works before the numbers are set", () => {
-  assert.deepEqual(setWeapon(emptyDraft(), "Mace"), emptyDraft());
-  const d = setWeapon(setWeapon(with2121(), "Mace"), " Great Axe ");
-  assert.deepEqual(d.slots, [{ role: "Tank", weapon: "Mace" }, { role: "Tank", weapon: "Great Axe" }]);
-  assert.equal(nextRole(d), "Healer");
-  assert.deepEqual(setWeapon(with2121(), "   "), with2121());
-  assert.deepEqual(setWeapon(with2121(), "x".repeat(41)), with2121());
-});
-
-test("same as previous reuses the last weapon for the next role and needs one slot first", () => {
-  assert.deepEqual(sameAsPrevious(with2121()), with2121());
-  const d = sameAsPrevious(setWeapon(with2121(), "Mace"));
-  assert.deepEqual(d.slots, [{ role: "Tank", weapon: "Mace" }, { role: "Tank", weapon: "Mace" }]);
-});
-
-test("fill the rest completes every remaining slot with its role and the last weapon", () => {
-  const d = fillRest(setWeapon(with2121(), "Bow"));
-  assert.ok(isComplete(d));
-  assert.deepEqual(d.slots.map((s) => s.role), ["Tank", "Tank", "Healer", "Support", "Support", "DPS"]);
-  assert.ok(d.slots.every((s) => s.weapon === "Bow"));
-  assert.deepEqual(fillRest(with2121()).slots, []);
+test("nothing can be chosen before the count is set", () => {
+  const d = emptyDraft();
+  assert.deepEqual(setRole(d, "Tank"), d);
   assert.deepEqual(setWeapon(d, "Mace"), d);
-  assert.deepEqual(sameAsPrevious(d), d);
+  assert.deepEqual(setDuty(d, "caller"), d);
+  assert.deepEqual(next(d), d);
+  assert.equal(setCount(d, 0).count, null);
+  assert.equal(setCount(d, 21).count, null);
 });
 
-test("back removes the last slot", () => {
-  const d = back(setWeapon(setWeapon(with2121(), "A"), "B"));
-  assert.deepEqual(d.slots, [{ role: "Tank", weapon: "A" }]);
-  assert.deepEqual(back(emptyDraft()), emptyDraft());
+test("a card needs a role and a weapon; the duty is optional; Next saves it and moves on", () => {
+  let d = five();
+  assert.equal(canSave(d), false);
+  d = setRole(d, "Tank");
+  assert.equal(canSave(d), false);
+  d = setWeapon(d, " Great Axe ");
+  assert.equal(canSave(d), true);
+  assert.deepEqual(next(setRole(emptyDraft(), "Tank")), setRole(emptyDraft(), "Tank"));
+  const saved = next(d);
+  assert.deepEqual(saved.slots, [{ role: "Tank", weapon: "Great Axe" }]);
+  assert.equal(saved.step, 1);
+  assert.deepEqual([saved.role, saved.weapon, saved.duty], [null, null, null]);
+  const withDuty = next(card(saved, "Healer", "Holy Staff", "caller"));
+  assert.deepEqual(withDuty.slots[1], { role: "Healer", weapon: "Holy Staff", duty: "caller" });
 });
 
-test("new numbers start the slots over; the same numbers keep them", () => {
-  const d = setWeapon(with2121(), "Mace");
-  assert.deepEqual(setCounts(d, [2, 1, 2, 1]), d);
-  assert.deepEqual(setCounts(d, [1, 1, 1, 1]), { counts: [1, 1, 1, 1], slots: [] });
+test("bad choices are ignored: unknown role or duty, empty or long weapon; 'none' clears the duty", () => {
+  const d = five();
+  assert.deepEqual(setRole(d, "Wizard"), d);
+  assert.deepEqual(setDuty(d, "captain"), d);
+  assert.deepEqual(setWeapon(d, "   "), d);
+  assert.deepEqual(setWeapon(d, "x".repeat(41)), d);
+  assert.equal(setDuty(setDuty(d, "scout"), "none").duty, null);
 });
 
-test("the finished draft becomes lines the normal parser accepts, up to 20 slots", () => {
-  const d = fillRest(setWeapon(setCounts(emptyDraft(), [2, 3, 3, 12]), "Great Axe"));
-  assert.equal(total(d), 20);
-  const parsed = parseSlots(formatSlotLines(d.slots));
+test("the last Next completes the draft; nothing more can be chosen", () => {
+  let d = setCount(emptyDraft(), 2);
+  d = next(card(d, "Tank", "Mace"));
+  assert.equal(isComplete(d), false);
+  d = next(card(d, "DPS", "Bow", "rat"));
+  assert.equal(isComplete(d), true);
+  assert.deepEqual(d.slots.map((s) => s.duty ?? null), [null, "rat"]);
+  assert.deepEqual(setRole(d, "Tank"), d);
+  assert.deepEqual(next(d), d);
+});
+
+test("Back shows the previous card's saved choices and drops unsaved ones; not before the first card", () => {
+  let d = next(card(five(), "Tank", "Mace", "caller"));
+  d = card(d, "Healer", "Holy Staff");
+  d = back(d);
+  assert.equal(d.step, 0);
+  assert.deepEqual([d.role, d.weapon, d.duty], ["Tank", "Mace", "caller"]);
+  assert.deepEqual(back(d), d);
+  d = next(setWeapon(d, "Great Axe"));
+  assert.equal(d.step, 1);
+  assert.deepEqual(d.slots[0], { role: "Tank", weapon: "Great Axe", duty: "caller" });
+  assert.deepEqual([d.role, d.weapon], [null, null]);
+});
+
+test("going back and forward keeps the later saved slots and shows them", () => {
+  let d = setCount(emptyDraft(), 3);
+  d = next(card(d, "Tank", "A"));
+  d = next(card(d, "Healer", "B", "scout"));
+  d = back(back(d));
+  d = next(d);
+  assert.equal(d.step, 1);
+  assert.deepEqual([d.role, d.weapon, d.duty], ["Healer", "B", "scout"]);
+});
+
+test("Same as previous puts the previous slot on this card, unsaved; needs a previous slot", () => {
+  const first = five();
+  assert.deepEqual(sameAsPrevious(first), first);
+  const d = sameAsPrevious(next(card(first, "Tank", "Mace", "caller")));
+  assert.deepEqual([d.role, d.weapon, d.duty], ["Tank", "Mace", "caller"]);
+  assert.equal(d.slots.length, 1);
+});
+
+test("Fill the rest copies this card to this slot and all after it, and completes", () => {
+  let d = next(card(five(), "Tank", "Mace"));
+  d = fillRest(card(d, "DPS", "Bow", "rat"));
+  assert.ok(isComplete(d));
+  assert.equal(d.slots.length, 5);
+  assert.deepEqual(d.slots[0], { role: "Tank", weapon: "Mace" });
+  assert.ok(d.slots.slice(1).every((s) => s.role === "DPS" && s.weapon === "Bow" && s.duty === "rat"));
+  assert.deepEqual(fillRest(five()), five());
+});
+
+test("a lower count trims the slots and caps the card; a higher one keeps them", () => {
+  let d = setCount(emptyDraft(), 4);
+  d = fillRest(card(d, "DPS", "Bow"));
+  assert.equal(isComplete(d), true);
+  assert.equal(setCount(d, 2).slots.length, 2);
+  assert.equal(isComplete(setCount(d, 2)), true);
+  const more = setCount(d, 6);
+  assert.equal(more.slots.length, 4);
+  assert.equal(more.step, 4);
+  assert.equal(isComplete(more), false);
+});
+
+test("the finished slots become lines the normal parser accepts, including duties, up to 20", () => {
+  let d = setCount(emptyDraft(), 20);
+  d = fillRest(card(d, "Support", "Great Arcane Staff", "caller"));
+  const lines = formatSlotLines(d.slots);
+  assert.ok(lines.startsWith("Support - Great Arcane Staff (Caller)"));
+  const parsed = parseSlots(lines);
   assert.equal(parsed.ok, true);
+  assert.deepEqual((parsed as { value: unknown[] }).value[0], { role: "Support", weapon: "Great Arcane Staff", duty: "caller" });
   assert.equal((parsed as { value: unknown[] }).value.length, 20);
 });
