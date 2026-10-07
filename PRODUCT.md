@@ -131,7 +131,7 @@ satisfies: FR-023
 Different kinds of PvP and PvE content, each with its own label and color.
 
 ### FT-015: Slot builder and presets
-status: phase 1 built (presets); weapon search and guided steps next (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
+status: phases 1 (presets) and 2 (weapon data and `/content weapon`) built; guided steps next (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
 priority: should
 satisfies: FR-024, FR-025, FR-026
@@ -358,7 +358,7 @@ Next step: owner deploys 0.5.0, re-registers the commands and tests (no migratio
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
 | FT-006 `/content setup` | live (0.4.0) | |
-| FT-015 slot builder and presets | phase 1 (presets) live | Weapon-data spike done; phases 2 and 3 not started |
+| FT-015 slot builder and presets | phase 1 live; phase 2 on develop | Weapon search built (`/content weapon`); phase 3 guided steps not started |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |
