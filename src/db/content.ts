@@ -65,8 +65,9 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
       position: i + 1,
       role: s.role,
       weapon: s.weapon,
+      duty: s.duty ?? null,
     }));
-    await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon")}`;
+    await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
     return id;
   });
 }

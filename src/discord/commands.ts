@@ -1,9 +1,10 @@
 import { USER_AGENT } from "./rest.ts";
 import { kindChoices } from "../domain/kinds.ts";
 import { CLEAR_DUTY, DUTIES, DUTY_WORD } from "../domain/duties.ts";
+import { GUIDED_ROLES } from "../domain/guided.ts";
 
 const kindOption = (description: string): CommandOption => ({
-  type: 3, name: "kind", description, required: false, choices: kindChoices(),
+  type: 3, name: "category", description, required: false, choices: kindChoices(),
 });
 
 export type CommandOption = {
@@ -37,7 +38,7 @@ export const commands = [
         description: "Edit this post's content in a form (creator, officers, Manage Server)",
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
-          kindOption("Change the kind of content (leave empty to keep it)"),
+          kindOption("Change the category (leave empty to keep it)"),
         ],
       },
       {
@@ -98,11 +99,21 @@ export const commands = [
       {
         type: 1,
         name: "slot",
-        description: "Guided slots: add the weapon for the next slot (type to search)",
-        options: [{
-          type: 3, name: "weapon", description: "Type part of the weapon name and pick it", required: true,
-          autocomplete: true, max_length: 50,
-        }],
+        description: "Guided slots: fill the current slot (role, weapon with search, duty)",
+        options: [
+          {
+            type: 3, name: "role", description: "The slot's role", required: true,
+            choices: GUIDED_ROLES.map((r) => ({ name: r, value: r })),
+          },
+          {
+            type: 3, name: "weapon", description: "Type part of the weapon name and pick it", required: true,
+            autocomplete: true, max_length: 50,
+          },
+          {
+            type: 3, name: "duty", description: `The slot's ${DUTY_WORD.toLowerCase()} (optional)`, required: false,
+            choices: [...DUTIES.map((d) => ({ name: d.label, value: d.id })), { name: "None", value: "none" }],
+          },
+        ],
       },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
     ],

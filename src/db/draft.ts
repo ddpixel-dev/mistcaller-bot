@@ -1,6 +1,6 @@
 import type { Sql } from "./client.ts";
 import { type GuidedDraft } from "../domain/guided.ts";
-import type { SlotDef } from "../domain/types.ts";
+import type { ContentType, SlotDef } from "../domain/types.ts";
 
 export const DRAFT_TTL_MS = 60 * 60 * 1000;
 
@@ -9,6 +9,7 @@ export type StoredDraft = GuidedDraft & {
   guildId: string;
   userId: string;
   threadId: string;
+  type: ContentType;
   loot: boolean;
   kind: string;
   query: string | null;
@@ -19,24 +20,29 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   guildId: r.guild_id,
   userId: r.user_id,
   threadId: r.thread_id,
+  type: (r.type === "pve" ? "pve" : "pvp") as ContentType,
   loot: r.loot,
   kind: r.kind,
-  counts: (r.counts as number[] | null) ?? null,
+  count: r.count ?? null,
   slots: r.slots as SlotDef[],
+  step: r.step ?? 0,
+  role: r.role ?? null,
+  weapon: r.weapon ?? null,
+  duty: r.duty ?? null,
   query: r.query,
 });
 
 // One draft per member per post: starting again replaces the old one.
 export async function startDraft(
   sql: Sql,
-  a: { guildId: string; userId: string; threadId: string; loot: boolean; kind: string },
+  a: { guildId: string; userId: string; threadId: string; type: ContentType; loot: boolean; kind: string },
 ): Promise<string> {
   const [row] = await sql`
-    insert into slot_draft (guild_id, user_id, thread_id, loot, kind, slots)
-    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.loot}, ${a.kind}, '[]'::jsonb)
+    insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, slots)
+    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, '[]'::jsonb)
     on conflict (guild_id, thread_id, user_id) do update set
-      loot = excluded.loot, kind = excluded.kind, counts = null, slots = '[]'::jsonb,
-      query = null, created_at = now()
+      type = excluded.type, loot = excluded.loot, kind = excluded.kind, count = null, counts = null,
+      slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -49,8 +55,8 @@ export async function getDraft(sql: Sql, id: string, now: Date): Promise<StoredD
 
 export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { query: string | null }): Promise<void> {
   await sql`
-    update slot_draft set counts = ${d.counts === null ? null : sql.json(d.counts as never)},
-      slots = ${sql.json(d.slots as never)}, query = ${d.query}
+    update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)}, step = ${d.step},
+      role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, query = ${d.query}
     where id = ${id}`;
 }
 

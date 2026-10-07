@@ -71,7 +71,7 @@ const modal = (values: Record<string, string>, loot = "1", over: Partial<Interac
   base({
     type: 5,
     data: {
-      custom_id: `create:${loot}`,
+      custom_id: `create:${loot.startsWith("pve:") ? loot : `pvp:${loot}`}`,
       components: Object.entries(values).map(([custom_id, value]) => ({
         type: 1, components: [{ type: 4, custom_id, value }],
       })),
@@ -101,63 +101,114 @@ test("command outside a configured forum or without guild is an ephemeral forum 
   assert.match(content(b), /forum/);
 });
 
-test("command opens a private panel: kind menu for the forum type, loot menu, Continue; no preset menu without presets", async () => {
+const selects = (r: any) => r.data.components.filter((row: any) => row.components[0].type === 3).map((row: any) => row.components[0]);
+const panelOf = (r: any) => ({ type: selects(r)[0], kind: selects(r)[1], loot: selects(r)[2], go: r.data.components[r.data.components.length - 1].components[0] });
+
+test("command opens a private panel with nothing chosen: type, kind (waiting for the type), loot vote, Continue (dimmed)", async () => {
   const { deps } = await setup();
   const r: any = await handleCreateCommand(deps, command());
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
-  const [kind, loot, go] = rowsOf(r);
-  assert.equal(r.data.components[2].components.length, 1);
-  assert.equal(kind.custom_id, "cp:kind:0:other:-");
-  assert.deepEqual(kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
-  assert.deepEqual(selected(kind), ["other"]);
-  assert.deepEqual(selected(loot), ["0"]);
-  assert.equal(go.custom_id, "cpgo:0:other:-");
-  assert.equal(r.data.components.length, 3);
-  const pve: any = await handleCreateCommand(deps, command(undefined, { channel: { id: "thread-2", type: 11, parent_id: PVE } }));
-  assert.ok(rowsOf(pve)[0].options.some((o: any) => o.value === "world-boss"));
-  assert.ok(!rowsOf(pve)[0].options.some((o: any) => o.value === "zvz"));
+  const p = panelOf(r);
+  assert.equal(p.type.custom_id, "cp:type:-:-:-:-");
+  assert.equal(p.type.placeholder, "Type of content");
+  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["Type: PvP", "pvp", false], ["Type: PvE", "pve", false]]);
+  assert.equal(p.kind.disabled, true);
+  assert.match(p.kind.placeholder, /pick the type first/);
+  assert.equal(p.loot.placeholder, "Loot vote (optional, default Off)");
+  assert.ok(p.loot.options.every((o: any) => o.label.startsWith("Loot vote: ") && !o.default));
+  assert.equal(p.go.custom_id, "cpgo:-:-:-:-");
+  assert.equal(p.go.disabled, true);
+  assert.equal(r.data.components.length, 4);
 });
 
-test("choosing in the panel rebuilds it with the new draft in the custom ids", async () => {
+test("it works in either configured forum and does not assume the type from the forum", async () => {
   const { deps } = await setup();
-  const k: any = await createDispatch(deps)(component("cp:kind:0:other:-", ["zvz"]));
-  assert.equal(k.type, 7);
-  assert.deepEqual(selected(rowsOf(k)[0]), ["zvz"]);
-  assert.equal(rowsOf(k)[2].custom_id, "cpgo:0:zvz:-");
-  const l: any = await createDispatch(deps)(component("cp:loot:0:zvz:-", ["1"]));
-  assert.deepEqual(selected(rowsOf(l)[1]), ["1"]);
-  assert.equal(rowsOf(l)[2].custom_id, "cpgo:1:zvz:-");
+  for (const parent of [PVP, PVE]) {
+    const r: any = await handleCreateCommand(deps, command(undefined, { channel: { id: "thread-2", type: 11, parent_id: parent } }));
+    assert.equal(panelOf(r).type.options.every((o: any) => !o.default), true);
+  }
 });
 
-test("Continue offers the two ways to set slots; the form button opens the form with five inputs and carries loot and kind", async () => {
+test("choosing the type loads that type's kinds; labels name their field so the box is clear", async () => {
   const { deps } = await setup();
-  const choice: any = await createDispatch(deps)(component("cpgo:1:hellgate:-"));
-  assert.equal(choice.type, 7);
-  assert.deepEqual(choice.data.components[0].components.map((c: any) => c.custom_id), ["cpform:1:hellgate:-", "cpgs:1:hellgate:-"]);
-  const r: any = await createDispatch(deps)(component("cpform:1:hellgate:-"));
+  const d = createDispatch(deps);
+  const pvp: any = await d(component("cp:type:-:-:-:-", ["pvp"]));
+  assert.equal(pvp.type, 7);
+  let p = panelOf(pvp);
+  assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false]);
+  assert.equal(p.kind.disabled, false);
+  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
+  assert.ok(p.kind.options.every((o: any) => o.label.startsWith("Category: ") && !o.default));
+  assert.equal(p.go.disabled, false);
+  assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-");
+  const pve: any = await d(component("cp:type:-:-:-:-", ["pve"]));
+  p = panelOf(pve);
+  assert.ok(p.kind.options.some((o: any) => o.value === "world-boss") && !p.kind.options.some((o: any) => o.value === "zvz"));
+});
+
+test("choosing kind and loot vote updates the ids; changing the type drops a kind that no longer fits", async () => {
+  const { deps } = await setup();
+  const d = createDispatch(deps);
+  const k: any = await d(component("cp:kind:pvp:-:-:-", ["zvz"]));
+  assert.deepEqual(panelOf(k).kind.options.filter((o: any) => o.default).map((o: any) => o.value), ["zvz"]);
+  assert.equal(panelOf(k).go.custom_id, "cpgo:pvp:-:zvz:-");
+  const l: any = await d(component("cp:loot:pvp:-:zvz:-", ["1"]));
+  assert.equal(panelOf(l).go.custom_id, "cpgo:pvp:1:zvz:-");
+  assert.deepEqual(panelOf(l).loot.options.map((o: any) => !!o.default), [false, true]);
+  const swapped: any = await d(component("cp:type:pvp:1:zvz:-", ["pve"]));
+  assert.equal(panelOf(swapped).go.custom_id, "cpgo:pve:1:-:-");
+  const keepsOther: any = await d(component("cp:type:pvp:0:other:-", ["pve"]));
+  assert.equal(panelOf(keepsOther).go.custom_id, "cpgo:pve:0:other:-");
+});
+
+test("Continue needs a type, then asks how many players; Cancel is on the panel", async () => {
+  const { deps } = await setup();
+  const d = createDispatch(deps);
+  assert.ok(content(await d(component("cpgo:-:-:-:-"))).includes("Pick the type"));
+  const modal: any = await d(component("cpgo:pvp:1:hellgate:-"));
+  assert.equal(modal.type, 9);
+  assert.equal(modal.data.title, "How many players needed?");
+  assert.match(modal.data.custom_id, /^gsc:/);
+  const panel: any = await handleCreateCommand(deps, command());
+  assert.deepEqual(panel.data.components[panel.data.components.length - 1].components.map((c: any) => c.label), ["Continue", "Cancel"]);
+  const cancelled: any = await d(component("cpx"));
+  assert.equal(cancelled.data.content, "Creation cancelled.");
+  assert.deepEqual(cancelled.data.components, []);
+});
+
+test("with a preset, Continue opens the form directly with its slots, carrying type, loot and category", async () => {
+  const { deps, sql } = await setup();
+  const d = createDispatch(deps);
+  const [{ id: presetId }] = await sql`
+    insert into slot_preset (guild_id, name, slots, created_by)
+    values ('g1', 'Ava', ${sql.json([{ role: "Tank", weapon: "Mace", duty: "caller" }, { role: "DPS", weapon: "Bow" }] as never)}, 'o') returning id`;
+  const r: any = await d(component(`cpgo:pvp:1:hellgate:${presetId}`));
   assert.equal(r.type, 9);
-  assert.equal(r.data.custom_id, "create:1:hellgate");
+  assert.equal(r.data.custom_id, "create:pvp:1:hellgate");
   const inputs = r.data.components.map((row: any) => row.components[0]);
   assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "start", "tier", "slots", "notes"]);
   assert.equal(inputs[1].placeholder, "2026-10-07 18:00");
   assert.equal(inputs[3].style, 2);
+  assert.equal(inputs[3].value, "Tank - Mace (Caller)\nDPS - Bow");
   assert.equal(inputs[4].required, false);
   assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 30, 1500, 500]);
 });
 
-test("panel and Continue refuse tampered or wrong-forum values and a taken post", async () => {
+test("panel and Continue refuse tampered values, a wrong-type kind and a taken post", async () => {
   const { deps, sql } = await setup();
   const d = createDispatch(deps);
-  for (const id of ["cp:kind:2:other:-", "cp:kind:0:other:not-a-uuid", "cp:nope:0:other:-", "cpgo:0:other", "cpgo:x:other:-"]) {
+  for (const id of ["cp:kind:x:-:-:-", "cp:kind:pvp:2:other:-", "cp:kind:pvp:-:-:not-a-uuid", "cp:nope:pvp:-:-:-", "cpgo:pvp:-:-", "cpgo:x:-:-:-"]) {
     const r: any = await d(component(id, id.startsWith("cp:") ? ["zvz"] : undefined));
     assert.equal(r.data.flags, 64, id);
   }
-  assert.ok(content(await d(component("cp:kind:0:other:-", ["world-boss"]))).includes("out of date"));
-  assert.ok(content(await d(component("cpform:0:world-boss:-"))).includes("PvE kind"));
-  assert.ok(content(await d(component("cp:loot:0:other:-", ["maybe"]))).includes("out of date"));
+  assert.ok(content(await d(component("cp:type:-:-:-:-", ["moon"]))).includes("out of date"));
+  assert.ok(content(await d(component("cp:kind:-:-:-:-", ["zvz"]))).includes("Pick the type of content first"));
+  assert.ok(content(await d(component("cp:kind:pvp:-:-:-", ["world-boss"]))).includes("out of date"));
+  assert.ok(content(await d(component("cpgo:pvp:0:world-boss:-"))).includes("PvE category"));
+  assert.ok(content(await d(component("cp:loot:pvp:-:-:-", ["maybe"]))).includes("out of date"));
   await handleCreateModal(deps, modal(good));
-  assert.ok(content(await d(component("cpgo:0:other:-"))).includes("already has content"));
+  assert.ok(content(await d(component("cpgo:pvp:0:other:-"))).includes("already has content"));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 1);
 });
 
@@ -228,8 +279,7 @@ test("dispatch routes command and modal; unknown things are not implemented", as
   const { deps } = await setup();
   const d = createDispatch(deps);
   assert.equal((await d(command(true))).type, 4);
-  assert.equal((await d(component("cpgo:0:other:-"))).type, 7);
-  assert.equal((await d(component("cpform:0:other:-"))).type, 9);
+  assert.equal((await d(component("cpgo:pvp:0:other:-"))).type, 9);
   assert.equal(content(await d(modal(good))), "Created");
   assert.equal(content(await d(base({ data: { name: "nope" } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 5, data: { custom_id: "zzz:1", components: [] } }))), "Not implemented yet");
@@ -365,6 +415,6 @@ test("kind travels through the modal and is stored; no kind stores Other", async
   assert.equal((await sql`select kind from content`)[0]!.kind, "other");
   await sql`delete from content`;
   const bad = await handleCreateModal(deps, modal(good, "0:world-boss"));
-  assert.ok(content(bad).includes("PvE kind"));
+  assert.ok(content(bad).includes("PvE category"));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
 });

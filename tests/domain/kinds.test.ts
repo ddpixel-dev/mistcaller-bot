@@ -32,6 +32,6 @@ test("resolveKind defaults to Other, accepts matching kinds and refuses others",
   assert.deepEqual(resolveKind("pve", "other"), { ok: true, value: "other" });
   const wrong = resolveKind("pvp", "mists");
   assert.equal(wrong.ok, false);
-  assert.match((wrong as { error: string }).error, /Mists is a PvE kind/);
+  assert.match((wrong as { error: string }).error, /Mists is a PvE category/);
   assert.equal(resolveKind("pve", "bogus").ok, false);
 });

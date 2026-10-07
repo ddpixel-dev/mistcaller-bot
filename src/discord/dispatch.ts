@@ -3,9 +3,9 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
-import { handleCreateContinue, handleCreateFormButton, handleCreatePanel } from "../handlers/create-panel.ts";
+import { handleCreateCancel, handleCreateContinue, handleCreatePanel } from "../handlers/create-panel.ts";
 import { handleMeComponent } from "../handlers/me.ts";
-import { handleGuidedComponent, handleGuidedModal, handleGuidedStart } from "../handlers/guided.ts";
+import { handleGuidedComponent, handleGuidedModal } from "../handlers/guided.ts";
 import { handleContentCommand } from "../handlers/content.ts";
 import { handleAutocomplete } from "../handlers/preset.ts";
 import { handleCancelButton, handleEditModal } from "../handlers/manage.ts";
@@ -17,10 +17,10 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsq: handleGuidedModal, gsr: handleGuidedModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsq: handleGuidedModal, gsc: handleGuidedModal };
 const componentHandlers: Record<string, Handler> = {
   signup: handleSignup, pick: handlePick, leave: handleLeave, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleCreatePanel, cpgo: handleCreateContinue, cpform: handleCreateFormButton, cpgs: handleGuidedStart, gs: handleGuidedComponent, me: handleMeComponent,
+  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");

@@ -131,12 +131,12 @@ satisfies: FR-023
 Different kinds of PvP and PvE content, each with its own label and color.
 
 ### FT-016: Duties
-status: built (needs migration 0006)
+status: built (needs migrations 0006 and 0008)
 phase: MVP
 priority: should
 satisfies: FR-027
 
-A manager gives Caller, Scout or Rat to players in the party; the duty appears on the roster line.
+A slot carries a duty (Caller, Scout, Rat), set while defining the slots or later by a manager; it appears on the roster line.
 
 ### FT-015: Slot builder and presets
 status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
@@ -154,11 +154,11 @@ The bot shall expose the slash command `/content` with the subcommands `create`,
 
 ### FR-002: Creation location and content type
 status: accepted
-`/content create` shall work only inside a post of a configured forum. The content type (PvP or PvE) is taken from the parent forum: one forum per type. Elsewhere it shall reply privately with an explanation.
+`/content create` shall work only inside a post of one of the two configured forums. The content type (PvP or PvE) is chosen in the create panel and is not assumed from the forum (changed 2026-10-07, ADR 0016). Elsewhere it shall reply privately with an explanation.
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) comes from the forum, so it is not asked. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) comes from the forum, so it is not asked. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
@@ -238,11 +238,11 @@ The roster message shall use the Medieval Banner theme chosen by the owner on 20
 
 ### FR-023: Content kinds
 status: accepted
-Each content shall have a kind inside its forum type (a PvP kind or a PvE kind), chosen when the content is created, shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
+Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. After pressing Continue in the create panel, the member chooses between writing the slots in a form and the guided steps (a chosen preset opens the filled form directly). The guided steps (owner decisions 2026-10-07): there are only four roles, Tank, Healer, Support and DPS; the member types how many of each in one small form (at most 20 in total); then for each slot, in role order, only the weapon is chosen, either with `/content slot` and its searchable weapon list or with the Find weapon button, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the final form), guided steps, or a saved preset. In the create panel, Continue goes straight to the guided steps (owner decisions 2026-10-07): a form asks "How many players needed?" (one whole number, 1 to 20, with validation), then one card per slot offers three lists with placeholders, **Role** (Tank, Healer, Support, DPS), **Weapon** (the first 25 weapons A to Z, or the matches of a search) and **Duty** (Caller, Scout, Rat, optional), with the buttons Next (Finish on the last), Back, Same as previous, Fill the rest, Search weapon, Change number and Cancel. Next saves the slot. The Back button on the first card returns to the create panel. `/content slot role weapon duty` fills the current card in one command, with the weapon typed and picked from an autocomplete list. Discord select menus cannot have a search box, so searching uses the Search weapon button or that command. A chosen preset skips the cards and opens the filled form. Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -254,7 +254,7 @@ Guided steps shall let the officer find a weapon by searching a weapon list take
 
 ### FR-027: Duties
 status: accepted
-A manager (the creator, a member with Manage Server, or the officer role) shall be able to give a player in the party a duty, Caller, Scout or Rat, with `/content duty position:<n> duty:<...>` (owner request 2026-10-07; the word "duty" was suggested instead of "responsibility" and can be renamed in `src/domain/duties.ts`). A duty goes only on a position someone holds and is shown after the player on the roster line. Clearing is always allowed. Leaving or moving clears it. Duties are not part of slot lines, presets or the guided steps. The list is fixed in code.
+A slot may carry a duty, Caller, Scout or Rat (owner decision 2026-10-07: the duty belongs to the slot, and "duty" is the word, not "responsibility"). It is set when the slots are defined, in the guided cards, in typed lines as a bracket at the end (`Tank - Great Axe (Caller)`), or in a preset, and can be changed later by the creator, a member with Manage Server, or the officer role with `/content duty position:<n> duty:<...>`. It shows after the weapon on the roster line, on open positions too, and stays when a player leaves or moves. The list is fixed in code (`src/domain/duties.ts`).
 
 ## Non-functional requirements
 
@@ -358,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.7.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.8.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
-Next step: migrations 0006 and 0007, deploy 0.7.0, re-register the commands and test. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
+Next step: owner tests 0.8.0, then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 
 | Item | Status | Note |
 |---|---|---|

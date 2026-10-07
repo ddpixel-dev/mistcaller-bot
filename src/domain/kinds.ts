@@ -51,7 +51,7 @@ export function resolveKind(type: ContentType, id: string | null): Result<string
   if (other) {
     const here = type === "pvp" ? "PvP" : "PvE";
     const there = other.type === "pvp" ? "PvP" : "PvE";
-    return { ok: false, error: `${other.label} is a ${there} kind, but this post is in the ${here} forum.` };
+    return { ok: false, error: `${other.label} is a ${there} category, but this post is in the ${here} forum.` };
   }
-  return { ok: false, error: "That kind of content is not on the list." };
+  return { ok: false, error: "That category is not on the list." };
 }
