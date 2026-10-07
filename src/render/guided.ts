@@ -11,13 +11,11 @@ const btn = (label: string, id: string, extra: Record<string, unknown> = {}) => 
 
 export const TYPED_WEAPON = "typed";
 
-// The weapon list: the matches of the search, or the first 25 A to Z before any search.
+// The weapon list: only the matches of the search (and the weapon already chosen). Nothing is listed before a search.
 export function weaponChoices(d: StoredDraft): Weapon[] {
-  const list = d.query ? searchWeapons(WEAPONS, d.query, 25) : WEAPONS.slice(0, 25);
-  if (d.weapon && !list.some((w) => w.name === d.weapon)) {
-    const known = WEAPONS.find((w) => w.name === d.weapon);
-    if (known) return [known, ...list.slice(0, 24)];
-  }
+  const list = d.query ? searchWeapons(WEAPONS, d.query, 25) : [];
+  const known = d.weapon ? WEAPONS.find((w) => w.name === d.weapon) : undefined;
+  if (known && !list.some((w) => w.name === known.name)) return [known, ...list.slice(0, 24)];
   return list;
 }
 
@@ -64,24 +62,26 @@ export function renderGuidedStep(d: StoredDraft) {
   } else {
     const choices = weaponChoices(d);
     const weaponOptions = choices.map((w) => ({
-      label: `Weapon: ${w.name} (${SLOT_LABEL[w.slot]})`.slice(0, 100), value: w.base, default: w.name === d.weapon,
+      label: `${w.name} (${SLOT_LABEL[w.slot]})`.slice(0, 100), value: w.base, default: w.name === d.weapon,
     }));
     if (d.weapon && !WEAPONS.some((w) => w.name === d.weapon)) {
-      weaponOptions.unshift({ label: `Weapon: ${d.weapon}`.slice(0, 100), value: TYPED_WEAPON, default: true });
+      weaponOptions.unshift({ label: d.weapon.slice(0, 100), value: TYPED_WEAPON, default: true });
       weaponOptions.splice(25);
     }
     rows.push({
       type: 1,
       components: [{
         type: 3, custom_id: `gs:role:${id}`, placeholder: "Role (pick one)",
-        options: GUIDED_ROLES.map((r) => ({ label: `Role: ${r}`, value: r, default: r === d.role })),
+        options: GUIDED_ROLES.map((r) => ({ label: r, value: r, default: r === d.role })),
       }],
     });
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:weapon:${id}`, placeholder: "Weapon (pick one)",
-        options: weaponOptions.length ? weaponOptions : [{ label: "Weapon: no match, search again", value: TYPED_WEAPON }],
+        type: 3, custom_id: `gs:weapon:${id}`,
+        placeholder: weaponOptions.length ? "Weapon (pick one)" : d.query ? "Weapon (no match, search again)" : "Weapon (press Search weapon first)",
+        disabled: weaponOptions.length === 0,
+        options: weaponOptions.length ? weaponOptions : [{ label: d.query ? "No match" : "Search a weapon first", value: TYPED_WEAPON }],
       }],
     });
     rows.push({
@@ -89,8 +89,8 @@ export function renderGuidedStep(d: StoredDraft) {
       components: [{
         type: 3, custom_id: `gs:duty:${id}`, placeholder: "Duty (optional)",
         options: [
-          ...DUTIES.map((x) => ({ label: `Duty: ${x.label}`, value: x.id, default: x.id === d.duty })),
-          { label: "Duty: none", value: NO_DUTY },
+          ...DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
+          { label: "None", value: NO_DUTY },
         ],
       }],
     });

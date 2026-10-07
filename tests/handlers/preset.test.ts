@@ -102,7 +102,7 @@ test("the create panel lists presets; picking one fills the slots box; clearing 
   const presetMenu = panel.data.components[3].components[0];
   assert.equal(presetMenu.custom_id, "cp:preset:-:-:-:-");
   assert.equal(presetMenu.min_values, 0);
-  assert.deepEqual(presetMenu.options.map((o: any) => [o.label, o.value]), [["Preset: Ava", presetId]]);
+  assert.deepEqual(presetMenu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
   const press = (customId: string, values?: unknown[]): Interaction => ({
     ...base, type: 3, data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) },
   });

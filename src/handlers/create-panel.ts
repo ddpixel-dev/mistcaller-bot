@@ -47,17 +47,17 @@ export async function createPanel(
   const suffix = encode(draft);
   const kindOptions = draft.type
     ? KINDS.filter((k) => k.type === draft.type).map((k) => ({
-        label: `Category: ${k.label}`, value: k.id, default: k.id === draft.kind,
+        label: k.label, value: k.id, default: k.id === draft.kind,
       }))
-    : [{ label: "Category: pick the type first", value: "-" }];
+    : [{ label: "Pick the type first", value: "-" }];
   const rows: unknown[] = [
     {
       type: 1,
       components: [{
         type: 3, custom_id: `cp:type:${suffix}`, placeholder: "Type of content",
         options: [
-          { label: "Type: PvP", value: "pvp", default: draft.type === "pvp" },
-          { label: "Type: PvE", value: "pve", default: draft.type === "pve" },
+          { label: "PvP", value: "pvp", default: draft.type === "pvp" },
+          { label: "PvE", value: "pve", default: draft.type === "pve" },
         ],
       }],
     },
@@ -75,8 +75,8 @@ export async function createPanel(
       components: [{
         type: 3, custom_id: `cp:loot:${suffix}`, placeholder: "Loot vote (optional, default Off)",
         options: [
-          { label: "Loot vote: Off", value: "0", default: draft.loot === false },
-          { label: "Loot vote: On (split or regear)", value: "1", default: draft.loot === true },
+          { label: "Off", value: "0", default: draft.loot === false },
+          { label: "On (split or regear)", value: "1", default: draft.loot === true },
         ],
       }],
     },
@@ -87,7 +87,7 @@ export async function createPanel(
       components: [{
         type: 3, custom_id: `cp:preset:${suffix}`, placeholder: "Preset (optional)", min_values: 0, max_values: 1,
         options: presets.slice(0, 25).map((p) => ({
-          label: Array.from(`Preset: ${p.name}`).slice(0, 100).join(""), value: p.id, default: p.id === draft.presetId,
+          label: Array.from(p.name).slice(0, 100).join(""), value: p.id, default: p.id === draft.presetId,
         })),
       }],
     });

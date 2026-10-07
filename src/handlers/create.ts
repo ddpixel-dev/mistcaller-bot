@@ -10,6 +10,7 @@ import {
 import { forumContentType } from "../domain/forum.ts";
 import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
+import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
 
@@ -126,7 +127,11 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
         console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
     });
     }
-    console.error(JSON.stringify({ evt: "create_failed", name: errName(err) }));
+    console.error(JSON.stringify({
+      evt: "create_failed",
+      name: errName(err),
+      ...(err instanceof DiscordApiError ? { status: err.status, code: err.code, detail: err.detail } : {}),
+    }));
     return reply(FAILED);
   }
   return reply("Created");
