@@ -56,6 +56,42 @@ export function voteLine(view: RosterView): string {
   }
 }
 
+export const LEAVE_VALUE = "leave";
+
+const leaveOption = {
+  label: "Leave the roster",
+  value: LEAVE_VALUE,
+  description: "Only works if you are signed up",
+  emoji: { name: "🚪" },
+};
+
+// One menu for everyone: slots to sign up or move, plus Leave while anyone is signed up.
+// After the start the slots go away and only Leave stays, so members can still leave.
+function signupMenu(view: RosterView, filled: number) {
+  const closed = view.status !== "open" || view.started;
+  const live = view.status === "open" || view.status === "locked";
+  const slotOptions = view.slots.map((s) => ({
+    label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
+    value: s.id,
+    description: s.userId ? "Taken" : "Open",
+  }));
+  if (closed && live && filled > 0) {
+    return {
+      type: 3,
+      custom_id: `signup:${view.id}`,
+      placeholder: "The roll is closed. You can still leave.",
+      options: [leaveOption],
+    };
+  }
+  return {
+    type: 3,
+    custom_id: `signup:${view.id}`,
+    placeholder: closed ? "The roll is closed" : "Pick a position",
+    disabled: closed,
+    options: filled > 0 && !closed ? [...slotOptions, leaveOption] : slotOptions,
+  };
+}
+
 export function renderRosterMessage(view: RosterView): {
   embeds: Embed[];
   components: unknown[];
@@ -102,22 +138,7 @@ export function renderRosterMessage(view: RosterView): {
   return {
     embeds: [embed],
     components: [
-      {
-        type: 1,
-        components: [
-          {
-            type: 3,
-            custom_id: `signup:${view.id}`,
-            placeholder: "Pick a position",
-            disabled: view.status !== "open" || view.started,
-            options: view.slots.map((s) => ({
-              label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
-              value: s.id,
-              description: s.userId ? "Taken" : "Open",
-            })),
-          },
-        ],
-      },
+      { type: 1, components: [signupMenu(view, filled)] },
       ...(view.hasLoot ? [voteRow(view)] : []),
     ],
     allowed_mentions: { parse: [] },
