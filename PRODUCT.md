@@ -158,7 +158,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot through a select menu and move by selecting another slot. Selecting the position they already hold is refused privately. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up for a slot through a select menu and move by selecting another slot. Selecting the position they already hold is refused privately. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. `/content me` opens a private panel (owner request 2026-10-07) with a sign-up or move menu and a Leave button that is enabled only for that member and only when they are signed up. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
 
 ### FR-006: Atomic slot claim
 status: accepted
