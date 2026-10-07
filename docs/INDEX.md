@@ -19,6 +19,8 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0005 Vote cutoff](decisions/0005-vote-cutoff.md): closes 5 minutes before the start
 - [0006 Docker tooling](decisions/0006-docker-tooling-minimal-dependencies.md): no host installs, minimal dependencies
 - [0007 POC accepted](decisions/0007-poc-accepted-with-open-checks.md): owner accepts the POC with live checks still open
+- [0008 Medieval Banner style](decisions/0008-medieval-banner-roster-style.md): theme, Lines layout, owner-made art
+- [0009 Weapon data from ao-bin-dumps](decisions/0009-weapon-data-from-ao-bin-dumps.md): proposed, rights open
 
 ## Architecture
 - [Overview](architecture/overview.md)
@@ -27,6 +29,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [Roadmap](plan/roadmap.md)
 - [Milestones](plan/milestones.md)
 - [Tasks](plan/tasks.md)
+- [Next-session handoff](plan/next-session-handoff.md)
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 
 ## Working notes

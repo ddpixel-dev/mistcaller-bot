@@ -120,7 +120,23 @@ phase: MVP
 priority: should
 satisfies: FR-022
 
-The roster message gets a themed look: colors per content type, role icons, a roster-fill bar and dividers. The theme is chosen from the mock-ups shown to the owner (open question Q16).
+The roster message gets the Medieval Banner look in the Lines layout (decided 2026-10-07): colors per content type, role icons, a roster-fill bar and dividers.
+
+### FT-014: Content kinds
+status: not started
+phase: MVP
+priority: should
+satisfies: FR-023
+
+Different kinds of PvP and PvE content, each with its own label and color.
+
+### FT-015: Slot builder and presets
+status: not started
+phase: MVP
+priority: should
+satisfies: FR-024, FR-025, FR-026
+
+Guided steps and saved presets next to typed lines, with weapon search from game data.
 
 ## Functional requirements
 
@@ -208,9 +224,25 @@ The creator, a member with Manage Server, or a member with the officer role shal
 status: accepted
 The same managers shall be able to cancel a content after a confirmation step. Cancelling sets the status to `cancelled`, re-renders the roster as cancelled with all buttons disabled, and pings the signed-up members.
 
-### FR-022: Themed roster style
+### FR-022: Medieval Banner roster style
+status: accepted
+The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold embed colors by content type, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line dividers, and the words "company", "sworn" and "spoils". The roster lists one slot per line (Lines layout). The owner supplies the bot icon and banner art. No third-party game art is used without permission, and the style stays readable for screen readers and under Discord's embed limits.
+
+### FR-023: Content kinds
 status: proposed
-The roster message shall use the owner's chosen fantasy theme: an embed color per content type, an icon per role, a roster-fill indicator and dividers, while staying readable for screen readers and under Discord's embed limits. The theme and any images are decided in open question Q16. No third-party game art is used without permission.
+Each content shall have a kind inside its forum type (a PvP kind or a PvE kind), chosen when the content is created, shown on the roster and used for its label and color. The list of kinds is configurable per server. The initial list is decided at design time (open question Q18).
+
+### FR-024: Slot definition modes
+status: accepted
+An officer shall be able to define the slots in three ways: typing the lines (as today), guided steps (a member count, then a role and a weapon for each slot, with "same as previous" and "fill the rest"), or a saved preset. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+
+### FR-025: Saved presets
+status: accepted
+An officer shall be able to save the slots defined in the typed-lines mode or the guided-steps mode as a named preset for the server, and later start a content from a preset and adjust it. Who may save and delete presets, and how many presets a server may hold, are open (Q20).
+
+### FR-026: Weapon list and icons
+status: proposed
+Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter, shown with icons made from art the owner owns or has permission to use. Whether and how icons may be sourced is open (Q19).
 
 ## Non-functional requirements
 
