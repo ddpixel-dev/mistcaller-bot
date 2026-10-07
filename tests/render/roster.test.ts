@@ -79,9 +79,9 @@ test("limits with maximum-length content", () => {
   assert.ok(w.embeds[0]!.title!.length <= 256);
 });
 
-test("components: one menu with the slots and Leave, no public Leave button", () => {
+test("components: a slots menu and a Leave button row", () => {
   const rows = renderRosterMessage(view({ hasLoot: false })).components as any[];
-  assert.equal(rows.length, 1);
+  assert.equal(rows.length, 2);
   assert.equal(rows[0].type, 1);
   const sel = rows[0].components[0];
   assert.equal(sel.type, 3);
@@ -91,14 +91,25 @@ test("components: one menu with the slots and Leave, no public Leave button", ()
   assert.deepEqual(sel.options, [
     { label: "1. Tank - Axe", value: "s1", description: "Taken" },
     { label: "2. Healer - Holy", value: "s2", description: "Open" },
-    { label: "Leave the roster", value: "leave", description: "Only works if you are signed up", emoji: { name: "🚪" } },
+  ]);
+  assert.deepEqual(rows[1].components, [
+    { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: "leave:c1", disabled: false },
   ]);
 });
 
-test("the Leave option appears only while someone is signed up", () => {
-  const empty = view({ slots: view().slots.map((s) => ({ ...s, userId: null })) });
-  const opts = ((renderRosterMessage(empty).components as any[])[0].components[0].options as any[]).map((o) => o.value);
-  assert.deepEqual(opts, ["s1", "s2"]);
+const leaveBtn = (v: RosterView) => (renderRosterMessage(v).components as any[])[1].components[0];
+const nobodyIn = (v: RosterView) => v.slots.map((s) => ({ ...s, userId: null }));
+
+test("the Leave button is dimmed while nobody is signed up and enabled once anyone is", () => {
+  assert.equal(leaveBtn(view({ slots: nobodyIn(view()) })).disabled, true);
+  assert.equal(leaveBtn(view()).disabled, false);
+});
+
+test("Leave stays enabled after the start or lock, and is disabled when cancelled or done", () => {
+  assert.equal(leaveBtn(view({ status: "open", started: true })).disabled, false);
+  assert.equal(leaveBtn(view({ status: "locked" })).disabled, false);
+  assert.equal(leaveBtn(view({ status: "cancelled" })).disabled, true);
+  assert.equal(leaveBtn(view({ status: "done" })).disabled, true);
 });
 
 test("select labels are truncated to 100 and not markdown-escaped", () => {
@@ -116,35 +127,23 @@ test("label truncation is code-point safe", () => {
 });
 
 const menuOf = (v: RosterView) => (renderRosterMessage(v).components as any[])[0].components[0];
-const nobody = (v: RosterView) => v.slots.map((s) => ({ ...s, userId: null }));
 
-test("after the start or lock the menu keeps only Leave while someone is signed up", () => {
-  for (const over of [{ status: "open", started: true }, { status: "locked" }] as const) {
+test("the slots menu is disabled once started, locked, cancelled or done, and has no Leave option", () => {
+  for (const over of [{ status: "open", started: true }, { status: "locked" }, { status: "cancelled" }, { status: "done" }] as const) {
     const m = menuOf(view(over));
-    assert.ok(!m.disabled);
-    assert.deepEqual(m.options.map((o: any) => o.value), ["leave"]);
-    assert.ok(m.placeholder.includes("can still leave"));
+    assert.equal(m.disabled, true);
+    assert.ok(!m.options.some((o: any) => o.value === "leave"));
   }
+  assert.equal(menuOf(view()).disabled, false);
+  assert.ok(menuOf(view()).placeholder.includes("Pick a position"));
 });
 
-test("after the start or lock with nobody signed up the menu is disabled", () => {
-  for (const over of [{ status: "open", started: true }, { status: "locked" }] as const) {
-    assert.equal(menuOf(view({ ...over, slots: nobody(view()) })).disabled, true);
-  }
-});
-
-test("cancelled and done: menu disabled", () => {
-  for (const status of ["cancelled", "done"] as const) {
-    assert.equal(menuOf(view({ status })).disabled, true);
-  }
-});
-
-const voteRow = (v: RosterView) => (renderRosterMessage(v).components as any[])[1];
+const voteRow = (v: RosterView) => (renderRosterMessage(v).components as any[])[2];
 
 test("vote row: open loot shows counts, enabled, styles and ids", () => {
   const rows = renderRosterMessage(view({ votes: { split: 3, regear: 2 } })).components as any[];
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows[1], {
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[2], {
     type: 1,
     components: [
       { type: 2, style: 1, label: "Split (3)", custom_id: "vote:c1:split", disabled: false },
@@ -185,7 +184,7 @@ test("vote buttons disabled when cancelled or done", () => {
 
 test("no loot: no vote row and no vote line", () => {
   const v = view({ hasLoot: false, voteClosed: true, voteResult: "none" });
-  assert.equal((renderRosterMessage(v).components as any[]).length, 1);
+  assert.equal((renderRosterMessage(v).components as any[]).length, 2);
   assert.ok(!desc(v).includes("Spoils vote"));
 });
 

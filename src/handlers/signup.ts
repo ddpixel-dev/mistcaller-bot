@@ -6,7 +6,7 @@ import { claimSlot, leaveContent } from "../db/signup.ts";
 import { LEAVE_VALUE, renderRosterMessage } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That action is not valid. Please use the menu on the latest roster message.";
+const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
 const NOT_FOUND = "This content or position no longer exists.";
 
 function contentId(i: Interaction, prefix: string): string | null {
@@ -43,13 +43,22 @@ export async function handleSignup(deps: Deps, i: Interaction): Promise<Interact
 
   if (typeof choice !== "string" || !UUID.test(choice)) return reply(INVALID);
   const result = await claimSlot(deps.sql, { contentId: id, slotId: choice, userId, guildId, now: deps.now() });
+  if (result === "unchanged") return reply("You already hold this position. Pick another one to move, or press Leave.");
   if (result === "taken") return reply("That position is already taken. Pick another one.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);
   return await refreshed(deps, id);
 }
 
-// Stale Leave buttons from release 0.2.x private replies.
-export async function handleLegacyLeave(): Promise<InteractionResponse> {
-  return reply("That button is outdated. Use the menu on the roster and pick \"Leave the roster\".");
+// The roster's Leave button. It is shared, so anyone can press it; only signed-up members are affected.
+export async function handleLeave(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const id = contentId(i, "leave");
+  const userId = i.member?.user?.id;
+  const guildId = i.guild_id;
+  if (!id || !userId || !guildId) return reply(INVALID);
+  const result = await leaveContent(deps.sql, { contentId: id, userId, guildId });
+  if (result === "not_found") return reply(NOT_FOUND);
+  if (result === "not_signed") return reply("You are not signed up for this content.");
+  if (result === "unavailable") return reply("This content is no longer open, so you cannot leave it.");
+  return await refreshed(deps, id);
 }
