@@ -242,7 +242,7 @@ Each content shall have a kind inside its forum type (a PvP kind or a PvE kind),
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. In the guided steps (the "Guided slots" button of the create panel) the member picks a member count, then for each slot a role from a fixed list and a weapon found by searching the weapon list, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. After pressing Continue in the create panel, the member chooses between writing the slots in a form and the guided steps (a chosen preset opens the filled form directly). The guided steps (owner decisions 2026-10-07): there are only four roles, Tank, Healer, Support and DPS; the member types how many of each in one small form (at most 20 in total); then for each slot, in role order, only the weapon is chosen, either with `/content slot` and its searchable weapon list or with the Find weapon button, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted

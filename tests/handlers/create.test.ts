@@ -107,6 +107,7 @@ test("command opens a private panel: kind menu for the forum type, loot menu, Co
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
   const [kind, loot, go] = rowsOf(r);
+  assert.equal(r.data.components[2].components.length, 1);
   assert.equal(kind.custom_id, "cp:kind:0:other:-");
   assert.deepEqual(kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
   assert.deepEqual(selected(kind), ["other"]);
@@ -129,9 +130,12 @@ test("choosing in the panel rebuilds it with the new draft in the custom ids", a
   assert.equal(rowsOf(l)[2].custom_id, "cpgo:1:zvz:-");
 });
 
-test("Continue opens the form with five inputs and carries loot and kind", async () => {
+test("Continue offers the two ways to set slots; the form button opens the form with five inputs and carries loot and kind", async () => {
   const { deps } = await setup();
-  const r: any = await createDispatch(deps)(component("cpgo:1:hellgate:-"));
+  const choice: any = await createDispatch(deps)(component("cpgo:1:hellgate:-"));
+  assert.equal(choice.type, 7);
+  assert.deepEqual(choice.data.components[0].components.map((c: any) => c.custom_id), ["cpform:1:hellgate:-", "cpgs:1:hellgate:-"]);
+  const r: any = await createDispatch(deps)(component("cpform:1:hellgate:-"));
   assert.equal(r.type, 9);
   assert.equal(r.data.custom_id, "create:1:hellgate");
   const inputs = r.data.components.map((row: any) => row.components[0]);
@@ -150,7 +154,7 @@ test("panel and Continue refuse tampered or wrong-forum values and a taken post"
     assert.equal(r.data.flags, 64, id);
   }
   assert.ok(content(await d(component("cp:kind:0:other:-", ["world-boss"]))).includes("out of date"));
-  assert.ok(content(await d(component("cpgo:0:world-boss:-"))).includes("PvE kind"));
+  assert.ok(content(await d(component("cpform:0:world-boss:-"))).includes("PvE kind"));
   assert.ok(content(await d(component("cp:loot:0:other:-", ["maybe"]))).includes("out of date"));
   await handleCreateModal(deps, modal(good));
   assert.ok(content(await d(component("cpgo:0:other:-"))).includes("already has content"));
@@ -224,7 +228,8 @@ test("dispatch routes command and modal; unknown things are not implemented", as
   const { deps } = await setup();
   const d = createDispatch(deps);
   assert.equal((await d(command(true))).type, 4);
-  assert.equal((await d(component("cpgo:0:other:-"))).type, 9);
+  assert.equal((await d(component("cpgo:0:other:-"))).type, 7);
+  assert.equal((await d(component("cpform:0:other:-"))).type, 9);
   assert.equal(content(await d(modal(good))), "Created");
   assert.equal(content(await d(base({ data: { name: "nope" } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 5, data: { custom_id: "zzz:1", components: [] } }))), "Not implemented yet");

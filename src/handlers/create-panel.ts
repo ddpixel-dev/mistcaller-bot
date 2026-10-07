@@ -67,10 +67,7 @@ export async function createPanel(
   }
   rows.push({
     type: 1,
-    components: [
-      { type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}` },
-      { type: 2, style: 2, label: "Guided slots", custom_id: `cpgs:${suffix}` },
-    ],
+    components: [{ type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}` }],
   });
   const data = {
     content: "**Create content**\nPick the options, then press Continue to enter the title, time, tier and slots.",
@@ -116,25 +113,54 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   return await createPanel(deps, i.guild_id, type, draft, "update");
 }
 
-// Continue: open the form, with the slots filled in when a preset was chosen.
-export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+type Checked = { ok: true; draft: CreateDraft; kind: string } | { ok: false; response: InteractionResponse };
+
+// Shared checks for the buttons after Continue: the draft in the id, the forum, the kind and a free post.
+async function checked(deps: Deps, i: Interaction, prefix: string): Promise<Checked> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof raw === "string" ? raw.split(":") : [];
-  const draft = parts[0] === "cpgo" ? decodeDraft(parts.slice(1)) : null;
-  if (!draft || !i.guild_id) return reply(INVALID);
+  const draft = parts[0] === prefix ? decodeDraft(parts.slice(1)) : null;
+  if (!draft || !i.guild_id) return { ok: false, response: reply(INVALID) };
   const type = await forumType(deps, i);
-  if (type === null) return reply(NOT_FORUM);
+  if (type === null) return { ok: false, response: reply(NOT_FORUM) };
   const kind = resolveKind(type, draft.kind);
-  if (!kind.ok) return reply(kind.error);
+  if (!kind.ok) return { ok: false, response: reply(kind.error) };
   if (i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
-    if (taken) return taken;
+    if (taken) return { ok: false, response: taken };
   }
-  let lines: string | null = null;
-  if (draft.presetId) {
-    const preset = await getPresetById(deps.sql, i.guild_id, draft.presetId);
+  return { ok: true, draft, kind: kind.value };
+}
+
+// Continue: with a preset, open the form with its slots. Otherwise offer the two ways to define the slots.
+export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const c = await checked(deps, i, "cpgo");
+  if (!c.ok) return c.response;
+  if (c.draft.presetId) {
+    const preset = await getPresetById(deps.sql, i.guild_id!, c.draft.presetId);
     if (!preset) return reply("That preset no longer exists. Run `/content create` again.");
-    lines = formatSlotLines(preset.slots);
+    return createForm({ ...c.draft, kind: c.kind }, formatSlotLines(preset.slots));
   }
-  return createForm({ ...draft, kind: kind.value }, lines);
+  const suffix = encode({ ...c.draft, kind: c.kind });
+  return {
+    type: UPDATE_MESSAGE,
+    data: {
+      content: "**How do you want to set the slots?**",
+      components: [{
+        type: 1,
+        components: [
+          { type: 2, style: 1, label: "Write them in a form", custom_id: `cpform:${suffix}` },
+          { type: 2, style: 2, label: "Guided steps", custom_id: `cpgs:${suffix}` },
+        ],
+      }],
+      allowed_mentions: { parse: [] },
+    },
+  };
+}
+
+// "Write them in a form": the usual form with an empty slots box.
+export async function handleCreateFormButton(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const c = await checked(deps, i, "cpform");
+  if (!c.ok) return c.response;
+  return createForm({ ...c.draft, kind: c.kind }, null);
 }

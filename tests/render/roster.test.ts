@@ -212,6 +212,8 @@ test("fill bar edge cases", () => {
 test("role icons by keyword with a default", () => {
   assert.equal(roleIcon("Main Tank"), "🛡️");
   assert.equal(roleIcon("Healer"), "✚");
+  assert.equal(roleIcon("Support"), "✨");
+  assert.equal(roleIcon("DPS"), "⚔️");
   assert.equal(roleIcon("Scout"), "🏹");
   assert.equal(roleIcon("Whatever"), "🔹");
   assert.ok(desc(view()).includes("🛡️ 1. Tank - Axe"));

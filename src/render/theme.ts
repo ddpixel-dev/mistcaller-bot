@@ -42,7 +42,8 @@ export function fillBar(filled: number, total: number): string {
 
 const ROLE_ICONS: [RegExp, string][] = [
   [/tank/i, "🛡️"],
-  [/heal|support|cleric|holy/i, "✚"],
+  [/support/i, "✨"],
+  [/heal|cleric|holy/i, "✚"],
   [/scout|ranged|archer|bow/i, "🏹"],
   [/call|shot/i, "📯"],
   [/mage|arcane|fire|frost|curse|dps|damage|assassin|dagger|melee/i, "⚔️"],

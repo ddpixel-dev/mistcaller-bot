@@ -1,5 +1,5 @@
 import type { Sql } from "./client.ts";
-import { emptyDraft, type GuidedDraft } from "../domain/guided.ts";
+import { type GuidedDraft } from "../domain/guided.ts";
 import type { SlotDef } from "../domain/types.ts";
 
 export const DRAFT_TTL_MS = 60 * 60 * 1000;
@@ -21,10 +21,8 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   threadId: r.thread_id,
   loot: r.loot,
   kind: r.kind,
-  count: r.count,
+  counts: (r.counts as number[] | null) ?? null,
   slots: r.slots as SlotDef[],
-  role: r.role,
-  weapon: r.weapon,
   query: r.query,
 });
 
@@ -33,13 +31,12 @@ export async function startDraft(
   sql: Sql,
   a: { guildId: string; userId: string; threadId: string; loot: boolean; kind: string },
 ): Promise<string> {
-  const e = emptyDraft();
   const [row] = await sql`
     insert into slot_draft (guild_id, user_id, thread_id, loot, kind, slots)
-    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.loot}, ${a.kind}, ${sql.json(e.slots as never)})
+    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.loot}, ${a.kind}, '[]'::jsonb)
     on conflict (guild_id, thread_id, user_id) do update set
-      loot = excluded.loot, kind = excluded.kind, count = null, slots = excluded.slots,
-      role = null, weapon = null, query = null, created_at = now()
+      loot = excluded.loot, kind = excluded.kind, counts = null, slots = '[]'::jsonb,
+      query = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -52,9 +49,22 @@ export async function getDraft(sql: Sql, id: string, now: Date): Promise<StoredD
 
 export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { query: string | null }): Promise<void> {
   await sql`
-    update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)},
-      role = ${d.role}, weapon = ${d.weapon}, query = ${d.query}
+    update slot_draft set counts = ${d.counts === null ? null : sql.json(d.counts as never)},
+      slots = ${sql.json(d.slots as never)}, query = ${d.query}
     where id = ${id}`;
+}
+
+// The member's draft for this post, used by "/content slot".
+export async function findDraft(
+  sql: Sql,
+  a: { guildId: string; threadId: string; userId: string },
+  now: Date,
+): Promise<StoredDraft | null> {
+  const [r] = await sql`
+    select * from slot_draft
+    where guild_id = ${a.guildId} and thread_id = ${a.threadId} and user_id = ${a.userId}
+      and created_at > ${new Date(now.getTime() - DRAFT_TTL_MS)}`;
+  return r ? toDraft(r) : null;
 }
 
 export async function deleteDraft(sql: Sql, id: string): Promise<void> {

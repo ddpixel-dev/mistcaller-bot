@@ -95,6 +95,15 @@ export const commands = [
           },
         ],
       },
+      {
+        type: 1,
+        name: "slot",
+        description: "Guided slots: add the weapon for the next slot (type to search)",
+        options: [{
+          type: 3, name: "weapon", description: "Type part of the weapon name and pick it", required: true,
+          autocomplete: true, max_length: 50,
+        }],
+      },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
     ],
   },
