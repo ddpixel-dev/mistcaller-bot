@@ -32,10 +32,9 @@ function voteButtons(view: RosterView) {
   ];
 }
 
-// The roster is a Components V2 message (ADR 0018): a coloured container with text blocks, one row per position,
-// a menu of the open positions and the vote buttons. Discord allows 40 components in total and no embeds.
+// The roster is a Components V2 message (ADR 0018): a coloured container with the header and the rows as text,
+// a menu of the open positions, and one row of buttons (Leave and the vote). Discord allows no embeds in it.
 export const IS_COMPONENTS_V2 = 1 << 15;
-export const MAX_PER_ROW_LEAVE = 11; // a row with its own Leave button costs 3 components
 
 export function voteResultText(view: RosterView): string {
   const { split, regear } = view.votes;
@@ -100,7 +99,6 @@ export function renderRosterMessage(view: RosterView): {
 } {
   const filled = view.slots.filter((s) => s.userId !== null).length;
   const live = view.status === "open" || view.status === "locked";
-  const perRow = view.slots.length <= MAX_PER_ROW_LEAVE;
 
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;
@@ -114,30 +112,9 @@ export function renderRosterMessage(view: RosterView): {
   let used = 0;
   const kept = rows.filter((r) => (used += r.text.length + 1) <= budget);
 
-  const body: unknown[] = [text(headerText(view, filled, notes))];
-  if (perRow) {
-    // Each sworn row carries its own Leave button; runs of open rows share one text block.
-    let pending: string[] = [];
-    const flush = () => { if (pending.length) body.push(text(pending.join("\n"))); pending = []; };
-    for (const r of kept) {
-      if (r.s.userId) {
-        flush();
-        body.push({
-          type: 9,
-          components: [text(r.text)],
-          accessory: {
-            type: 2, style: 4, label: "Leave", emoji: { name: "🚪" },
-            custom_id: `leaveslot:${view.id}:${r.s.id}`, disabled: !live,
-          },
-        });
-      } else {
-        pending.push(r.text);
-      }
-    }
-    flush();
-  } else {
-    body.push(text(kept.map((r) => r.text).join("\n")));
-  }
+  // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
+  // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
+  const body: unknown[] = [text(headerText(view, filled, notes)), text(kept.map((r) => r.text).join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   if (view.status === "open" && !view.started && open.length > 0) {
@@ -153,14 +130,11 @@ export function renderRosterMessage(view: RosterView): {
       }],
     });
   }
-  const buttons: unknown[] = [];
-  if (!perRow) {
-    buttons.push({
-      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`, disabled: !(live && filled > 0),
-    });
-  }
+  const buttons: unknown[] = [
+    { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`, disabled: !(live && filled > 0) },
+  ];
   if (view.hasLoot) buttons.push(...voteButtons(view));
-  if (buttons.length) body.push({ type: 1, components: buttons });
+  body.push({ type: 1, components: buttons });
 
   return {
     flags: IS_COMPONENTS_V2,

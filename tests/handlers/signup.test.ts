@@ -61,11 +61,12 @@ test("picking an open position signs up, updates the shared roster, and the posi
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
-test("the signed-up player's row carries their own Leave button", async () => {
+test("after signing up, the shared Leave button is enabled", async () => {
   const { deps, contentId, slots } = await setup();
   const r: any = await handleJoin(deps, pickMenu(contentId, [slots[0]]));
-  const leaves = flatComponents(r.data).filter((c) => String(c.custom_id ?? "").startsWith("leaveslot:"));
-  assert.deepEqual(leaves.map((c) => c.custom_id), [`leaveslot:${contentId}:${slots[0]}`]);
+  const leave = flatComponents(r.data).find((c) => c.custom_id === `leave:${contentId}`);
+  assert.equal(leave.disabled, false);
+  assert.equal(flatComponents(r.data).filter((c) => String(c.custom_id ?? "").startsWith("leaveslot:")).length, 0);
 });
 
 test("picking another open position moves the player and frees the old one", async () => {
