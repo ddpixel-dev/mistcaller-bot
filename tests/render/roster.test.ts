@@ -90,7 +90,7 @@ test("one button per position plus a bottom row with Leave; a held position is d
   assert.equal(rows.length, 2);
   assert.deepEqual(rows[0].components, [
     { type: 2, style: 2, label: "1. Tank - Axe", emoji: { name: "🛡️" }, custom_id: "pick:c1:s1", disabled: true },
-    { type: 2, style: 2, label: "2. Healer - Holy", emoji: { name: "✚" }, custom_id: "pick:c1:s2", disabled: false },
+    { type: 2, style: 2, label: "2. Healer - Holy", emoji: { name: "💚" }, custom_id: "pick:c1:s2", disabled: false },
   ]);
   assert.deepEqual(rows[1].components, [
     { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: "leave:c1", disabled: false },
@@ -211,7 +211,7 @@ test("fill bar edge cases", () => {
 
 test("role icons by keyword with a default", () => {
   assert.equal(roleIcon("Main Tank"), "🛡️");
-  assert.equal(roleIcon("Healer"), "✚");
+  assert.equal(roleIcon("Healer"), "💚");
   assert.equal(roleIcon("Support"), "✨");
   assert.equal(roleIcon("DPS"), "⚔️");
   assert.equal(roleIcon("Scout"), "🏹");
@@ -280,4 +280,16 @@ test("a duty shows after the weapon, on held and open positions alike", () => {
   assert.ok(d.includes("2. Healer - Holy · 🏹 Scout · open"));
   assert.ok(d.includes("3. DPS - Bow · 🐀 Rat · sworn: <@222>"));
   assert.ok(d.includes("4. DPS - Bow · sworn: <@333>\n"));
+});
+
+test("every icon used on a button is a real emoji Discord accepts (a dingbat such as a heavy cross is not)", () => {
+  for (const role of ["Tank", "Healer", "Support", "DPS", "Off-Tank", "Scout", "Caller", "Ranged DPS", "Mage", "Whatever"]) {
+    const icon = roleIcon(role);
+    assert.ok(/\p{Emoji_Presentation}|\uFE0F/u.test(icon), `${role}: ${icon}`);
+  }
+  assert.ok(!/\u271A/.test(["Tank", "Healer", "Support", "DPS"].map(roleIcon).join("")));
+  const rows = renderRosterMessage(view({ slots: ["Tank", "Healer", "Support", "DPS"].map((role, i) => ({ id: `s${i}`, position: i + 1, role, weapon: "W", userId: null })) })).components as any[];
+  for (const b of rows.flatMap((r) => r.components).filter((c: any) => c.emoji)) {
+    assert.ok(/\p{Emoji_Presentation}|\uFE0F/u.test(b.emoji.name), b.emoji.name);
+  }
 });

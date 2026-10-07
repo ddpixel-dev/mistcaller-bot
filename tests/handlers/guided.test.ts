@@ -71,11 +71,12 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   const role = find(card, "gs:role");
   const weapon = find(card, "gs:weapon");
   const duty = find(card, "gs:duty");
-  assert.deepEqual([role.placeholder, weapon.placeholder, duty.placeholder], ["Role (pick one)", "Weapon (pick one)", "Duty (optional)"]);
-  assert.deepEqual(role.options.map((o: any) => o.label), ["Role: Tank", "Role: Healer", "Role: Support", "Role: DPS"]);
-  assert.equal(weapon.options.length, 25);
-  assert.ok(weapon.options[0].label.startsWith("Weapon: "));
-  assert.deepEqual(duty.options.map((o: any) => o.label), ["Duty: Caller", "Duty: Scout", "Duty: Rat", "Duty: none"]);
+  assert.deepEqual([role.placeholder, weapon.placeholder, duty.placeholder], ["Role (pick one)", "Weapon (press Search weapon first)", "Duty (optional)"]);
+  assert.deepEqual(role.options.map((o: any) => o.label), ["Tank", "Healer", "Support", "DPS"]);
+  assert.equal(weapon.disabled, true);
+  assert.equal(weapon.placeholder, "Weapon (press Search weapon first)");
+  assert.deepEqual(weapon.options.map((o: any) => o.label), ["Search a weapon first"]);
+  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "None"]);
   assert.ok([role, weapon, duty].every((s: any) => s.options.every((o: any) => !o.default)));
   const buttons = card.data.components[3].components;
   assert.deepEqual(buttons.map((b: any) => [b.label, !!b.disabled]), [["Next", true], ["Back", false], ["Same as previous", true], ["Fill the rest", true], ["Cancel", false]]);
@@ -101,7 +102,9 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   let r: any = await d(press(`gs:role:${id}`, ["Tank"]));
   assert.deepEqual(find(r, "gs:role").options.filter((o: any) => o.default).map((o: any) => o.value), ["Tank"]);
   assert.equal(find(r, "gs:next").disabled, true);
-  const weaponBase = find(r, "gs:weapon").options[2].value;
+  r = await d(form(`gsq:${id}`, { weapon: "axe" }));
+  const weaponBase = find(r, "gs:weapon").options[1].value;
+  assert.equal(find(r, "gs:weapon").disabled, false);
   r = await d(press(`gs:weapon:${id}`, [weaponBase]));
   assert.equal(find(r, "gs:next").disabled, false);
   assert.match(embed(r).thumbnail.url, /render\.albiononline\.com\/v1\/item\/T\d_.*\.png\?size=128/);
@@ -116,7 +119,7 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   assert.deepEqual([stored.role, stored.weapon, stored.duty, stored.step], [null, null, null, 1]);
 });
 
-test("Search weapon opens a form; the weapon list then shows the matches; Clear search restores the first 25", async () => {
+test("Search weapon opens a form; the weapon list shows only the matches; Clear search empties it again", async () => {
   const { d } = await setup();
   const { id } = await begin(d, "2");
   const f: any = await d(press(`gs:search:${id}`));
@@ -129,10 +132,13 @@ test("Search weapon opens a form; the weapon list then shows the matches; Clear 
   assert.ok(embed(r).description.includes('Weapon search: "holy"'));
   assert.ok(all(r).some((c: any) => c.label === "Clear search"));
   const cleared: any = await d(press(`gs:clear:${id}`));
-  assert.equal(find(cleared, "gs:weapon").options.length, 25);
+  assert.equal(find(cleared, "gs:weapon").disabled, true);
+  assert.deepEqual(find(cleared, "gs:weapon").options.map((o: any) => o.label), ["Search a weapon first"]);
   const none: any = await d(form(`gsq:${id}`, { weapon: "zzzqqq" }));
   assert.ok(embed(none).description.includes("(no match)"));
-  assert.equal(find(none, "gs:weapon").options[0].label, "Weapon: no match, search again");
+  assert.equal(find(none, "gs:weapon").disabled, true);
+  assert.equal(find(none, "gs:weapon").options[0].label, "No match");
+  assert.equal(find(none, "gs:weapon").placeholder, "Weapon (no match, search again)");
 });
 
 test("Back goes to the previous card with its saved choices; Same as previous fills the card; Fill the rest completes", async () => {
@@ -147,6 +153,7 @@ test("Back goes to the previous card with its saved choices; Same as previous fi
   assert.deepEqual(find(r, "gs:role").options.filter((o: any) => o.default).map((o: any) => o.value), ["Tank"]);
   await d(press(`gs:next:${id}`));
   await d(press(`gs:role:${id}`, ["DPS"]));
+  r = await d(form(`gsq:${id}`, { weapon: "bow" }));
   r = await d(press(`gs:weapon:${id}`, [find(r, "gs:weapon").options[0].value]));
   r = await d(press(`gs:rest:${id}`));
   assert.ok(embed(r).description.includes("All 4 slots are chosen."));
