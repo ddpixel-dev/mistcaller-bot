@@ -2,6 +2,7 @@ import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
+import { dutyDef } from "../domain/duties.ts";
 import {
   BANNER_URL, CANCELLED_TAG, ICON_URL, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
@@ -117,7 +118,7 @@ export function renderRosterMessage(view: RosterView): {
     (s) =>
       `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${
         s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
-      }`,
+      }${s.userId && dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`,
   );
   const roster = [
     RULE,

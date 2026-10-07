@@ -53,6 +53,9 @@ async function claimOnce(
         values (${a.guildId}, ${a.contentId}, ${a.userId}, ${a.slotId}, 'signed')
         on conflict (content_id, user_id)
         do update set slot_id = excluded.slot_id, status = 'signed', joined_at = now()`;
+      if (prev && prev.status === "signed" && prev.slot_id) {
+        await tx`update slot set duty = null where id = ${prev.slot_id}`;
+      }
       return prev && prev.status === "signed" ? "moved" : "claimed";
     });
   } catch (err) {
@@ -71,8 +74,9 @@ export async function leaveContent(
     if (!c || (c.status !== "open" && c.status !== "locked")) return "unavailable";
     const rows = await tx`
       delete from signup where content_id = ${a.contentId} and user_id = ${a.userId}
-      returning user_id`;
+      returning user_id, slot_id`;
     if (rows.length === 0) return "not_signed";
+    if (rows[0]!.slot_id) await tx`update slot set duty = null where id = ${rows[0]!.slot_id}`;
     await tx`delete from vote where content_id = ${a.contentId} and user_id = ${a.userId}`;
     return "left";
   });

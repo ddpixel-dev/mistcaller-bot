@@ -130,6 +130,14 @@ satisfies: FR-023
 
 Different kinds of PvP and PvE content, each with its own label and color.
 
+### FT-016: Duties
+status: built (needs migration 0006)
+phase: MVP
+priority: should
+satisfies: FR-027
+
+A manager gives Caller, Scout or Rat to players in the party; the duty appears on the roster line.
+
 ### FT-015: Slot builder and presets
 status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
@@ -243,6 +251,10 @@ An officer shall be able to save the slots defined in the typed-lines mode or th
 ### FR-026: Weapon list and icons
 status: accepted
 Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). The weapon icon shall be shown beside the role and weapon name, linked by URL from Albion's render service and never stored or uploaded (ADR 0013). If an icon cannot load, the roster still shows the names.
+
+### FR-027: Duties
+status: accepted
+A manager (the creator, a member with Manage Server, or the officer role) shall be able to give a player in the party a duty, Caller, Scout or Rat, with `/content duty position:<n> duty:<...>` (owner request 2026-10-07; the word "duty" was suggested instead of "responsibility" and can be renamed in `src/domain/duties.ts`). A duty goes only on a position someone holds and is shown after the player on the roster line. Clearing is always allowed. Leaving or moving clears it. Duties are not part of slot lines, presets or the guided steps. The list is fixed in code.
 
 ## Non-functional requirements
 

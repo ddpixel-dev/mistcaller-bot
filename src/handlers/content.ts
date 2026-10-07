@@ -8,6 +8,7 @@ import { handleSetupCommand } from "./setup.ts";
 import { handlePresetCommand } from "./preset.ts";
 import { handleWeaponCommand } from "./weapon.ts";
 import { handleMeCommand } from "./me.ts";
+import { handleDutyCommand } from "./duty.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
@@ -18,6 +19,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "preset": return await handlePresetCommand(deps, i);
     case "weapon": return await handleWeaponCommand(deps, i);
     case "me": return await handleMeCommand(deps, i);
+    case "duty": return await handleDutyCommand(deps, i);
     default: return reply("Not implemented yet");
   }
 }

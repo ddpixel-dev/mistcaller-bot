@@ -1,5 +1,6 @@
 import { USER_AGENT } from "./rest.ts";
 import { kindChoices } from "../domain/kinds.ts";
+import { CLEAR_DUTY, DUTIES, DUTY_WORD } from "../domain/duties.ts";
 
 const kindOption = (description: string): CommandOption => ({
   type: 3, name: "kind", description, required: false, choices: kindChoices(),
@@ -79,6 +80,21 @@ export const commands = [
         }],
       },
       { type: 1, name: "me", description: "Your own place in this content: sign up, move or leave" },
+      {
+        type: 1,
+        name: "duty",
+        description: `Give a player a ${DUTY_WORD.toLowerCase()} (creator, officers, Manage Server)`,
+        options: [
+          {
+            type: 4, name: "position", description: "Position number on the roster", required: true,
+            min_value: 1, max_value: 20,
+          },
+          {
+            type: 3, name: "duty", description: `The ${DUTY_WORD.toLowerCase()} to give`, required: true,
+            choices: [...DUTIES.map((d) => ({ name: d.label, value: d.id })), { name: "Clear", value: CLEAR_DUTY }],
+          },
+        ],
+      },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
     ],
   },
