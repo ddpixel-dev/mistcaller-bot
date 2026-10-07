@@ -107,7 +107,7 @@ satisfies: FR-003
 Saved rosters, repeating content and an ICS export. Not planned yet.
 
 ### FT-012: One content per forum post
-status: not started
+status: built, awaiting live migration
 phase: MVP
 priority: must
 satisfies: FR-019

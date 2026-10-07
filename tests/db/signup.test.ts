@@ -30,6 +30,9 @@ after(async () => {
   await (await testSql()).end();
 });
 
+let threadSeq = 0;
+const freshThread = () => `thread-${++threadSeq}`;
+
 async function setup(slots = base.slots) {
   const sql = await testSql();
   const contentId = await createContent(sql, { ...base, slots });
@@ -88,7 +91,7 @@ test("moving onto a taken slot returns taken and keeps the old slot", async () =
 
 test("a slot of another content or a different guild returns not_found", async () => {
   const { sql, contentId, slotIds } = await setup();
-  const other = await createContent(sql, base);
+  const other = await createContent(sql, { ...base, threadId: "t2" });
   const otherSlots = (await getRosterView(sql, other, new Date()))!.slots;
   assert.equal(
     await claimSlot(sql, { contentId, slotId: otherSlots[0]!.id, userId: "u1", guildId: "g1", now: NOW }),
@@ -124,7 +127,7 @@ test("locked, cancelled and done content return locked for a claim", async () =>
 test("race: two different users on one slot yield exactly one claimed and one taken", async () => {
   const sql = await testSql();
   for (let i = 0; i < 25; i++) {
-    const contentId = await createContent(sql, { ...base, slots: [{ role: "Tank", weapon: "Mace" }] });
+    const contentId = await createContent(sql, { ...base, slots: [{ role: "Tank", weapon: "Mace" }], threadId: freshThread() });
     const slotId = (await getRosterView(sql, contentId, new Date()))!.slots[0]!.id;
     const results = await Promise.all([
       claimSlot(sql, { contentId, slotId, userId: "ua", guildId: "g1", now: NOW }),
@@ -218,7 +221,7 @@ test("claimSlot rethrows unexpected errors without retrying", async () => {
 test("swap: two users swapping slots concurrently never throw or double-book", async () => {
   const sql = await testSql();
   for (let i = 0; i < 10; i++) {
-    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 2) });
+    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 2), threadId: freshThread() });
     const [s1, s2] = (await getRosterView(sql, contentId, new Date()))!.slots.map((s) => s.id) as [string, string];
     await claimSlot(sql, { contentId, slotId: s1, userId: "ua", guildId: "g1", now: NOW });
     await claimSlot(sql, { contentId, slotId: s2, userId: "ub", guildId: "g1", now: NOW });
@@ -240,7 +243,7 @@ test("swap: two users swapping slots concurrently never throw or double-book", a
 test("concurrent double delivery by the same new user leaves one signup row", async () => {
   const sql = await testSql();
   for (let i = 0; i < 10; i++) {
-    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 1) });
+    const contentId = await createContent(sql, { ...base, slots: base.slots.slice(0, 1), threadId: freshThread() });
     const slotId = (await getRosterView(sql, contentId, new Date()))!.slots[0]!.id;
     const a = { contentId, slotId, userId: "ua", guildId: "g1", now: NOW };
     const results = await Promise.all([claimSlot(sql, a), claimSlot(sql, a)]);

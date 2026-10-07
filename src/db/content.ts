@@ -15,7 +15,39 @@ export type NewContent = {
   slots: SlotDef[];
 };
 
+export class PostTakenError extends Error {
+  constructor() {
+    super("post already has content");
+    this.name = "PostTakenError";
+  }
+}
+
+function isPostTaken(err: unknown): boolean {
+  const e = err as { code?: string; constraint_name?: string } | null;
+  return e?.code === "23505" && e.constraint_name === "content_one_active_per_post";
+}
+
 export async function createContent(sql: Sql, input: NewContent): Promise<string> {
+  try {
+    return await insertContent(sql, input);
+  } catch (err) {
+    if (isPostTaken(err)) throw new PostTakenError();
+    throw err;
+  }
+}
+
+export async function findContentInThread(
+  sql: Sql,
+  guildId: string,
+  threadId: string,
+): Promise<{ id: string; status: ContentStatus; messageId: string | null } | null> {
+  const [row] = await sql`
+    select id, status, message_id from content
+    where guild_id = ${guildId} and thread_id = ${threadId} and status <> 'cancelled'`;
+  return row ? { id: row.id, status: row.status as ContentStatus, messageId: row.message_id } : null;
+}
+
+async function insertContent(sql: Sql, input: NewContent): Promise<string> {
   return await sql.begin(async (tx) => {
     const { min, max } = input.tier;
     const [row] = await tx`
