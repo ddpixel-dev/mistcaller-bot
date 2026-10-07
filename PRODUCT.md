@@ -83,7 +83,7 @@ satisfies: FR-015
 `/content list` shows upcoming open content in the guild.
 
 ### FT-009: Attendance and no-show history
-status: not started
+status: built (needs migration 0012)
 phase: MVP
 priority: should
 satisfies: FR-014
@@ -202,7 +202,11 @@ A GitHub Actions workflow shall call the protected cron route every 5 minutes. T
 
 ### FR-014: Attendance and history
 status: accepted
-About 15 minutes after the start, the bot shall remind the content owner to mark attendance (owner decision 2026-10-07). A manager shall mark each signed-up member attended or no-show. Unmarked members shall be shown as "not recorded" and never counted as no-shows. `/content history @member` shows attended, no-show and not-recorded counts.
+About 5 minutes after the start, the bot shall send the content's creator a **private message** with a button that opens the attendance form, for the creator to open whenever they can (owner decision 2026-10-08). If the private message cannot be sent, a short note with the command goes in the content's post. A manager (the creator, Manage Server or the officer role) can also open the form privately with `/content attendance` once the content has started. The form lists the signed-up players by their server names; the manager picks everyone who attended and presses **Submit**, which records everyone not picked as a no-show; **Save and finish later** keeps the picks and records nobody as a no-show. Members who are not marked are shown as "not recorded" and are never counted as no-shows. **The report is posted in the content's post only when the owner submits the form** (not when the content ends), listing attended and no-show players without pinging them; a failed post is retried. `/content history @member` shows attended, no-show and not-recorded counts, where not recorded means finished content the member was signed up for with no mark.
+
+### FR-028: End content
+status: accepted
+The creator, a member with Manage Server, or the officer role shall be able to end content that has started with `/content end` (owner decision 2026-10-08: the command only, no button). The content becomes done, the roster shows it as concluded, and its controls are dimmed. Ending does not post the attendance report; that waits for the attendance form to be submitted (FR-014).
 
 ### FR-015: Upcoming list
 status: accepted
@@ -354,7 +358,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.11.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.12.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
 Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 
