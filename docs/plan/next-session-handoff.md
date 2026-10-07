@@ -11,7 +11,7 @@ Read `PRODUCT.md` and [INDEX.md](../INDEX.md) first. Then this note.
 
 ## Where things stand
 - Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions pinned to `dub1`, Supabase eu-west-1. Repo `ddpixel-dev/mistcaller-bot`.
-- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to v0.8.0 (migrations through 0008).
+- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to v0.9.0 (migrations through 0009).
 - Tests: `docker compose run --rm node npm test` and `... npm run typecheck`. Everything runs through Docker.
 - Release steps (the sandbox blocks pushes to `main` and production database access, so the owner runs them): `npm run migrate`, merge and tag and push `main`, merge back into `develop`, wait for Vercel, `npm run register`. If GitHub answers a push with "Internal Server Error", it is on their side: retry later (lesson not yet recorded).
 

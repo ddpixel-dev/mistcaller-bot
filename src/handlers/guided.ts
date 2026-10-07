@@ -11,6 +11,7 @@ import {
 import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
+import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
 import { createForm, inContentPost, postTakenReply } from "./create.ts";
 import { createPanel } from "./create-panel.ts";
 
@@ -21,8 +22,8 @@ const NOT_FORUM = "Use this command inside a post in a content forum.";
 const update = (d: StoredDraft): InteractionResponse => ({ type: UPDATE_MESSAGE, data: renderGuidedStep(d) });
 const picked = (d: GuidedDraft) => ({ count: d.count, slots: d.slots, step: d.step, role: d.role, weapon: d.weapon, duty: d.duty });
 
-async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, query: string | null = d.query): Promise<StoredDraft> {
-  const out = { ...d, ...picked(next), query };
+async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, weaponClass: string | null = d.weaponClass): Promise<StoredDraft> {
+  const out = { ...d, ...picked(next), weaponClass };
   await saveDraft(deps.sql, d.id, out);
   return out;
 }
@@ -57,15 +58,6 @@ async function owned(deps: Deps, i: Interaction, id: string | undefined): Promis
   return d;
 }
 
-const searchForm = (d: StoredDraft): InteractionResponse => ({
-  type: MODAL,
-  data: {
-    custom_id: `gsq:${d.id}`,
-    title: "Search weapon",
-    components: [textInput("weapon", "Part of a name, or a class like Holy", 50, { placeholder: "great axe", ...(d.query ? { value: d.query } : {}) })],
-  },
-});
-
 export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const [prefix, action, id, extra] = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
@@ -86,16 +78,19 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (value === TYPED_WEAPON) return update(d);
       const w = typeof value === "string" ? WEAPONS.find((x) => x.base === value) : undefined;
       if (!w) return reply(EXPIRED);
-      return update(await store(deps, d, setWeapon(d, w.name)));
+      return update(await store(deps, d, setWeapon(d, w.name), weaponClass(w)));
     }
     case "next": return update(await store(deps, d, next(d), null));
-    case "same": return update(await store(deps, d, sameAsPrevious(d)));
+    case "same": return update(await store(deps, d, sameAsPrevious(d), null));
     case "rest": return update(await store(deps, d, fillRest(d), null));
-    case "search": return searchForm(d);
-    case "clear": return update(await store(deps, d, d, null));
+    case "class": {
+      const cls = typeof value === "string" ? value : "";
+      if (!isWeaponClass(cls)) return reply(EXPIRED);
+      return update(await store(deps, d, d, cls));
+    }
     case "count": return countForm(d);
     case "back": {
-      if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d)));
+      if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
       // On the first card, Back returns to the create panel with the choices kept.
       if (!i.guild_id) return reply(EXPIRED);
       return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null }, "update");
@@ -117,22 +112,18 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
   }
 }
 
-// Two small forms: the number of players ("gsc") and the weapon search ("gsq").
+// The form for the number of players ("gsc").
 export async function handleGuidedModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
-  if ((prefix !== "gsq" && prefix !== "gsc") || extra !== undefined) return reply(EXPIRED);
+  if (prefix !== "gsc" || extra !== undefined) return reply(EXPIRED);
   const d = await owned(deps, i, id);
   if (!d) return reply(EXPIRED);
   const values = modalValues(i);
 
-  if (prefix === "gsc") {
-    const count = parseCount(values.count ?? "");
-    if (!count.ok) return reply(count.error);
-    return update(await store(deps, d, setCount(d, count.value)));
-  }
-  const query = (values.weapon ?? "").trim().slice(0, 50);
-  return update(await store(deps, d, d, query || null));
+  const count = parseCount(values.count ?? "");
+  if (!count.ok) return reply(count.error);
+  return update(await store(deps, d, setCount(d, count.value)));
 }
 
 // "/content slot role:<> weapon:<type to search> duty:<>": fill the current card in one command and move on.

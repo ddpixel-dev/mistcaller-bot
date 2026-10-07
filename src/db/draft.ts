@@ -12,7 +12,7 @@ export type StoredDraft = GuidedDraft & {
   type: ContentType;
   loot: boolean;
   kind: string;
-  query: string | null;
+  weaponClass: string | null;
 };
 
 const toDraft = (r: Record<string, any>): StoredDraft => ({
@@ -29,7 +29,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   role: r.role ?? null,
   weapon: r.weapon ?? null,
   duty: r.duty ?? null,
-  query: r.query,
+  weaponClass: r.weapon_class ?? null,
 });
 
 // One draft per member per post: starting again replaces the old one.
@@ -42,7 +42,7 @@ export async function startDraft(
     values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, '[]'::jsonb)
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = excluded.loot, kind = excluded.kind, count = null, counts = null,
-      slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, created_at = now()
+      slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -53,10 +53,10 @@ export async function getDraft(sql: Sql, id: string, now: Date): Promise<StoredD
   return r ? toDraft(r) : null;
 }
 
-export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { query: string | null }): Promise<void> {
+export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { weaponClass: string | null }): Promise<void> {
   await sql`
     update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)}, step = ${d.step},
-      role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, query = ${d.query}
+      role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, weapon_class = ${d.weaponClass}
     where id = ${id}`;
 }
 
