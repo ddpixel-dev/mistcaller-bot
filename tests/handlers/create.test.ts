@@ -269,3 +269,34 @@ test("a failing cleanup deleteContent is logged by class name only", async () =>
   assert.ok(lines.includes(JSON.stringify({ evt: "cleanup_failed", error: "TypeError" })), lines.join("\n"));
   assert.ok(!lines.join("\n").includes("hunter2"));
 });
+
+test("command in a post that already has content replies privately with a link, no modal", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateModal(deps, modal(good));
+  const r = await handleCreateCommand(deps, command(true));
+  assert.equal(r.type, 4);
+  assert.equal((r.data as any).flags, 64);
+  assert.match(content(r), /already has content/);
+  assert.match(content(r), /discord\.com\/channels\/g1\/thread-1\/msg-1/);
+  assert.match(content(r), /cancel/i);
+  await sql`update content set status = 'done'`;
+  assert.match(content(await handleCreateCommand(deps, command(true))), /finished|done/i);
+});
+
+test("modal submit in a taken post replies with the same message and posts nothing", async () => {
+  const { deps, sql, posts } = await setup();
+  await handleCreateModal(deps, modal(good));
+  const r = await handleCreateModal(deps, modal({ ...good, title: "Second" }));
+  assert.match(content(r), /already has content/);
+  assert.equal(posts.length, 1);
+  const [{ n }] = await sql`select count(*)::int as n from content`;
+  assert.equal(n, 1);
+});
+
+test("after cancelling, a new content can be created in the same post", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateModal(deps, modal(good));
+  await sql`update content set status = 'cancelled'`;
+  assert.equal((await handleCreateCommand(deps, command(true))).type, 9);
+  assert.equal(content(await handleCreateModal(deps, modal({ ...good, title: "Second" }))), "Created");
+});

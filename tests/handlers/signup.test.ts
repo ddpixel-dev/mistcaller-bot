@@ -22,7 +22,7 @@ after(async () => { await (await testSql()).end(); });
 async function setup() {
   const sql = await testSql();
   const contentId = await createContent(sql, base);
-  const other = await createContent(sql, base);
+  const other = await createContent(sql, { ...base, threadId: "t2" });
   const v = (await getRosterView(sql, contentId, NOW))!;
   const ov = (await getRosterView(sql, other, NOW))!;
   const deps: Deps = { sql, rest, now: () => NOW };

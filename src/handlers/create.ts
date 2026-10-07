@@ -2,7 +2,9 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
 import { getGuildSettings } from "../db/settings.ts";
-import { createContent, deleteContent, getRosterView, setMessageId } from "../db/content.ts";
+import {
+  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
+} from "../db/content.ts";
 import { forumContentType } from "../domain/forum.ts";
 import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
@@ -35,8 +37,25 @@ const input = (
   components: [{ type: 4, custom_id, label, style: 1, max_length, required: true, ...extra }],
 });
 
+async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
+  const existing = await findContentInThread(deps.sql, guildId, threadId);
+  if (!existing) return null;
+  const link = existing.messageId ? ` https://discord.com/channels/${guildId}/${threadId}/${existing.messageId}` : "";
+  return reply(takenMessage(existing.status, link));
+}
+
+function takenMessage(status: string, link: string): string {
+  return status === "done"
+    ? `This post's content has finished, so it cannot take a new one.${link}`
+    : `This post already has content.${link} Cancel it first to create a new one.`;
+}
+
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if ((await forumType(deps, i)) === null) return reply(NOT_FORUM);
+  if (i.guild_id && i.channel?.id) {
+    const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
+    if (taken) return taken;
+  }
   return {
     type: MODAL,
     data: {
@@ -86,18 +105,24 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   const customId = (i.data as { custom_id?: string }).custom_id ?? "";
   const hasLoot = customId === "create:1";
 
-  const id = await createContent(deps.sql, {
-    guildId: i.guild_id,
-    threadId,
-    type,
-    title: title.value,
-    notes: notes.value,
-    startsAt: start.value,
-    tier: tier.value,
-    hasLoot,
-    createdBy: creator,
-    slots: slots.value,
-  });
+  let id: string;
+  try {
+    id = await createContent(deps.sql, {
+      guildId: i.guild_id,
+      threadId,
+      type,
+      title: title.value,
+      notes: notes.value,
+      startsAt: start.value,
+      tier: tier.value,
+      hasLoot,
+      createdBy: creator,
+      slots: slots.value,
+    });
+  } catch (err) {
+    if (err instanceof PostTakenError) return (await postTakenReply(deps, i.guild_id, threadId)) ?? reply(FAILED);
+    throw err;
+  }
   const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
   let postedId: string | null = null;
   try {
@@ -113,7 +138,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     if (postedId !== null) {
       await deps.rest.deleteMessage(threadId, postedId).catch((e) => {
         console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
-      });
+    });
     }
     console.error(JSON.stringify({ evt: "create_failed", name: errName(err) }));
     return reply(FAILED);
