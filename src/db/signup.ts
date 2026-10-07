@@ -1,7 +1,7 @@
 import type { Sql } from "./client.ts";
 
 export type ClaimResult = "claimed" | "moved" | "unchanged" | "taken" | "locked" | "not_found";
-export type LeaveResult = "left" | "not_signed" | "unavailable";
+export type LeaveResult = "left" | "not_signed" | "unavailable" | "not_found";
 
 function isSlotTaken(err: unknown): boolean {
   const e = err as { code?: string; constraint_name?: string } | null;
@@ -63,10 +63,11 @@ async function claimOnce(
 
 export async function leaveContent(
   sql: Sql,
-  a: { contentId: string; userId: string },
+  a: { contentId: string; userId: string; guildId?: string },
 ): Promise<LeaveResult> {
   return await sql.begin(async (tx): Promise<LeaveResult> => {
-    const [c] = await tx`select status from content where id = ${a.contentId} for update`;
+    const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
+    if (c && a.guildId !== undefined && c.guild_id !== a.guildId) return "not_found";
     if (!c || (c.status !== "open" && c.status !== "locked")) return "unavailable";
     const rows = await tx`
       delete from signup where content_id = ${a.contentId} and user_id = ${a.userId}

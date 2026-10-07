@@ -25,7 +25,7 @@ async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null
 function lootOption(i: Interaction): boolean {
   const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
   const create = data?.options?.find((o) => o.name === "create");
-  return create?.options?.find((o) => o.name === "loot")?.value === true;
+  return create?.options?.find((o) => o.name === "loot-vote")?.value === true;
 }
 
 async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {

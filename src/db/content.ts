@@ -82,13 +82,15 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const slots = await sql`
-    select s.id, s.position, s.role, s.weapon, su.user_id
-    from slot s
-    left join signup su on su.slot_id = s.id and su.status = 'signed'
-    where s.content_id = ${contentId}
-    order by s.position`;
-  const voteRows = await sql`select choice from vote where content_id = ${contentId}`;
+  const [slots, voteRows] = await Promise.all([
+    sql`
+      select s.id, s.position, s.role, s.weapon, su.user_id
+      from slot s
+      left join signup su on su.slot_id = s.id and su.status = 'signed'
+      where s.content_id = ${contentId}
+      order by s.position`,
+    sql`select choice from vote where content_id = ${contentId}`,
+  ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const started = c.starts_at <= now;
   const voteClosed = !isVoteOpen(c.starts_at, now);

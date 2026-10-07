@@ -334,3 +334,11 @@ test("a not_signed leave leaves other members' votes untouched", async () => {
   assert.equal(await leaveContent(sql, { contentId, userId: "stranger" }), "not_signed");
   assert.equal(await votes(), 1);
 });
+
+test("leaveContent with a different guild is not_found and changes nothing", async () => {
+  const { sql, contentId, slotIds } = await setup();
+  await claimSlot(sql, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1", now: new Date() });
+  assert.equal(await leaveContent(sql, { contentId, userId: "u1", guildId: "g2" }), "not_found");
+  assert.deepEqual(await holders(sql, contentId), ["u1", null, null]);
+  assert.equal(await leaveContent(sql, { contentId, userId: "u1", guildId: "g1" }), "left");
+});
