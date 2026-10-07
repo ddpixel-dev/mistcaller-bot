@@ -1,0 +1,15 @@
+import type { Deps } from "../discord/dispatch.ts";
+import type { Interaction, InteractionResponse } from "../discord/types.ts";
+import { reply } from "../discord/response.ts";
+import { subcommandName } from "../discord/modal.ts";
+import { handleCreateCommand } from "./create.ts";
+import { handleCancelCommand, handleEditCommand } from "./manage.ts";
+
+export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  switch (subcommandName(i)) {
+    case "create": return await handleCreateCommand(deps, i);
+    case "edit": return await handleEditCommand(deps, i);
+    case "cancel": return await handleCancelCommand(deps, i);
+    default: return reply("Not implemented yet");
+  }
+}

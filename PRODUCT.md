@@ -51,7 +51,7 @@ satisfies: FR-008, FR-012, FR-013
 Signed-up players vote split or regear. The vote closes 5 minutes before the start and the result is shown.
 
 ### FT-005: Manage content and permissions
-status: not started
+status: edit and cancel built (FR-020, FR-021); lock and creation cap not started
 phase: MVP
 priority: must
 satisfies: FR-009, FR-010
@@ -218,11 +218,11 @@ A forum post shall hold at most one content whose status is `open` or `locked`. 
 
 ### FR-020: Edit content
 status: accepted
-The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. The roster message is re-rendered after every edit.
+The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot` option changes the loot toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
 
 ### FR-021: Cancel content
 status: accepted
-The same managers shall be able to cancel a content after a confirmation step. Cancelling sets the status to `cancelled`, re-renders the roster as cancelled with all buttons disabled, and pings the signed-up members.
+The same managers shall be able to cancel an open or locked content with `/content cancel`, after a private confirmation step. Cancelling sets the status to `cancelled`, re-renders the roster as cancelled with all buttons disabled, and pings the signed-up members.
 
 ### FR-022: Medieval Banner roster style
 status: accepted
