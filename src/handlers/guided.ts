@@ -1,11 +1,11 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { leafOption, modalValues, textInput } from "../discord/modal.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { deleteDraft, getDraft, saveDraft, startDraft, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, findDraft, getDraft, saveDraft, startDraft, type StoredDraft } from "../db/draft.ts";
 import {
-  back, fillRest, isComplete, sameAsPrevious, setCount, setRole, setWeapon, type GuidedDraft,
+  GUIDED_ROLES, back, fillRest, isComplete, parseCounts, sameAsPrevious, setCounts, setWeapon, type GuidedDraft,
 } from "../domain/guided.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
@@ -25,7 +25,7 @@ async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, query: strin
   return out;
 }
 
-// The panel's "Guided slots" button: start (or restart) this member's draft for this post.
+// The "Guided steps" choice after Continue: start (or restart) this member's draft for this post.
 export async function handleGuidedStart(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof raw === "string" ? raw.split(":") : [];
@@ -53,6 +53,17 @@ async function owned(deps: Deps, i: Interaction, id: string | undefined): Promis
   return d;
 }
 
+const rolesForm = (d: StoredDraft): InteractionResponse => ({
+  type: MODAL,
+  data: {
+    custom_id: `gsr:${d.id}`,
+    title: "How many of each role?",
+    components: GUIDED_ROLES.map((role, r) =>
+      textInput(`r${r}`, role, 2, { required: false, placeholder: "0", ...(d.counts ? { value: String(d.counts[r]) } : {}) }),
+    ),
+  },
+});
+
 export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const [prefix, action, id, extra] = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
@@ -60,18 +71,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
   const d = await owned(deps, i, id);
   if (!d) return reply(EXPIRED);
   const value = Array.isArray(data?.values) && data!.values.length === 1 ? data!.values[0] : undefined;
-  const before = d.slots.length;
-  const settled = (next: GuidedDraft) => (next.slots.length > before || next.slots.length < before ? null : d.query);
 
   switch (action) {
-    case "count": {
-      const n = typeof value === "string" ? Number(value) : NaN;
-      return update(await store(deps, d, setCount(d, n), null));
-    }
-    case "role": {
-      const next = typeof value === "string" ? setRole(d, value) : d;
-      return update(await store(deps, d, next, settled(next)));
-    }
+    case "roles": return rolesForm(d);
     case "pick": {
       const w = typeof value === "string" ? WEAPONS.find((x) => x.base === value) : undefined;
       if (!w) return reply(EXPIRED);
@@ -112,14 +114,40 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
   }
 }
 
-// The weapon search form: the typed text is searched against the weapon list.
+// Two small forms: the role numbers ("gsr") and the weapon search ("gsq").
 export async function handleGuidedModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
-  if (prefix !== "gsq" || extra !== undefined) return reply(EXPIRED);
+  if ((prefix !== "gsq" && prefix !== "gsr") || extra !== undefined) return reply(EXPIRED);
   const d = await owned(deps, i, id);
   if (!d) return reply(EXPIRED);
-  const query = (modalValues(i).weapon ?? "").trim().slice(0, 50);
+  const values = modalValues(i);
+
+  if (prefix === "gsr") {
+    const counts = parseCounts(GUIDED_ROLES.map((_, r) => values[`r${r}`] ?? ""));
+    if (!counts.ok) return reply(counts.error);
+    return update(await store(deps, d, setCounts(d, counts.value), null));
+  }
+  const query = (values.weapon ?? "").trim().slice(0, 50);
   if (!query) return update(d);
   return update(await store(deps, d, d, query));
+}
+
+// "/content slot weapon:<type to search>": the fast way to add the next slot's weapon.
+export async function handleSlotCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const userId = i.member?.user?.id;
+  const threadId = i.channel?.id;
+  if (!i.guild_id || !userId || !threadId) return reply("Use this command inside a content post.");
+  const d = await findDraft(deps.sql, { guildId: i.guild_id, threadId, userId }, deps.now());
+  if (!d) return reply("Start the guided steps first: `/content create`, then Continue, then Guided steps.");
+  const raw = leafOption(i, "weapon");
+  const typed = typeof raw === "string" ? raw.trim() : "";
+  if (!typed) return reply("Type part of a weapon name and pick one from the list.");
+  if (d.counts === null) return reply("Set the roles first: press Set roles on the guided card.");
+  if (isComplete(d)) return reply("All slots are chosen. Press Continue to form on the guided card.");
+  const known = WEAPONS.find((w) => w.name.toLowerCase() === typed.toLowerCase());
+  const weapon = known ? known.name : typed;
+  if (weapon.length > 40) return reply("That weapon name is too long (max 40 characters).");
+  const next = await store(deps, d, setWeapon(d, weapon), null);
+  return { type: CHANNEL_MESSAGE, data: { ...renderGuidedStep(next), flags: EPHEMERAL } };
 }

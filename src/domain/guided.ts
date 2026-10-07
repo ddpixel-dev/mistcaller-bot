@@ -1,60 +1,75 @@
-import type { SlotDef } from "./types.ts";
+import type { Result, SlotDef } from "./types.ts";
 
 export const MAX_SLOTS = 20;
 
-// The roles offered in the guided steps. A custom role is still possible by editing the final form.
-export const GUIDED_ROLES = [
-  "Tank", "Off-Tank", "Healer", "Support", "DPS", "Ranged DPS", "Scout", "Caller", "Mage", "Assassin",
-] as const;
+// Owner decision 2026-10-07: only four roles. Jobs such as Caller or Scout are duties, assigned later.
+export const GUIDED_ROLES = ["Tank", "Healer", "Support", "DPS"] as const;
 
 export type GuidedDraft = {
-  count: number | null;
+  counts: number[] | null; // one number per role, in the order of GUIDED_ROLES
   slots: SlotDef[];
-  role: string | null;
-  weapon: string | null;
 };
 
-export const emptyDraft = (): GuidedDraft => ({ count: null, slots: [], role: null, weapon: null });
+export const emptyDraft = (): GuidedDraft => ({ counts: null, slots: [] });
 
-export const isComplete = (d: GuidedDraft): boolean => d.count !== null && d.slots.length >= d.count;
+export const total = (d: GuidedDraft): number => (d.counts ? d.counts.reduce((a, b) => a + b, 0) : 0);
+export const isComplete = (d: GuidedDraft): boolean => d.counts !== null && d.slots.length >= total(d);
 
-// A role and a weapon together make one slot; it is added as soon as both are chosen.
-function commit(d: GuidedDraft): GuidedDraft {
-  if (d.role && d.weapon && d.count !== null && d.slots.length < d.count) {
-    return { ...d, slots: [...d.slots, { role: d.role, weapon: d.weapon }], role: null, weapon: null };
+// The role of the next slot follows the typed numbers: all Tanks first, then Healers, Support, DPS.
+export function roleAt(d: GuidedDraft, index: number): string | null {
+  if (!d.counts) return null;
+  let left = index;
+  for (let r = 0; r < GUIDED_ROLES.length; r++) {
+    if (left < d.counts[r]!) return GUIDED_ROLES[r]!;
+    left -= d.counts[r]!;
   }
-  return d;
+  return null;
 }
 
-export function setCount(d: GuidedDraft, n: number): GuidedDraft {
-  if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return d;
-  // A smaller count than the slots already chosen keeps only the first n.
-  return { ...d, count: n, slots: d.slots.slice(0, n), role: null, weapon: null };
+export const nextRole = (d: GuidedDraft): string | null => roleAt(d, d.slots.length);
+
+// Typed text from the form, one value per role. Empty means 0.
+export function parseCounts(inputs: string[]): Result<number[]> {
+  const counts: number[] = [];
+  for (let r = 0; r < GUIDED_ROLES.length; r++) {
+    const text = (inputs[r] ?? "").trim();
+    if (text === "") {
+      counts.push(0);
+      continue;
+    }
+    if (!/^\d{1,2}$/.test(text)) return { ok: false, error: `${GUIDED_ROLES[r]} must be a whole number, like 2.` };
+    counts.push(Number(text));
+  }
+  const sum = counts.reduce((a, b) => a + b, 0);
+  if (sum < 1) return { ok: false, error: "Type at least one member in total." };
+  if (sum > MAX_SLOTS) return { ok: false, error: `That is ${sum} members. The maximum is ${MAX_SLOTS}.` };
+  return { ok: true, value: counts };
 }
 
-export const setRole = (d: GuidedDraft, role: string): GuidedDraft =>
-  (GUIDED_ROLES as readonly string[]).includes(role) && !isComplete(d) && d.count !== null ? commit({ ...d, role }) : d;
+// New numbers start the slots over, because the roles of the finished slots may no longer fit.
+export function setCounts(d: GuidedDraft, counts: number[]): GuidedDraft {
+  const same = d.counts && d.counts.every((n, i) => n === counts[i]);
+  return same ? d : { counts, slots: [] };
+}
 
-export const setWeapon = (d: GuidedDraft, weapon: string): GuidedDraft => {
+export function setWeapon(d: GuidedDraft, weapon: string): GuidedDraft {
   const w = weapon.trim();
-  return w.length >= 1 && w.length <= 40 && !isComplete(d) && d.count !== null ? commit({ ...d, weapon: w }) : d;
-};
+  const role = nextRole(d);
+  if (!role || w.length < 1 || w.length > 40) return d;
+  return { ...d, slots: [...d.slots, { role, weapon: w }] };
+}
 
 export function sameAsPrevious(d: GuidedDraft): GuidedDraft {
   const last = d.slots[d.slots.length - 1];
-  if (!last || isComplete(d)) return d;
-  return { ...d, slots: [...d.slots, { ...last }], role: null, weapon: null };
+  return last ? setWeapon(d, last.weapon) : d;
 }
 
 export function fillRest(d: GuidedDraft): GuidedDraft {
   const last = d.slots[d.slots.length - 1];
-  if (!last || d.count === null || isComplete(d)) return d;
-  const rest = Array.from({ length: d.count - d.slots.length }, () => ({ ...last }));
-  return { ...d, slots: [...d.slots, ...rest], role: null, weapon: null };
+  if (!last || isComplete(d)) return d;
+  let next = d;
+  while (!isComplete(next)) next = setWeapon(next, last.weapon);
+  return next;
 }
 
-// Back clears a half-chosen slot first, then removes the last finished one.
-export function back(d: GuidedDraft): GuidedDraft {
-  if (d.role || d.weapon) return { ...d, role: null, weapon: null };
-  return { ...d, slots: d.slots.slice(0, -1) };
-}
+export const back = (d: GuidedDraft): GuidedDraft => ({ ...d, slots: d.slots.slice(0, -1) });

@@ -62,7 +62,7 @@ export async function handlePresetCommand(deps: Deps, i: Interaction): Promise<I
 export async function handleAutocomplete(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const focused = focusedOption(i);
   const path = commandPath(i);
-  if (focused && focused.name === "name" && path[0] === "weapon") {
+  if (focused && ((focused.name === "name" && path[0] === "weapon") || (focused.name === "weapon" && path[0] === "slot"))) {
     const found = searchWeapons(WEAPONS, focused.value, 25);
     return { type: 8, data: { choices: found.map((w) => ({ name: w.name, value: w.name })) } };
   }

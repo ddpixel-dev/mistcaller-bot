@@ -24,11 +24,11 @@ Satisfies FR-024, FR-025, FR-026. Decisions: ADR 0004 (slot model), 0009 (weapon
 - The render service answers 200 for tiered ids such as `T4_MAIN_SWORD` and 404 for ids without a tier, so the icon id is `T4_<base>` (or the lowest tier that exists).
 - Files fetched for the spike stay outside the repo.
 
-## Phase 3: guided steps (FR-024) - built
-- Entry: a "Guided slots" button next to Continue in the create panel. It starts a draft in the `slot_draft` table (migration 0005): one per member per post, replaced when started again, purged after an hour by the scheduled job.
-- Steps: a member count (1 to 20), then per slot a role menu and a weapon search (a small form, then a menu of up to 25 matches with the top match's icon as the card thumbnail, or "use as typed"). A role and a weapon together make a slot. "Same as previous", "Fill the rest" and "Back" are available.
-- The end opens the create form with the slots filled in. All decisions in the flow come from pure functions in `src/domain/guided.ts`; the handler loads the draft, applies one, saves and redraws. Only the draft's owner, in its post, may use it.
-- Assumed defaults (owner may change): a fixed role list (Tank, Off-Tank, Healer, Support, DPS, Ranged DPS, Scout, Caller, Mage, Assassin); custom roles through the final form.
+## Phase 3: guided steps (FR-024) - built, reworked the same day
+- Entry: after Continue in the create panel, a choice between "Write them in a form" and "Guided steps". It starts a draft in the `slot_draft` table (migrations 0005 and 0007): one per member per post, replaced when started again, purged after an hour by the scheduled job.
+- Steps: the member types how many Tanks, Healers, Support and DPS (a small form, four number boxes, at most 20 in total). Slot roles then follow in that order, so only the weapon is chosen per slot: with `/content slot weapon:<type to search>` (Discord's only searchable list is the autocomplete of a command option) or the Find weapon button (type text, then pick from up to 25 matches). "Same as previous", "Fill the rest" and "Back" are available; changing the numbers starts the slots over.
+- The end opens the create form with the slots filled in. Decisions come from pure functions in `src/domain/guided.ts`; a handler loads the draft, applies one, saves and redraws. Only the draft's owner, in its post, may use it.
+- Duties (Caller, Scout, Rat) are not part of this flow; managers assign them later with `/content duty` (FR-027).
 
 ## Limits to remember
 - A roster line cannot carry an image. Per-line weapon icons are not possible in Discord embed text, so the roster shows the role icon and the weapon name; icons live in the builder.
