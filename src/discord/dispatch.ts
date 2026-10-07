@@ -17,7 +17,7 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsq: handleGuidedModal, gsc: handleGuidedModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal };
 const componentHandlers: Record<string, Handler> = {
   signup: handleSignup, pick: handlePick, leave: handleLeave, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
   cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent,

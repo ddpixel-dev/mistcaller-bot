@@ -27,7 +27,7 @@ Satisfies FR-024, FR-025, FR-026. Decisions: ADR 0004 (slot model), 0009 (weapon
 ## Phase 3: guided steps (FR-024) - built, reworked three times on the same day
 Approved by the owner on 2026-10-07 after reading the Roster Studio artifact:
 - Continue in the create panel goes straight to "How many players needed?" (one number box, 1 to 20). No "how to set the slots" step. A chosen preset skips the cards and opens the filled form.
-- One card per slot, "Slot k of n" with progress dots: three lists with placeholders (Role, Weapon, Duty). The weapon list shows the first 25 A to Z, or the matches of the Search weapon form. **Next** saves the slot (Finish on the last). Back, Same as previous, Fill the rest, Change number and Cancel are on the card; Back on the first card returns to the create panel.
+- One card per slot, "Slot k of n" with progress dots: four lists with placeholders (Role, Weapon class, Weapon, Duty). Picking a weapon class fills the weapon list with that class (at most 25). No pop-up search (owner decision); typing a name is done with `/content slot`. The Duty list has no "None" entry and can be deselected. **Next** saves the slot (Finish on the last). Back, Same as previous, Fill the rest, Change number and Cancel are on the card; Back on the first card returns to the create panel.
 - `/content slot role weapon duty` fills the card in one command, with a searchable weapon autocomplete.
 - Progress is in the `slot_draft` table (migrations 0005, 0007, 0008): one per member per post, replaced when restarted, purged after an hour by the scheduled job. Decisions come from pure functions in `src/domain/guided.ts`.
 - The duty belongs to the slot (FR-027) and travels in typed lines as `(Caller)`.

@@ -57,3 +57,47 @@ export function weaponIconUrl(w: Weapon, size = 64): string {
 }
 
 export const SLOT_LABEL: Record<WeaponSlot, string> = { main: "One-handed", "2h": "Two-handed", off: "Off-hand" };
+
+// Weapon classes for the guided card's two lists (owner choice 2026-10-07): pick a class, then the weapon.
+// Grouped by the family part of the id (the second part of "2H_FROSTSTAFF_CRYSTAL"). Off-hands are one class.
+export const WEAPON_CLASSES = [
+  "Sword", "Axe", "Hammer", "Mace", "Spear", "Dagger", "Quarterstaff", "Bow", "Crossbow", "Gloves",
+  "Fire Staff", "Frost Staff", "Holy Staff", "Arcane Staff", "Cursed Staff", "Nature Staff", "Shapeshifter",
+  "Off-hand", "Other",
+] as const;
+export type WeaponClass = (typeof WEAPON_CLASSES)[number];
+
+const FAMILIES: Record<WeaponClass, string[]> = {
+  "Sword": ["SWORD", "CLAYMORE", "DUALSWORD", "SCIMITAR", "DUALSCIMITAR", "CLEAVER"],
+  "Axe": ["AXE", "HALBERD", "SCYTHE", "DUALAXE", "TWINSCYTHE"],
+  "Hammer": ["HAMMER", "POLEHAMMER", "DUALHAMMER", "RAM"],
+  "Mace": ["MACE", "ROCKMACE", "DUALMACE", "FLAIL"],
+  "Spear": ["SPEAR", "GLAIVE", "TRIDENT", "HARPOON"],
+  "Dagger": ["DAGGER", "DAGGERPAIR", "CLAWPAIR", "RAPIER", "DUALSICKLE"],
+  "Quarterstaff": ["QUARTERSTAFF", "COMBATSTAFF", "DOUBLEBLADEDSTAFF", "IRONCLADEDSTAFF", "ROCKSTAFF"],
+  "Bow": ["BOW", "LONGBOW", "WARBOW"],
+  "Crossbow": ["CROSSBOW", "CROSSBOWLARGE", "DUALCROSSBOW", "1HCROSSBOW", "REPEATINGCROSSBOW"],
+  "Gloves": ["KNUCKLES", "IRONGAUNTLETS"],
+  "Fire Staff": ["FIRESTAFF", "INFERNOSTAFF", "FIRE"],
+  "Frost Staff": ["FROSTSTAFF", "GLACIALSTAFF", "ICEGAUNTLETS", "ICECRYSTAL"],
+  "Holy Staff": ["HOLYSTAFF", "DIVINESTAFF"],
+  "Arcane Staff": ["ARCANESTAFF", "ENIGMATICSTAFF", "ARCANE", "ENIGMATICORB"],
+  "Cursed Staff": ["CURSEDSTAFF", "DEMONICSTAFF", "SKULLORB"],
+  "Nature Staff": ["NATURESTAFF", "WILDSTAFF"],
+  "Shapeshifter": ["SHAPESHIFTER"],
+  "Off-hand": [],
+  "Other": [],
+};
+
+export function weaponClass(w: Weapon): WeaponClass {
+  if (w.slot === "off") return "Off-hand";
+  const family = w.base.split("_")[1] ?? "";
+  for (const cls of WEAPON_CLASSES) if (FAMILIES[cls].includes(family)) return cls;
+  return "Other";
+}
+
+export const isWeaponClass = (x: unknown): x is WeaponClass => (WEAPON_CLASSES as readonly unknown[]).includes(x);
+
+// The weapons of one class, by name. A class never lists more than a select menu can hold.
+export const weaponsOfClass = (list: Weapon[], cls: WeaponClass): Weapon[] =>
+  list.filter((w) => weaponClass(w) === cls).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 25);
