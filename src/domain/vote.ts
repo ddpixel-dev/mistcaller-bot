@@ -1,4 +1,9 @@
 export const VOTE_CUTOFF_MS = 300000;
+// FR-011: players are reminded about 30 minutes before the start.
+export const REMINDER_LEAD_MS = 30 * 60 * 1000;
+
+// Nothing to remind when the start is already inside the lead time.
+export const needsReminder = (startsAt: Date, now: Date): boolean => startsAt.getTime() - now.getTime() > REMINDER_LEAD_MS;
 
 export type VoteChoice = "split" | "regear";
 

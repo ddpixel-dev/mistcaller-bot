@@ -1,5 +1,5 @@
 import type { Sql } from "./client.ts";
-import { isVoteOpen, tallyVotes, type VoteChoice } from "../domain/vote.ts";
+import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
 import type { ContentStatus, ContentType, RosterView, SlotDef, TierRange } from "../domain/types.ts";
 
 export type NewContent = {
@@ -14,6 +14,7 @@ export type NewContent = {
   hasLoot: boolean;
   createdBy: string;
   slots: SlotDef[];
+  now?: Date;
 };
 
 export class PostTakenError extends Error {
@@ -51,12 +52,14 @@ export async function findContentInThread(
 async function insertContent(sql: Sql, input: NewContent): Promise<string> {
   return await sql.begin(async (tx) => {
     const { min, max } = input.tier;
+    const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        min_tier, min_enchant, max_tier, max_enchant, has_loot, created_by)
+        min_tier, min_enchant, max_tier, max_enchant, has_loot, created_by, reminder_sent_at)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${min.tier}, ${min.enchant}, ${max ? max.tier : null},
-        ${max ? max.enchant : null}, ${input.hasLoot}, ${input.createdBy})
+        ${max ? max.enchant : null}, ${input.hasLoot}, ${input.createdBy},
+        ${needsReminder(input.startsAt, now) ? null : now})
       returning id`;
     const id: string = row!.id;
     const rows = input.slots.map((s, i) => ({

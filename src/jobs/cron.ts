@@ -3,8 +3,8 @@ import type { Deps } from "../discord/dispatch.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import { getRosterView } from "../db/content.ts";
 import { purgeDrafts } from "../db/draft.ts";
-import { renderRosterMessage, voteLine } from "../render/roster.ts";
-import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
+import { escapeText, renderRosterMessage, voteLine } from "../render/roster.ts";
+import { REMINDER_LEAD_MS, VOTE_CUTOFF_MS } from "../domain/vote.ts";
 
 export function isAuthorized(header: string | null, secret: string): boolean {
   if (!header || secret === "") return false;
@@ -107,11 +107,59 @@ export async function postVoteResults(deps: Deps): Promise<number> {
   return marked;
 }
 
+const MAX_REMINDERS_PER_RUN = 25;
+
+// FR-011: ping the signed-up players once, about 30 minutes before the start. Same claim-first pattern as the
+// vote result: reminder_sent_at is set in one UPDATE ... RETURNING (FOR UPDATE SKIP LOCKED), and released only
+// if this run's send fails, so overlapping runs never send twice and a failed send is retried next run.
+export async function sendReminders(deps: Deps): Promise<number> {
+  const now = deps.now();
+  const dueBefore = new Date(now.getTime() + REMINDER_LEAD_MS);
+  const failed = new Set<string>();
+  let sent = 0;
+  for (let i = 0; i < MAX_REMINDERS_PER_RUN; i++) {
+    const [c] = await deps.sql`
+      update content set reminder_sent_at = ${now}
+      where id in (
+        select id from content
+        where status = 'open' and starts_at > ${now} and starts_at <= ${dueBefore} and reminder_sent_at is null
+          and id <> all(${[...failed]}::uuid[])
+        order by starts_at, id
+        limit 1
+        for update skip locked)
+      returning id, thread_id, title, starts_at`;
+    if (!c) break;
+    try {
+      const rows = await deps.sql`
+        select user_id from signup where content_id = ${c.id} and status = 'signed' order by joined_at`;
+      const users = rows.map((r) => r.user_id as string);
+      if (users.length > 0) {
+        const epoch = Math.floor(c.starts_at.getTime() / 1000);
+        await deps.rest.createMessage(c.thread_id, {
+          content: `⏰ **${escapeText(c.title)}** starts <t:${epoch}:R>.\n${users.map((u) => `<@${u}>`).join(" ")}`,
+          allowed_mentions: { users },
+        });
+        sent++;
+      }
+    } catch (e) {
+      logFailure("reminder_failed", c.id, e);
+      failed.add(c.id);
+      try {
+        await deps.sql`update content set reminder_sent_at = null where id = ${c.id} and reminder_sent_at = ${now}`;
+      } catch (e2) {
+        logFailure("reminder_unclaim_failed", c.id, e2);
+      }
+    }
+  }
+  return sent;
+}
+
 export async function runJobs(
   deps: Deps,
-): Promise<{ locked: number; resultsPosted: number; draftsPurged: number }> {
+): Promise<{ locked: number; resultsPosted: number; remindersSent: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
+  const remindersSent = await sendReminders(deps);
   const locked = await lockStarted(deps);
   const draftsPurged = await purgeDrafts(deps.sql, deps.now());
-  return { locked, resultsPosted, draftsPurged };
+  return { locked, resultsPosted, remindersSent, draftsPurged };
 }
