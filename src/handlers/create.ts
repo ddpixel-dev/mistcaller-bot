@@ -11,17 +11,16 @@ import { forumContentType } from "../domain/forum.ts";
 import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
 import type { ContentType } from "../domain/types.ts";
-import { DEFAULT_DRAFT, createPanel, type CreateDraft } from "./create-panel.ts";
+import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
 
 const NOT_FORUM = "Use this command inside a post in the PvP or PvE content forum.";
 const FAILED = "Could not create the content right now. Nothing was saved, please try again.";
 
-export async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null> {
-  if (!i.guild_id) return null;
+// FR-002 (changed 2026-10-07): the post must be in one of the two configured forums; the type is chosen.
+export async function inContentPost(deps: Deps, i: Interaction): Promise<boolean> {
+  if (!i.guild_id || i.channel?.type !== 11) return false;
   const settings = await getGuildSettings(deps.sql, i.guild_id);
-  if (!settings) return null;
-  if (i.channel?.type !== 11) return null;
-  return forumContentType(settings, i.channel.parent_id ?? null);
+  return settings !== null && forumContentType(settings, i.channel.parent_id ?? null) !== null;
 }
 
 export async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
@@ -37,22 +36,21 @@ function takenMessage(status: string, link: string): string {
     : `This post already has content.${link} Cancel it first to create a new one.`;
 }
 
-// Step 1 of creation: a private panel to pick kind, loot vote and preset. Step 2 is the form.
+// Step 1 of creation: a private panel to pick the type, kind, loot vote and preset. Step 2 is the form.
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const type = await forumType(deps, i);
-  if (type === null || !i.guild_id) return reply(NOT_FORUM);
+  if (!i.guild_id || !(await inContentPost(deps, i))) return reply(NOT_FORUM);
   if (i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
   }
-  return await createPanel(deps, i.guild_id, type, DEFAULT_DRAFT, "new");
+  return await createPanel(deps, i.guild_id, DEFAULT_DRAFT, "new");
 }
 
-export function createForm(draft: CreateDraft, presetLines: string | null): InteractionResponse {
+export function createForm(draft: { type: ContentType; loot: boolean; kind: string }, presetLines: string | null): InteractionResponse {
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${draft.loot ? 1 : 0}:${draft.kind}`,
+      custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
@@ -68,10 +66,13 @@ export function createForm(draft: CreateDraft, presetLines: string | null): Inte
 }
 
 export async function handleCreateModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const type = await forumType(deps, i);
+  const customId = (i.data as { custom_id?: string } | undefined)?.custom_id ?? "";
+  const [, typeId, lootFlag, kindId] = customId.split(":");
   const creator = i.member?.user?.id;
   const threadId = i.channel?.id;
-  if (type === null || !i.guild_id || !creator || !threadId) return reply(NOT_FORUM);
+  if (!i.guild_id || !creator || !threadId || !(await inContentPost(deps, i))) return reply(NOT_FORUM);
+  if (typeId !== "pvp" && typeId !== "pve") return reply("That form is out of date. Run `/content create` again.");
+  const type: ContentType = typeId;
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
@@ -85,8 +86,6 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   const notes = parseNotes(v.notes ?? "");
   if (!notes.ok) return reply(notes.error);
 
-  const customId = (i.data as { custom_id?: string }).custom_id ?? "";
-  const [, lootFlag, kindId] = customId.split(":");
   const hasLoot = lootFlag === "1";
   const kind = resolveKind(type, kindId ?? null);
   if (!kind.ok) return reply(kind.error);

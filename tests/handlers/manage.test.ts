@@ -189,10 +189,10 @@ test("dispatch routes the edit and cancel subcommands, buttons and modal", async
 
 test("edit with a kind option carries it through and saves it; a wrong-type kind is refused", async () => {
   const { deps, sql, id } = await setup();
-  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "kind", type: 3, value: "hellgate" }]));
+  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "category", type: 3, value: "hellgate" }]));
   assert.equal(r.data.custom_id, `edit:${id}:k:hellgate`);
   assert.equal(text(await handleEditModal(deps, modal(id, "k:hellgate", good))), "Content updated.");
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
-  assert.ok(text(await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "kind", type: 3, value: "mists" }]))).includes("PvE kind"));
+  assert.ok(text(await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "category", type: 3, value: "mists" }]))).includes("PvE category"));
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
 });

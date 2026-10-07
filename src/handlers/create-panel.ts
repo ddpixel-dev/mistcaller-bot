@@ -1,55 +1,80 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { KINDS, DEFAULT_KIND, resolveKind } from "../domain/kinds.ts";
+import { KINDS, DEFAULT_KIND, kindDef, resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
-import { createForm, forumType, postTakenReply } from "./create.ts";
+import { createForm, inContentPost, postTakenReply } from "./create.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Run `/content create` again.";
-const NOT_FORUM = "Use this command inside a post in the PvP or PvE content forum.";
+const NOT_FORUM = "Use this command inside a post in a content forum.";
+const NEED_TYPE = "Pick the type of content first.";
 
 // The draft lives in the custom ids of the panel's components, so nothing is kept in memory.
-export type CreateDraft = { loot: boolean; kind: string; presetId: string | null };
-export const DEFAULT_DRAFT: CreateDraft = { loot: false, kind: DEFAULT_KIND, presetId: null };
+// Every field starts unset (shown as "-" in the ids) so the boxes show what they are for.
+export type CreateDraft = { type: ContentType | null; loot: boolean | null; kind: string | null; presetId: string | null };
+export const DEFAULT_DRAFT: CreateDraft = { type: null, loot: null, kind: null, presetId: null };
 
-const encode = (d: CreateDraft) => `${d.loot ? 1 : 0}:${d.kind}:${d.presetId ?? "-"}`;
+export const encode = (d: CreateDraft) =>
+  `${d.type ?? "-"}:${d.loot === null ? "-" : d.loot ? 1 : 0}:${d.kind ?? "-"}:${d.presetId ?? "-"}`;
 
 export function decodeDraft(parts: string[]): CreateDraft | null {
-  const [loot, kind, preset] = parts;
-  if ((loot !== "0" && loot !== "1") || !kind || !/^[a-z-]{1,30}$/.test(kind)) return null;
+  const [type, loot, kind, preset] = parts;
+  if (type !== "-" && type !== "pvp" && type !== "pve") return null;
+  if (loot !== "-" && loot !== "0" && loot !== "1") return null;
+  if (kind !== "-" && !(kind && /^[a-z-]{1,30}$/.test(kind))) return null;
   if (preset !== "-" && !(preset && UUID.test(preset))) return null;
-  return { loot: loot === "1", kind, presetId: preset === "-" ? null : preset! };
+  return {
+    type: type === "-" ? null : type,
+    loot: loot === "-" ? null : loot === "1",
+    kind: kind === "-" ? null : kind!,
+    presetId: preset === "-" ? null : preset!,
+  };
 }
 
+// Discord shows the chosen option's label instead of the placeholder, so each label names its field.
 export async function createPanel(
   deps: Deps,
   guildId: string,
-  type: ContentType,
   draft: CreateDraft,
   mode: "new" | "update",
 ): Promise<InteractionResponse> {
   const presets = await listPresets(deps.sql, guildId);
   const suffix = encode(draft);
+  const kindOptions = draft.type
+    ? KINDS.filter((k) => k.type === draft.type).map((k) => ({
+        label: `Category: ${k.label}`, value: k.id, default: k.id === draft.kind,
+      }))
+    : [{ label: "Category: pick the type first", value: "-" }];
   const rows: unknown[] = [
     {
       type: 1,
       components: [{
-        type: 3, custom_id: `cp:kind:${suffix}`, placeholder: "Kind of content",
-        options: KINDS.filter((k) => k.type === type).map((k) => ({
-          label: k.label, value: k.id, default: k.id === draft.kind,
-        })),
+        type: 3, custom_id: `cp:type:${suffix}`, placeholder: "Type of content",
+        options: [
+          { label: "Type: PvP", value: "pvp", default: draft.type === "pvp" },
+          { label: "Type: PvE", value: "pve", default: draft.type === "pve" },
+        ],
       }],
     },
     {
       type: 1,
       components: [{
-        type: 3, custom_id: `cp:loot:${suffix}`, placeholder: "Loot vote",
+        type: 3, custom_id: `cp:kind:${suffix}`,
+        placeholder: draft.type ? "Category (optional, default Other)" : "Category (pick the type first)",
+        disabled: draft.type === null,
+        options: kindOptions,
+      }],
+    },
+    {
+      type: 1,
+      components: [{
+        type: 3, custom_id: `cp:loot:${suffix}`, placeholder: "Loot vote (optional, default Off)",
         options: [
-          { label: "Loot vote: Off", value: "0", default: !draft.loot },
-          { label: "Loot vote: On (split or regear)", value: "1", default: draft.loot },
+          { label: "Loot vote: Off", value: "0", default: draft.loot === false },
+          { label: "Loot vote: On (split or regear)", value: "1", default: draft.loot === true },
         ],
       }],
     },
@@ -60,17 +85,17 @@ export async function createPanel(
       components: [{
         type: 3, custom_id: `cp:preset:${suffix}`, placeholder: "Preset (optional)", min_values: 0, max_values: 1,
         options: presets.slice(0, 25).map((p) => ({
-          label: Array.from(p.name).slice(0, 100).join(""), value: p.id, default: p.id === draft.presetId,
+          label: Array.from(`Preset: ${p.name}`).slice(0, 100).join(""), value: p.id, default: p.id === draft.presetId,
         })),
       }],
     });
   }
   rows.push({
     type: 1,
-    components: [{ type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}` }],
+    components: [{ type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}`, disabled: draft.type === null }],
   });
   const data = {
-    content: "**Create content**\nPick the options, then press Continue to enter the title, time, tier and slots.",
+    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, tier and slots.",
     components: rows,
     allowed_mentions: { parse: [] },
   };
@@ -86,13 +111,18 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   const field = parts[1];
   const draft = decodeDraft(parts.slice(2));
   const values = Array.isArray(raw?.values) ? (raw!.values as unknown[]) : null;
-  const type = await forumType(deps, i);
   if (parts[0] !== "cp" || !draft || !values || !i.guild_id || values.length > 1) return reply(INVALID);
-  if (type === null) return reply(NOT_FORUM);
+  if (!(await inContentPost(deps, i))) return reply(NOT_FORUM);
   const value = values[0];
 
-  if (field === "kind") {
-    const kind = typeof value === "string" ? resolveKind(type, value) : null;
+  if (field === "type") {
+    if (value !== "pvp" && value !== "pve") return reply(INVALID);
+    draft.type = value;
+    // A kind of the other type no longer fits; Other fits both.
+    if (draft.kind && !kindDef(value, draft.kind)) draft.kind = null;
+  } else if (field === "kind") {
+    if (!draft.type) return reply(NEED_TYPE);
+    const kind = typeof value === "string" ? resolveKind(draft.type, value) : null;
     if (!kind?.ok) return reply(INVALID);
     draft.kind = kind.value;
   } else if (field === "loot") {
@@ -110,26 +140,27 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   } else {
     return reply(INVALID);
   }
-  return await createPanel(deps, i.guild_id, type, draft, "update");
+  return await createPanel(deps, i.guild_id, draft, "update");
 }
 
-type Checked = { ok: true; draft: CreateDraft; kind: string } | { ok: false; response: InteractionResponse };
+export type ReadyDraft = { type: ContentType; loot: boolean; kind: string; presetId: string | null };
+type Checked = { ok: true; draft: ReadyDraft } | { ok: false; response: InteractionResponse };
 
-// Shared checks for the buttons after Continue: the draft in the id, the forum, the kind and a free post.
-async function checked(deps: Deps, i: Interaction, prefix: string): Promise<Checked> {
+// Shared checks for the buttons after Continue: the draft in the id, the post, the kind and a free post.
+export async function checked(deps: Deps, i: Interaction, prefix: string): Promise<Checked> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof raw === "string" ? raw.split(":") : [];
   const draft = parts[0] === prefix ? decodeDraft(parts.slice(1)) : null;
   if (!draft || !i.guild_id) return { ok: false, response: reply(INVALID) };
-  const type = await forumType(deps, i);
-  if (type === null) return { ok: false, response: reply(NOT_FORUM) };
-  const kind = resolveKind(type, draft.kind);
+  if (!draft.type) return { ok: false, response: reply(NEED_TYPE) };
+  if (!(await inContentPost(deps, i))) return { ok: false, response: reply(NOT_FORUM) };
+  const kind = resolveKind(draft.type, draft.kind);
   if (!kind.ok) return { ok: false, response: reply(kind.error) };
   if (i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return { ok: false, response: taken };
   }
-  return { ok: true, draft, kind: kind.value };
+  return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId } };
 }
 
 // Continue: with a preset, open the form with its slots. Otherwise offer the two ways to define the slots.
@@ -139,9 +170,9 @@ export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<
   if (c.draft.presetId) {
     const preset = await getPresetById(deps.sql, i.guild_id!, c.draft.presetId);
     if (!preset) return reply("That preset no longer exists. Run `/content create` again.");
-    return createForm({ ...c.draft, kind: c.kind }, formatSlotLines(preset.slots));
+    return createForm(c.draft, formatSlotLines(preset.slots));
   }
-  const suffix = encode({ ...c.draft, kind: c.kind });
+  const suffix = encode(c.draft);
   return {
     type: UPDATE_MESSAGE,
     data: {
@@ -162,5 +193,7 @@ export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<
 export async function handleCreateFormButton(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const c = await checked(deps, i, "cpform");
   if (!c.ok) return c.response;
-  return createForm({ ...c.draft, kind: c.kind }, null);
+  return createForm(c.draft, null);
 }
+
+export { DEFAULT_KIND };

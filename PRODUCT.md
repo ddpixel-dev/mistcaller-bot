@@ -154,7 +154,7 @@ The bot shall expose the slash command `/content` with the subcommands `create`,
 
 ### FR-002: Creation location and content type
 status: accepted
-`/content create` shall work only inside a post of a configured forum. The content type (PvP or PvE) is taken from the parent forum: one forum per type. Elsewhere it shall reply privately with an explanation.
+`/content create` shall work only inside a post of one of the two configured forums. The content type (PvP or PvE) is chosen in the create panel and is not assumed from the forum (changed 2026-10-07, ADR 0016). Elsewhere it shall reply privately with an explanation.
 
 ### FR-003: Creation input
 status: accepted
@@ -238,7 +238,7 @@ The roster message shall use the Medieval Banner theme chosen by the owner on 20
 
 ### FR-023: Content kinds
 status: accepted
-Each content shall have a kind inside its forum type (a PvP kind or a PvE kind), chosen when the content is created, shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
+Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted

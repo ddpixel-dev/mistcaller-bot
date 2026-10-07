@@ -4,7 +4,7 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { DRAFT_TTL_MS, deleteDraft, findDraft, getDraft, purgeDrafts, saveDraft, startDraft } from "../../src/db/draft.ts";
 
 const NOW = new Date("2026-10-07T12:00:00Z");
-const who = { guildId: "g1", userId: "u1", threadId: "t1", loot: true, kind: "zvz" };
+const who = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, loot: true, kind: "zvz" };
 beforeEach(async () => { await resetDb(await testSql()); });
 after(async () => { await (await testSql()).end(); });
 
@@ -12,7 +12,7 @@ test("a started draft is empty and remembers loot and kind", async () => {
   const sql = await testSql();
   const id = await startDraft(sql, who);
   const d = (await getDraft(sql, id, new Date()))!;
-  assert.deepEqual([d.counts, d.slots, d.query, d.loot, d.kind, d.userId], [null, [], null, true, "zvz", "u1"]);
+  assert.deepEqual([d.counts, d.slots, d.query, d.loot, d.kind, d.userId, d.type], [null, [], null, true, "zvz", "u1", "pvp"]);
 });
 
 test("save round-trips the role numbers, slots and search text", async () => {

@@ -24,6 +24,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0010 Content kinds](decisions/0010-content-kinds-fixed-list.md): fixed list in code
 - [0011 Weapon icons as emoji](decisions/0011-weapon-icons-as-application-emoji.md): superseded by 0013
 - [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
+- [0016 Type chosen in the create panel](decisions/0016-type-chosen-in-create-panel.md): type is a choice, kinds are called categories
 - [0015 Weapon data as a generated file](decisions/0015-weapon-data-as-generated-file.md): no table, refreshed by a script
 - [0014 Git flow](decisions/0014-git-flow.md): main, develop, feature, release, hotfix branches
 - [0012 Preset permissions](decisions/0012-preset-permissions-and-cap.md): Manage Server and officer role, 25 per server

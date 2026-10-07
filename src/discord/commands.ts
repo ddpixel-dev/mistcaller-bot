@@ -3,7 +3,7 @@ import { kindChoices } from "../domain/kinds.ts";
 import { CLEAR_DUTY, DUTIES, DUTY_WORD } from "../domain/duties.ts";
 
 const kindOption = (description: string): CommandOption => ({
-  type: 3, name: "kind", description, required: false, choices: kindChoices(),
+  type: 3, name: "category", description, required: false, choices: kindChoices(),
 });
 
 export type CommandOption = {
@@ -37,7 +37,7 @@ export const commands = [
         description: "Edit this post's content in a form (creator, officers, Manage Server)",
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
-          kindOption("Change the kind of content (leave empty to keep it)"),
+          kindOption("Change the category (leave empty to keep it)"),
         ],
       },
       {
