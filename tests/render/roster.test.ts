@@ -78,9 +78,9 @@ test("limits with maximum-length content", () => {
   assert.ok(w.embeds[0]!.title!.length <= 256);
 });
 
-test("components: select with slot options and Leave button", () => {
+test("components: select with slot options and no public Leave button", () => {
   const rows = renderRosterMessage(view({ hasLoot: false })).components as any[];
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 1);
   assert.equal(rows[0].type, 1);
   const sel = rows[0].components[0];
   assert.equal(sel.type, 3);
@@ -91,8 +91,6 @@ test("components: select with slot options and Leave button", () => {
     { label: "1. Tank - Axe", value: "s1", description: "Taken" },
     { label: "2. Healer - Holy", value: "s2", description: "Open" },
   ]);
-  assert.equal(rows[1].type, 1);
-  assert.deepEqual(rows[1].components, [{ type: 2, style: 2, label: "Leave", custom_id: "leave:c1", disabled: false }]);
 });
 
 test("select labels are truncated to 100 and not markdown-escaped", () => {
@@ -109,33 +107,30 @@ test("label truncation is code-point safe", () => {
   assert.ok(!/[\ud800-\udbff]$/.test(label));
 });
 
-test("select is disabled once started even though status is open; Leave stays enabled", () => {
+test("select is disabled once started even though status is open", () => {
   const rows = renderRosterMessage(view({ status: "open", started: true })).components as any[];
   assert.equal(rows[0].components[0].disabled, true);
-  assert.equal(rows[1].components[0].disabled, false);
   assert.equal((renderRosterMessage(view({ started: false })).components as any[])[0].components[0].disabled, false);
 });
 
-test("locked: select disabled, Leave enabled", () => {
+test("locked: select disabled", () => {
   const rows = renderRosterMessage(view({ status: "locked" })).components as any[];
   assert.equal(rows[0].components[0].disabled, true);
-  assert.equal(rows[1].components[0].disabled, false);
 });
 
-test("cancelled and done: both disabled", () => {
+test("cancelled and done: select disabled", () => {
   for (const status of ["cancelled", "done"] as const) {
     const rows = renderRosterMessage(view({ status })).components as any[];
     assert.equal(rows[0].components[0].disabled, true);
-    assert.equal(rows[1].components[0].disabled, true);
   }
 });
 
-const voteRow = (v: RosterView) => (renderRosterMessage(v).components as any[])[2];
+const voteRow = (v: RosterView) => (renderRosterMessage(v).components as any[])[1];
 
 test("vote row: open loot shows counts, enabled, styles and ids", () => {
   const rows = renderRosterMessage(view({ votes: { split: 3, regear: 2 } })).components as any[];
-  assert.equal(rows.length, 3);
-  assert.deepEqual(rows[2], {
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[1], {
     type: 1,
     components: [
       { type: 2, style: 1, label: "Split (3)", custom_id: "vote:c1:split", disabled: false },
@@ -176,7 +171,7 @@ test("vote buttons disabled when cancelled or done", () => {
 
 test("no loot: no vote row and no vote line", () => {
   const v = view({ hasLoot: false, voteClosed: true, voteResult: "none" });
-  assert.equal((renderRosterMessage(v).components as any[]).length, 2);
+  assert.equal((renderRosterMessage(v).components as any[]).length, 1);
   assert.ok(!desc(v).includes("Loot vote"));
 });
 

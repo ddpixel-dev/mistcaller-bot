@@ -85,18 +85,6 @@ export function renderRosterMessage(view: RosterView): {
           },
         ],
       },
-      {
-        type: 1,
-        components: [
-          {
-            type: 2,
-            style: 2,
-            label: "Leave",
-            custom_id: `leave:${view.id}`,
-            disabled: view.status === "cancelled" || view.status === "done",
-          },
-        ],
-      },
       ...(view.hasLoot ? [voteRow(view)] : []),
     ],
     allowed_mentions: { parse: [] },
