@@ -6,6 +6,7 @@ export const ANON_PROBE_TABLES = [
   "signup",
   "vote",
   "slot_preset",
+  "slot_draft",
   "schema_migrations",
 ] as const;
 
