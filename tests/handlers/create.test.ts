@@ -56,7 +56,7 @@ const command = (loot?: boolean, over: Partial<Interaction> = {}): Interaction =
   base({
     data: {
       name: "content",
-      options: [{ name: "create", type: 1, options: loot === undefined ? [] : [{ name: "loot", type: 5, value: loot }] }],
+      options: [{ name: "create", type: 1, options: loot === undefined ? [] : [{ name: "loot-vote", type: 5, value: loot }] }],
     },
     ...over,
   });

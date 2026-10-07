@@ -28,14 +28,14 @@ test("formatUtc", () => {
 test("description contents", () => {
   const d = desc(view());
   for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:F>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
-    "Spoils: Yes", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
+    "Loot vote: On", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
     assert.ok(d.includes(s), s);
   }
 });
 
 test("no loot and single tier", () => {
   const d = desc(view({ hasLoot: false, tier: { min: { tier: 5, enchant: 3 }, max: null } }));
-  assert.ok(d.includes("Spoils: No"));
+  assert.ok(d.includes("Loot vote: Off"));
   assert.ok(d.includes("T5.3"));
   assert.ok(!d.includes("T5.3–"));
 });
@@ -144,7 +144,7 @@ test("vote line placement while open", () => {
   const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
   const lines = d.split("\n");
   const t = lines.findIndex((l) => l.includes("Tier **"));
-  assert.equal(lines[t + 2], "Spoils vote: Split 3 - Regear 2");
+  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2");
   assert.ok(d.indexOf("Spoils vote:") < d.indexOf("**The Company"));
   assert.equal(d.split("Spoils vote").length, 2);
 });
@@ -224,4 +224,10 @@ test("cancelled and done are greyed with a status banner and nothing enabled", (
   assert.ok(d.embeds[0]!.description!.includes("Concluded."));
   assert.ok(desc(view({ status: "locked" })).includes("The roll is closed."));
   assert.ok(!desc(view()).includes("closed"));
+});
+
+test("time lines: UTC and Your time are separate labelled lines", () => {
+  const lines = desc(view()).split("\n");
+  assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
+  assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:F> · <t:1791396000:R>"));
 });

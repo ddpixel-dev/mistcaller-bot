@@ -150,7 +150,7 @@ status: accepted
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, plus a loot option on the command. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, plus a `loot-vote` option on the command (renamed from `loot`, owner request 2026-10-07). The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
@@ -218,7 +218,7 @@ A forum post shall hold at most one content whose status is `open` or `locked`. 
 
 ### FR-020: Edit content
 status: accepted
-The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot` option changes the loot toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
+The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot-vote` option changes the loot-vote toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
 
 ### FR-021: Cancel content
 status: accepted

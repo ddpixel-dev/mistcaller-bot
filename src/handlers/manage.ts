@@ -60,7 +60,7 @@ const utcInput = (d: Date) =>
 
 function lootOption(i: Interaction): "1" | "0" | "k" {
   const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
-  const v = data?.options?.find((o) => o.name === "edit")?.options?.find((o) => o.name === "loot")?.value;
+  const v = data?.options?.find((o) => o.name === "edit")?.options?.find((o) => o.name === "loot-vote")?.value;
   return v === true ? "1" : v === false ? "0" : "k";
 }
 
