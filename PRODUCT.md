@@ -346,9 +346,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.5.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.6.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
-Next step: owner deploys 0.5.0, re-registers the commands and tests (no migration). Then FT-015 phase 2 (weapon data and search) and phase 3 (guided steps), then waitlist, lock and cap, reminders, `/content list`, attendance.
+Next step: owner runs migration 0005, deploys 0.6.0, re-registers the commands and tests. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 
 | Item | Status | Note |
 |---|---|---|
@@ -358,7 +358,7 @@ Next step: owner deploys 0.5.0, re-registers the commands and tests (no migratio
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
 | FT-006 `/content setup` | live (0.4.0) | |
-| FT-015 slot builder and presets | phase 1 live; phases 2 and 3 on develop | Weapon search (`/content weapon`) and guided steps built; steps need migration 0005 |
+| FT-015 slot builder and presets | built; phases 2 and 3 in 0.6.0 | Weapon search (`/content weapon`) and guided steps; steps need migration 0005 |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |
