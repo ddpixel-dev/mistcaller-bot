@@ -56,10 +56,11 @@ export async function handlePresetCommand(deps: Deps, i: Interaction): Promise<I
   return reply(`Preset "${escapeText(name.value)}" saved with ${view.slots.length} slots.`);
 }
 
-// Autocomplete for the preset names (create's preset option and preset delete).
+// Autocomplete for the preset names of "/content preset delete".
 export async function handleAutocomplete(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const focused = focusedOption(i);
-  const isPresetField = focused && (focused.name === "preset" || (focused.name === "name" && commandPath(i)[1] === "delete"));
+  const path = commandPath(i);
+  const isPresetField = focused && focused.name === "name" && path[0] === "preset" && path[1] === "delete";
   const names = i.guild_id && isPresetField ? await searchPresetNames(deps.sql, i.guild_id, focused.value) : [];
   return { type: 8, data: { choices: names.map((n) => ({ name: n, value: n })) } };
 }

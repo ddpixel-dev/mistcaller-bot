@@ -3,6 +3,7 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
+import { handleCreateContinue, handleCreatePanel } from "../handlers/create-panel.ts";
 import { handleContentCommand } from "../handlers/content.ts";
 import { handleAutocomplete } from "../handlers/preset.ts";
 import { handleCancelButton, handleEditModal } from "../handlers/manage.ts";
@@ -17,6 +18,7 @@ const commandHandlers: Record<string, Handler> = { content: handleContentCommand
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal };
 const componentHandlers: Record<string, Handler> = {
   signup: handleSignup, leave: handleLegacyLeave, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
+  cp: handleCreatePanel, cpgo: handleCreateContinue,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");

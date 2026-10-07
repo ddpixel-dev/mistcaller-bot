@@ -150,7 +150,7 @@ status: accepted
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, plus a `loot-vote` option on the command (renamed from `loot`, owner request 2026-10-07). The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) comes from the forum, so it is not asked. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
