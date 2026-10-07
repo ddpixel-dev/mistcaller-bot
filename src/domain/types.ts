@@ -11,6 +11,7 @@ export type RosterView = {
   threadId: string;
   messageId: string | null;
   type: ContentType;
+  kind: string;
   title: string;
   notes: string | null;
   startsAt: Date;

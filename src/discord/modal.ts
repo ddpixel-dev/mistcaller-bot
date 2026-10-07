@@ -29,3 +29,8 @@ export function subcommandName(i: Interaction): string | null {
   const name = data?.options?.[0]?.name;
   return typeof name === "string" ? name : null;
 }
+
+export function subOption(i: Interaction, sub: string, name: string): unknown {
+  const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
+  return data?.options?.find((o) => o.name === sub)?.options?.find((o) => o.name === name)?.value;
+}
