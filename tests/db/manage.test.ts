@@ -126,3 +126,43 @@ test("edit changes the kind and null keeps it", async () => {
   await editContent(sql, id, edit({ kind: null }), NOW);
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "zvz");
 });
+
+import { claimSlot, leaveContent } from "../../src/db/signup.ts";
+import { setSlotDuty } from "../../src/db/manage.ts";
+
+test("a duty goes on a held position, shows in the view, and clearing is always allowed", async () => {
+  const { sql, id, slotIds } = await setup();
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" }), "empty");
+  await sign(sql, id, "a", slotIds[0]!);
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" }), "ok");
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", null, null]);
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "scout" }), "ok");
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: null }), "ok");
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 3, duty: null }), "ok");
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 9, duty: "rat" }), "no_slot");
+});
+
+test("duties are refused on cancelled or done content but allowed once locked", async () => {
+  const { sql, id, slotIds } = await setup();
+  await sign(sql, id, "a", slotIds[0]!);
+  await sql`update content set status = 'locked'`;
+  assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "rat" }), "ok");
+  for (const status of ["cancelled", "done"]) {
+    await sql`update content set status = ${status}`;
+    assert.equal(await setSlotDuty(sql, { contentId: id, position: 1, duty: "rat" }), "unavailable");
+  }
+});
+
+test("the duty is cleared when the holder leaves or moves, and survives a rename", async () => {
+  const { sql, id, slotIds } = await setup();
+  const claim = (user: string, slot: string) => claimSlot(sql, { contentId: id, slotId: slot, userId: user, guildId: "g1", now: NOW });
+  await claim("a", slotIds[0]!);
+  await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" });
+  await editContent(sql, id, edit({ slots: [{ role: "Off-Tank", weapon: "Mace" }, base.slots[1]!, base.slots[2]!] }), NOW);
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
+  await claim("a", slotIds[1]!);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null]);
+  await setSlotDuty(sql, { contentId: id, position: 2, duty: "scout" });
+  assert.equal(await leaveContent(sql, { contentId: id, userId: "a", guildId: "g1" }), "left");
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null]);
+});

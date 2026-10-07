@@ -4,7 +4,14 @@ export type TierRange = { min: Tier; max: Tier | null };
 export type SlotDef = { role: string; weapon: string };
 export type ContentType = "pvp" | "pve";
 export type ContentStatus = "open" | "locked" | "cancelled" | "done";
-export type RosterSlot = { id: string; position: number; role: string; weapon: string; userId: string | null };
+export type RosterSlot = {
+  id: string;
+  position: number;
+  role: string;
+  weapon: string;
+  userId: string | null;
+  duty?: string | null;
+};
 export type RosterView = {
   id: string;
   guildId: string;

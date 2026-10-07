@@ -85,7 +85,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   if (!c) return null;
   const [slots, voteRows] = await Promise.all([
     sql`
-      select s.id, s.position, s.role, s.weapon, su.user_id
+      select s.id, s.position, s.role, s.weapon, s.duty, su.user_id
       from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${contentId}
@@ -116,6 +116,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       position: s.position,
       role: s.role,
       weapon: s.weapon,
+      duty: s.duty ?? null,
       userId: s.user_id ?? null,
     })),
     votes: { split: tally.split, regear: tally.regear },
