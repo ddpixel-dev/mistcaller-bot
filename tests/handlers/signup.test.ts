@@ -66,7 +66,7 @@ test("valid selection edits the roster and privately offers Leave", async () => 
   assert.deepEqual(await holders(sql, contentId), ["u1", null]);
   assert.equal(edits.length, 1);
   assert.deepEqual([edits[0]!.channelId, edits[0]!.messageId], ["t1", "m1"]);
-  assert.ok(edits[0]!.body.embeds[0].description.includes("1. Tank - Mace · <@u1>"));
+  assert.ok(edits[0]!.body.embeds[0].description.includes("1. Tank - Mace · sworn: <@u1>"));
 });
 
 test("moving to another slot updates the roster and keeps Leave", async () => {
