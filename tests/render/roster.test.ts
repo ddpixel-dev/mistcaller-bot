@@ -6,7 +6,7 @@ import type { RosterView } from "../../src/domain/types.ts";
 
 function view(over: Partial<RosterView> = {}): RosterView {
   return {
-    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp",
+    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other",
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
     tier: { min: { tier: 5, enchant: 3 }, max: { tier: 7, enchant: 0 } },
@@ -259,4 +259,18 @@ test("the closing time of the vote is shown only while it is open", () => {
 test("a cancelled content says so in the title", () => {
   assert.equal(renderRosterMessage(view({ status: "cancelled" })).embeds[0]!.title, "✖ CANCELLED — Ava roam");
   assert.equal(renderRosterMessage(view({ status: "locked" })).embeds[0]!.title, "📜 ⚜ Ava roam ⚜");
+});
+
+test("kind shows in the label and sets the color; Other shows only the type", () => {
+  const zvz = renderRosterMessage(view({ kind: "zvz" })).embeds[0]!;
+  assert.ok(zvz.description!.includes("**PvP · ZvZ**"));
+  assert.equal(zvz.color, 0x1c3a8a);
+  const other = renderRosterMessage(view({ kind: "other" })).embeds[0]!;
+  assert.ok(other.description!.includes("**PvP** ·"));
+  assert.equal(other.color, 0x2b4db0);
+  const boss = renderRosterMessage(view({ type: "pve", kind: "world-boss" })).embeds[0]!;
+  assert.ok(boss.description!.includes("**PvE · World boss**"));
+  assert.equal(boss.color, 0xd4a017);
+  assert.equal(renderRosterMessage(view({ kind: "nonsense" })).embeds[0]!.color, 0x2b4db0);
+  assert.equal(renderRosterMessage(view({ kind: "zvz", status: "cancelled" })).embeds[0]!.color, 0x6b6b6b);
 });

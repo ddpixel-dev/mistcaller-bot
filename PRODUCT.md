@@ -123,7 +123,7 @@ satisfies: FR-022
 The roster message gets the Medieval Banner look in the Lines layout (decided 2026-10-07): colors per content type, role icons, a roster-fill bar and dividers.
 
 ### FT-014: Content kinds
-status: not started
+status: built (needs migration 0003 on the live database)
 phase: MVP
 priority: should
 satisfies: FR-023

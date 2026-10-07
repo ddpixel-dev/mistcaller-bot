@@ -12,7 +12,7 @@ const base: NewContent = {
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],
 };
 const edit = (over: Partial<EditInput> = {}): EditInput => ({
-  title: base.title, notes: base.notes, startsAt: starts, tier: base.tier, hasLoot: null, slots: base.slots, ...over,
+  title: base.title, notes: base.notes, startsAt: starts, tier: base.tier, hasLoot: null, kind: null, slots: base.slots, ...over,
 });
 
 beforeEach(async () => { await resetDb(await testSql()); });
@@ -116,4 +116,13 @@ test("cancel works on locked content and refuses done", async () => {
   assert.equal((await cancelContent(sql, id)).result, "ok");
   await sql`update content set status = 'done'`;
   assert.deepEqual(await cancelContent(sql, id), { result: "unavailable" });
+});
+
+test("edit changes the kind and null keeps it", async () => {
+  const { sql, id } = await setup();
+  assert.equal((await getRosterView(sql, id, NOW))!.kind, "other");
+  await editContent(sql, id, edit({ kind: "zvz" }), NOW);
+  assert.equal((await getRosterView(sql, id, NOW))!.kind, "zvz");
+  await editContent(sql, id, edit({ kind: null }), NOW);
+  assert.equal((await getRosterView(sql, id, NOW))!.kind, "zvz");
 });

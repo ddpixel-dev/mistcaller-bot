@@ -1,6 +1,18 @@
 import { USER_AGENT } from "./rest.ts";
+import { kindChoices } from "../domain/kinds.ts";
 
-export type CommandOption = { type: number; name: string; description: string; required?: boolean; options?: CommandOption[] };
+const kindOption = (description: string): CommandOption => ({
+  type: 3, name: "kind", description, required: false, choices: kindChoices(),
+});
+
+export type CommandOption = {
+  type: number;
+  name: string;
+  description: string;
+  required?: boolean;
+  options?: CommandOption[];
+  choices?: { name: string; value: string }[];
+};
 export type Command = { name: string; description: string; options: CommandOption[] };
 
 export const commands = [
@@ -14,6 +26,7 @@ export const commands = [
         description: "Create a content signup in this forum post",
         options: [
           { type: 5, name: "loot-vote", description: "Run a split-or-regear loot vote for this content?", required: false },
+          kindOption("Kind of content (defaults to Other)"),
         ],
       },
       {
@@ -22,6 +35,7 @@ export const commands = [
         description: "Edit this post's content in a form (creator, officers, Manage Server)",
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
+          kindOption("Change the kind of content (leave empty to keep it)"),
         ],
       },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },

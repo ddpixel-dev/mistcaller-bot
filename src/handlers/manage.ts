@@ -1,7 +1,8 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { modalValues, subOption, textInput } from "../discord/modal.ts";
+import { resolveKind } from "../domain/kinds.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import {
@@ -59,8 +60,7 @@ const utcInput = (d: Date) =>
   `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 
 function lootOption(i: Interaction): "1" | "0" | "k" {
-  const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
-  const v = data?.options?.find((o) => o.name === "edit")?.options?.find((o) => o.name === "loot-vote")?.value;
+  const v = subOption(i, "edit", "loot-vote");
   return v === true ? "1" : v === false ? "0" : "k";
 }
 
@@ -71,10 +71,13 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
   if (checked.target.status !== "open") return reply("Only open content can be edited. Locked, finished or cancelled content cannot.");
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view) return reply(NO_CONTENT);
+  const kindOpt = subOption(i, "edit", "kind");
+  const kind = typeof kindOpt === "string" ? resolveKind(view.type, kindOpt) : null;
+  if (kind && !kind.ok) return reply(kind.error);
   return {
     type: MODAL,
     data: {
-      custom_id: `edit:${view.id}:${lootOption(i)}`,
+      custom_id: `edit:${view.id}:${lootOption(i)}${kind ? `:${kind.value}` : ""}`,
       title: "Edit content",
       components: [
         textInput("title", "Title", 100, { value: view.title }),
@@ -90,9 +93,18 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
 export async function handleEditModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const customId = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof customId === "string" ? customId.split(":") : [];
-  if (parts.length !== 3 || !UUID.test(parts[1]!) || !["1", "0", "k"].includes(parts[2]!)) return reply(INVALID);
+  if (parts.length < 3 || parts.length > 4 || !UUID.test(parts[1]!) || !["1", "0", "k"].includes(parts[2]!)) {
+    return reply(INVALID);
+  }
   const checked = await authorize(deps, i, await getManageTargetById(deps.sql, parts[1]!));
   if (!checked.ok) return checked.response;
+  let kindId: string | null = null;
+  if (parts[3] !== undefined) {
+    const typeRow = await getRosterView(deps.sql, checked.target.id, deps.now());
+    const kind = resolveKind(typeRow?.type ?? "pvp", parts[3]);
+    if (!kind.ok) return reply(kind.error);
+    kindId = kind.value;
+  }
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
@@ -108,7 +120,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
 
   const result = await editContent(deps.sql, checked.target.id, {
     title: title.value, notes: notes.value, startsAt: start.value, tier: tier.value,
-    hasLoot: parts[2] === "k" ? null : parts[2] === "1", slots: slots.value,
+    hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, slots: slots.value,
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have started, been locked or been cancelled.");
   if (result.result === "slots_held") return reply(result.error);

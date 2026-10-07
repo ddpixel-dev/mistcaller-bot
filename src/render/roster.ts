@@ -1,6 +1,7 @@
 import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
+import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
 import {
   BANNER_URL, CANCELLED_TAG, ICON_URL, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
@@ -103,7 +104,9 @@ export function renderRosterMessage(view: RosterView): {
 } {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
   const filled = view.slots.filter((s) => s.userId !== null).length;
-  const kind = view.type === "pvp" ? "PvP" : "PvE";
+  const typeLabel = view.type === "pvp" ? "PvP" : "PvE";
+  const def = kindDef(view.type, view.kind);
+  const kind = def && def.id !== DEFAULT_KIND ? `${typeLabel} · ${def.label}` : typeLabel;
   const head = [
     `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · Loot vote: ${view.hasLoot ? "On" : "Off"}`,
     `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
@@ -136,7 +139,7 @@ export function renderRosterMessage(view: RosterView): {
   const embed: Embed = {
     title: Array.from(title).slice(0, TITLE_LIMIT).join(""),
     description,
-    color: embedColor(view.type, view.status),
+    color: embedColor(view.type, view.status, view.kind),
     ...(BANNER_URL ? { image: { url: BANNER_URL } } : {}),
     ...(ICON_URL ? { thumbnail: { url: ICON_URL } } : {}),
   };

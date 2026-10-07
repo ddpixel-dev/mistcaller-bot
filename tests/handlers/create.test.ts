@@ -52,11 +52,17 @@ const base = (over: Partial<Interaction> = {}): Interaction => ({
   ...over,
 });
 
-const command = (loot?: boolean, over: Partial<Interaction> = {}): Interaction =>
+const command = (loot?: boolean, over: Partial<Interaction> = {}, kind?: string): Interaction =>
   base({
     data: {
       name: "content",
-      options: [{ name: "create", type: 1, options: loot === undefined ? [] : [{ name: "loot-vote", type: 5, value: loot }] }],
+      options: [{
+        name: "create", type: 1,
+        options: [
+          ...(loot === undefined ? [] : [{ name: "loot-vote", type: 5, value: loot }]),
+          ...(kind === undefined ? [] : [{ name: "kind", type: 3, value: kind }]),
+        ],
+      }],
     },
     ...over,
   });
@@ -92,7 +98,7 @@ test("command outside a configured forum or without guild is an ephemeral forum 
 
 test("command in the PvP forum returns the modal with five inputs", async () => {
   const { deps } = await setup();
-  for (const [loot, id] of [[true, "create:1"], [false, "create:0"], [undefined, "create:0"]] as const) {
+  for (const [loot, id] of [[true, "create:1:other"], [false, "create:0:other"], [undefined, "create:0:other"]] as const) {
     const r = await handleCreateCommand(deps, command(loot));
     assert.equal(r.type, 9);
     const d = r.data as any;
@@ -299,4 +305,25 @@ test("after cancelling, a new content can be created in the same post", async ()
   await sql`update content set status = 'cancelled'`;
   assert.equal((await handleCreateCommand(deps, command(true))).type, 9);
   assert.equal(content(await handleCreateModal(deps, modal({ ...good, title: "Second" }))), "Created");
+});
+
+test("kind option travels through the modal and is stored", async () => {
+  const { deps, sql } = await setup();
+  const r: any = await handleCreateCommand(deps, command(false, {}, "zvz"));
+  assert.equal(r.data.custom_id, "create:0:zvz");
+  assert.equal(content(await handleCreateModal(deps, modal(good, "0:zvz"))), "Created");
+  assert.equal((await sql`select kind from content`)[0]!.kind, "zvz");
+});
+
+test("no kind stores Other; a PvE kind in the PvP forum is refused before the form", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateModal(deps, modal(good, "1"));
+  assert.equal((await sql`select kind from content`)[0]!.kind, "other");
+  await sql`delete from content`;
+  const r = await handleCreateCommand(deps, command(false, {}, "world-boss"));
+  assert.equal(r.type, 4);
+  assert.ok(content(r).includes("World boss is a PvE kind"));
+  const bad = await handleCreateModal(deps, modal(good, "0:world-boss"));
+  assert.ok(content(bad).includes("PvE kind"));
+  assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
 });

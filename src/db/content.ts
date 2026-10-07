@@ -6,6 +6,7 @@ export type NewContent = {
   guildId: string;
   threadId: string;
   type: ContentType;
+  kind?: string;
   title: string;
   notes: string | null;
   startsAt: Date;
@@ -51,9 +52,9 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
   return await sql.begin(async (tx) => {
     const { min, max } = input.tier;
     const [row] = await tx`
-      insert into content (guild_id, thread_id, type, title, notes, starts_at,
+      insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
         min_tier, min_enchant, max_tier, max_enchant, has_loot, created_by)
-      values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.title}, ${input.notes},
+      values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${min.tier}, ${min.enchant}, ${max ? max.tier : null},
         ${max ? max.enchant : null}, ${input.hasLoot}, ${input.createdBy})
       returning id`;
@@ -100,6 +101,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     threadId: c.thread_id,
     messageId: c.message_id,
     type: c.type as ContentType,
+    kind: c.kind,
     title: c.title,
     notes: c.notes,
     startsAt: c.starts_at,

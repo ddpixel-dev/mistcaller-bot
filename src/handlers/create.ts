@@ -1,7 +1,8 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { modalValues, subOption, textInput } from "../discord/modal.ts";
+import { resolveKind } from "../domain/kinds.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -22,12 +23,6 @@ async function forumType(deps: Deps, i: Interaction): Promise<ContentType | null
   return forumContentType(settings, i.channel.parent_id ?? null);
 }
 
-function lootOption(i: Interaction): boolean {
-  const data = i.data as { options?: { name?: string; options?: { name?: string; value?: unknown }[] }[] } | undefined;
-  const create = data?.options?.find((o) => o.name === "create");
-  return create?.options?.find((o) => o.name === "loot-vote")?.value === true;
-}
-
 async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
@@ -42,7 +37,11 @@ function takenMessage(status: string, link: string): string {
 }
 
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  if ((await forumType(deps, i)) === null) return reply(NOT_FORUM);
+  const type = await forumType(deps, i);
+  if (type === null) return reply(NOT_FORUM);
+  const kindOpt = subOption(i, "create", "kind");
+  const kind = resolveKind(type, typeof kindOpt === "string" ? kindOpt : null);
+  if (!kind.ok) return reply(kind.error);
   if (i.guild_id && i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
@@ -50,7 +49,7 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${lootOption(i) ? 1 : 0}`,
+      custom_id: `create:${subOption(i, "create", "loot-vote") === true ? 1 : 0}:${kind.value}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
@@ -82,7 +81,10 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   if (!notes.ok) return reply(notes.error);
 
   const customId = (i.data as { custom_id?: string }).custom_id ?? "";
-  const hasLoot = customId === "create:1";
+  const [, lootFlag, kindId] = customId.split(":");
+  const hasLoot = lootFlag === "1";
+  const kind = resolveKind(type, kindId ?? null);
+  if (!kind.ok) return reply(kind.error);
 
   let id: string;
   try {
@@ -90,6 +92,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
       guildId: i.guild_id,
       threadId,
       type,
+      kind: kind.value,
       title: title.value,
       notes: notes.value,
       startsAt: start.value,
