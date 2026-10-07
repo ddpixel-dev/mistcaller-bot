@@ -7,6 +7,7 @@ export interface Interaction {
   channel_id?: string;
   channel?: { id: string; type: number; parent_id?: string };
   member?: { user: { id: string }; permissions?: string; roles: string[] };
+  user?: { id: string };
   data?: unknown;
   message?: { id: string; flags?: number };
 }

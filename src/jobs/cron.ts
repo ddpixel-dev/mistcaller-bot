@@ -3,6 +3,8 @@ import type { Deps } from "../discord/dispatch.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import { getRosterView } from "../db/content.ts";
 import { purgeDrafts } from "../db/draft.ts";
+import { pendingReports } from "../db/attendance.ts";
+import { postReport } from "../handlers/attendance.ts";
 import { escapeText, renderRosterMessage, voteLine } from "../render/roster.ts";
 import { REMINDER_LEAD_MS, VOTE_CUTOFF_MS } from "../domain/vote.ts";
 
@@ -107,6 +109,68 @@ export async function postVoteResults(deps: Deps): Promise<number> {
   return marked;
 }
 
+const ATTENDANCE_DELAY_MS = 5 * 60 * 1000;
+
+// FR-014: 5 minutes after the start the owner gets the attendance form in a private message, to open whenever they can.
+// If the private message cannot be sent (closed DMs), a short note with the command goes in the content's post.
+// Claim-first like the other jobs, so it is sent once and a failed send is retried.
+export async function sendAttendanceDms(deps: Deps): Promise<number> {
+  const now = deps.now();
+  const due = new Date(now.getTime() - ATTENDANCE_DELAY_MS);
+  const failed = new Set<string>();
+  let sent = 0;
+  for (let i = 0; i < 25; i++) {
+    const [c] = await deps.sql`
+      update content set attendance_dm_sent_at = ${now}
+      where id in (
+        select id from content
+        where status in ('open', 'locked', 'done') and starts_at <= ${due}
+          and attendance_dm_sent_at is null and attendance_submitted_at is null
+          and exists (select 1 from signup where content_id = content.id and status = 'signed')
+          and id <> all(${[...failed]}::uuid[])
+        order by starts_at, id
+        limit 1
+        for update skip locked)
+      returning id, thread_id, title, created_by`;
+    if (!c) break;
+    if (!c.created_by) continue;
+    const title = escapeText(c.title);
+    try {
+      try {
+        if (!deps.rest.createDm) throw new Error("no direct messages");
+        const channel = await deps.rest.createDm(c.created_by);
+        await deps.rest.createMessage(channel, {
+          content: `📋 **${title}** has started. When you can, open the attendance form.`,
+          components: [{ type: 1, components: [{ type: 2, style: 1, label: "Start attendance form", custom_id: `att:open:${c.id}` }] }],
+          allowed_mentions: { parse: [] },
+        });
+      } catch {
+        await deps.rest.createMessage(c.thread_id, {
+          content: `📋 <@${c.created_by}> **${title}** has started. Open the attendance form with \`/content attendance\`.`,
+          allowed_mentions: { users: [c.created_by] },
+        });
+      }
+      sent++;
+    } catch (e) {
+      logFailure("attendance_dm_failed", c.id, e);
+      failed.add(c.id);
+      try {
+        await deps.sql`update content set attendance_dm_sent_at = null where id = ${c.id} and attendance_dm_sent_at = ${now}`;
+      } catch (e2) {
+        logFailure("attendance_dm_unclaim_failed", c.id, e2);
+      }
+    }
+  }
+  return sent;
+}
+
+// A report whose post failed when the owner submitted is retried here.
+export async function postPendingReports(deps: Deps): Promise<number> {
+  let posted = 0;
+  for (const id of await pendingReports(deps.sql)) if (await postReport(deps, id)) posted++;
+  return posted;
+}
+
 const MAX_REMINDERS_PER_RUN = 25;
 
 // FR-011: ping the signed-up players once, about 30 minutes before the start. Same claim-first pattern as the
@@ -156,10 +220,12 @@ export async function sendReminders(deps: Deps): Promise<number> {
 
 export async function runJobs(
   deps: Deps,
-): Promise<{ locked: number; resultsPosted: number; remindersSent: number; draftsPurged: number }> {
+): Promise<{ locked: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
   const remindersSent = await sendReminders(deps);
+  const attendanceDms = await sendAttendanceDms(deps);
+  const reportsPosted = await postPendingReports(deps);
   const locked = await lockStarted(deps);
   const draftsPurged = await purgeDrafts(deps.sql, deps.now());
-  return { locked, resultsPosted, remindersSent, draftsPurged };
+  return { locked, resultsPosted, remindersSent, attendanceDms, reportsPosted, draftsPurged };
 }

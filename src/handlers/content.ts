@@ -10,6 +10,7 @@ import { handleWeaponCommand } from "./weapon.ts";
 import { handleMeCommand } from "./me.ts";
 import { handleDutyCommand } from "./duty.ts";
 import { handleSlotCommand } from "./guided.ts";
+import { handleAttendanceCommand, handleEndCommand, handleHistoryCommand } from "./attendance.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
@@ -22,6 +23,9 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "me": return await handleMeCommand(deps, i);
     case "duty": return await handleDutyCommand(deps, i);
     case "slot": return await handleSlotCommand(deps, i);
+    case "end": return await handleEndCommand(deps, i);
+    case "attendance": return await handleAttendanceCommand(deps, i);
+    case "history": return await handleHistoryCommand(deps, i);
     default: return reply("Not implemented yet");
   }
 }

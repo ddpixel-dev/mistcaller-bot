@@ -245,10 +245,10 @@ test("runJobs posts results before locking, even when both are due", async () =>
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { locked: 1, resultsPosted: 1, remindersSent: 0, draftsPurged: 0 });
+  assert.deepEqual(out, { locked: 1, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
   assert.deepEqual(order, ["edit:open", "post", "edit:locked"]);
   assert.equal(await status(sql, id), "locked");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, remindersSent: 0, draftsPurged: 0 });
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
 });
 
 // cron handler
