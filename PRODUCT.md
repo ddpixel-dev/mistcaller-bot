@@ -158,7 +158,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot through a select menu, move by selecting another slot, and leave with a Leave button. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up for a slot through a select menu, move by selecting another slot, and leave with a Leave button. The Leave button is not on the shared roster: after a member signs up or moves, the bot replies privately (visible only to them) with a Leave button, and selecting their own slot again shows it again (owner decision 2026-10-07). The roster message is refreshed through the Discord API after every change. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
 
 ### FR-006: Atomic slot claim
 status: accepted
@@ -194,7 +194,7 @@ A GitHub Actions workflow shall call the protected cron route every 5 minutes. T
 
 ### FR-014: Attendance and history
 status: accepted
-A manager shall mark each signed-up member attended or no-show. Unmarked members shall be shown as "not recorded" and never counted as no-shows. `/content history @member` shows attended, no-show and not-recorded counts.
+About 15 minutes after the start, the bot shall remind the content owner to mark attendance (owner decision 2026-10-07). A manager shall mark each signed-up member attended or no-show. Unmarked members shall be shown as "not recorded" and never counted as no-shows. `/content history @member` shows attended, no-show and not-recorded counts.
 
 ### FR-015: Upcoming list
 status: accepted
