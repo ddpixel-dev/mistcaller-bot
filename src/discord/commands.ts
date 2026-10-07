@@ -13,15 +13,15 @@ export const commands = [
         name: "create",
         description: "Create a content signup in this forum post",
         options: [
-          { type: 5, name: "loot", description: "Is loot shared for this content?", required: false },
+          { type: 5, name: "loot-vote", description: "Run a split-or-regear loot vote for this content?", required: false },
         ],
       },
       {
         type: 1,
         name: "edit",
-        description: "Edit this post's content (creator, officers, Manage Server)",
+        description: "Edit this post's content in a form (creator, officers, Manage Server)",
         options: [
-          { type: 5, name: "loot", description: "Change whether loot is shared (leave empty to keep it)", required: false },
+          { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
         ],
       },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },

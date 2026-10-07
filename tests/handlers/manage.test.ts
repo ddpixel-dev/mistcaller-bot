@@ -59,7 +59,7 @@ const isEphemeral = (r: any) => { assert.equal(r.type, 4); assert.equal(r.data.f
 
 test("edit command opens a modal prefilled with the current values", async () => {
   const { deps, id } = await setup();
-  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "loot", type: 5, value: true }]));
+  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "loot-vote", type: 5, value: true }]));
   assert.equal(r.type, 9);
   assert.equal(r.data.custom_id, `edit:${id}:1`);
   const inputs = r.data.components.map((row: any) => row.components[0]);

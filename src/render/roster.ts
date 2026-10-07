@@ -61,8 +61,9 @@ export function renderRosterMessage(view: RosterView): {
   const filled = view.slots.filter((s) => s.userId !== null).length;
   const kind = view.type === "pvp" ? "PvP" : "PvE";
   const head = [
-    `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · ${WORDS.spoils}: ${view.hasLoot ? "Yes" : "No"}`,
-    `🕰️ ${formatUtc(view.startsAt)} (<t:${epoch}:F>, <t:${epoch}:R>)`,
+    `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · Loot vote: ${view.hasLoot ? "On" : "Off"}`,
+    `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
+    `🌍 **Your time** · <t:${epoch}:F> · <t:${epoch}:R>`,
   ];
   const banner = statusBanner(view.status, view.started);
   if (banner) head.push(banner);
