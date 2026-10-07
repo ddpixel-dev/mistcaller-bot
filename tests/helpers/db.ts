@@ -37,5 +37,5 @@ export function testSql(): Promise<Sql> {
 }
 
 export async function resetDb(sql: Sql): Promise<void> {
-  await sql`truncate table slot_preset, vote, signup, slot, content, guild_settings restart identity cascade`;
+  await sql`truncate table slot_draft, slot_preset, vote, signup, slot, content, guild_settings restart identity cascade`;
 }

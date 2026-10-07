@@ -244,10 +244,10 @@ test("runJobs posts results before locking, even when both are due", async () =>
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { locked: 1, resultsPosted: 1 });
+  assert.deepEqual(out, { locked: 1, resultsPosted: 1, draftsPurged: 0 });
   assert.deepEqual(order, ["edit:open", "post", "edit:locked"]);
   assert.equal(await status(sql, id), "locked");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0 });
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, draftsPurged: 0 });
 });
 
 // cron handler
@@ -373,4 +373,16 @@ test("at most 25 rows are processed in one run", async () => {
   assert.equal(await postVoteResults({ sql, rest: f.rest, now: () => CUTOFF }), 25);
   assert.equal(f.calls.posts.length, 25);
   assert.equal(await postVoteResults({ sql, rest: f.rest, now: () => CUTOFF }), 5);
+});
+
+test("runJobs purges guided-slot drafts older than an hour and keeps fresh ones", async () => {
+  const sql = await testSql();
+  await resetDb(sql);
+  const now = new Date("2026-10-07T12:00:00Z");
+  await sql`insert into slot_draft (guild_id, user_id, thread_id, created_at) values ('g1', 'old', 't1', ${new Date(now.getTime() - 61 * 60000)})`;
+  await sql`insert into slot_draft (guild_id, user_id, thread_id, created_at) values ('g1', 'new', 't1', ${new Date(now.getTime() - 5 * 60000)})`;
+  const rest: Rest = { async createMessage() { return { id: "m" }; }, async editMessage() {}, async deleteMessage() {} };
+  assert.equal((await runJobs({ sql, rest, now: () => now })).draftsPurged, 1);
+  assert.deepEqual((await sql`select user_id from slot_draft`).map((r) => r.user_id), ["new"]);
+  assert.equal((await runJobs({ sql, rest, now: () => now })).draftsPurged, 0);
 });

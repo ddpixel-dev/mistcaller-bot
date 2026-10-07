@@ -131,7 +131,7 @@ satisfies: FR-023
 Different kinds of PvP and PvE content, each with its own label and color.
 
 ### FT-015: Slot builder and presets
-status: phases 1 (presets) and 2 (weapon data and `/content weapon`) built; guided steps next (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
+status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
 priority: should
 satisfies: FR-024, FR-025, FR-026
@@ -234,7 +234,7 @@ Each content shall have a kind inside its forum type (a PvP kind or a PvE kind),
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (as today), guided steps (a member count, then a role and a weapon for each slot, with "same as previous" and "fill the rest"), or a saved preset. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. In the guided steps (the "Guided slots" button of the create panel) the member picks a member count, then for each slot a role from a fixed list and a weapon found by searching the weapon list, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -358,7 +358,7 @@ Next step: owner deploys 0.5.0, re-registers the commands and tests (no migratio
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
 | FT-006 `/content setup` | live (0.4.0) | |
-| FT-015 slot builder and presets | phase 1 live; phase 2 on develop | Weapon search built (`/content weapon`); phase 3 guided steps not started |
+| FT-015 slot builder and presets | phase 1 live; phases 2 and 3 on develop | Weapon search (`/content weapon`) and guided steps built; steps need migration 0005 |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |
