@@ -302,3 +302,32 @@ test("Continue is refused while the post already has content; a chosen preset sk
     assert.ok(r.data.content.includes("already has content"), cid);
   }
 });
+
+import { discordProblems } from "../helpers/discordLimits.ts";
+
+test("every private message in the create and guided flow stays inside Discord's limits", async () => {
+  const { sql, d } = await setup();
+  await sql`insert into slot_preset (guild_id, name, slots, created_by) select 'g1', 'P' || n, '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o' from generate_series(1, 25) n`;
+  const seen: any[] = [];
+  const run = async (i: Interaction) => { const r: any = await d(i); if (r.data?.components || r.data?.embeds) seen.push(r.data); return r; };
+  await run(base({ type: 2, data: { name: "content", options: [{ name: "create", type: 1 }] } }));
+  for (const field of ["type:-:-:-:-", "kind:pvp:-:-:-", "loot:pvp:-:zvz:-"]) {
+    await run(press(`cp:${field}`, field.startsWith("type") ? ["pve"] : field.startsWith("kind") ? ["zvz"] : ["1"]));
+  }
+  const modal: any = await d(press("cpgo:pvp:1:zvz:-"));
+  const id = modal.data.custom_id.split(":")[1];
+  await run(form(`gsc:${id}`, { count: "20" }));
+  await run(press(`gs:class:${id}`, ["Axe"]));
+  await run(press(`gs:role:${id}`, ["Tank"]));
+  await run(press(`gs:duty:${id}`, ["caller"]));
+  const weapons: any = await run(press(`gs:class:${id}`, ["Bow"]));
+  const firstWeapon = weapons.data.components.flatMap((r: any) => r.components).find((c: any) => c.custom_id.startsWith("gs:weapon")).options[0].value;
+  await run(press(`gs:weapon:${id}`, [firstWeapon]));
+  await run(press(`gs:next:${id}`));
+  await run(press(`gs:same:${id}`));
+  await run(press(`gs:rest:${id}`));
+  await run(press(`gs:back:${id}`));
+  assert.ok(seen.length >= 10);
+  const problems = seen.flatMap((data, n) => discordProblems(data).map((p) => `message ${n}: ${p}`));
+  assert.deepEqual(problems, []);
+});

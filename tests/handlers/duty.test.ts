@@ -1,5 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId } from "../../src/db/content.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
@@ -43,7 +44,7 @@ test("the creator assigns a duty to a held position: saved and shown on the rost
   assert.ok(text(r).includes("Caller assigned for position 1."));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   assert.equal(edits.length, 1);
-  assert.ok(edits[0].body.embeds[0].description.includes("1. Tank - Mace · 📯 Caller · sworn: <@alice>"));
+  assert.ok(textOf(edits[0].body).includes("📯 Caller · Sworn: <@alice>"));
   assert.ok(text(await d(duty(1, "none"))).includes("Duty cleared"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, null);
 });

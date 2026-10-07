@@ -162,11 +162,11 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (full local time and relative time), the tier or range, whether there is loot, and one row per slot with the signed-up player or "open".
+The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the tier or range on its own line, the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set.
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot by pressing that position's button on the roster and move by pressing another open position (owner decision 2026-10-07, replacing the menu). A held position is dimmed for everyone, which also stops the holder from picking it again. A bottom row holds the Leave button and, with a loot vote, the two vote buttons, so 20 positions fit five rows. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. `/content me` opens a private panel (owner request 2026-10-07) with a sign-up or move menu and a Leave button that is enabled only for that member and only when they are signed up. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up, or move, by picking from a menu that lists only the open positions, so a taken position disappears from it (owner decision 2026-10-07, ADR 0018). Each sworn row carries its own **Leave** button, which only that player can use; anyone else is told it is not their position. This needs the Components V2 layout, which allows 40 components, so per-row Leave buttons exist for parties of up to 11 positions; for 12 or more, one shared Leave button (dimmed while nobody is signed up) serves everyone. `/content me` opens a private panel with the same actions. Every change updates the shared roster message. A member holds at most one active entry per content. Rosters posted before this layout keep their old look and no longer respond.
 
 ### FR-006: Atomic slot claim
 status: accepted
@@ -234,7 +234,7 @@ The same managers shall be able to cancel an open or locked content with `/conte
 
 ### FR-022: Medieval Banner roster style
 status: accepted
-The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold embed colors by content type, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line dividers, and the words "company", "sworn" and "spoils". The roster lists one slot per line (Lines layout). Status shows as a banner line (closed, cancelled, concluded) and cancelled or finished content is greyed with every control disabled. The banner and icon art are set in `src/render/theme.ts` once the owner hosts the files. The owner supplies the bot icon and banner art. No third-party game art is used without permission, and the style stays readable for screen readers and under Discord's embed limits.
+The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold container colours by content type and category, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line rules and the words "company" and "sworn". Since the roster became a Components V2 message (ADR 0018) there is no embed: the colour bar is the container's accent colour and the text lives in text blocks within Discord's 4,000-character limit. Status shows as a text line (closed, cancelled, concluded) and cancelled or finished content is greyed with every control dimmed. The owner supplies the bot icon and banner art; the theme file `src/render/theme.ts` is where they will be set. No third-party game art is used without the owner's decision (ADR 0017 for the weapon icons).
 
 ### FR-023: Content kinds
 status: accepted
@@ -250,11 +250,7 @@ An officer shall be able to save the slots defined in the typed-lines mode or th
 
 ### FR-026: Weapon list and icons
 status: accepted
-Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). The weapon icon shall be shown beside the role and weapon name, linked by URL from Albion's render service and never stored or uploaded (ADR 0013). If an icon cannot load, the roster still shows the names.
-
-### FR-027: Duties
-status: accepted
-A slot may carry a duty, Caller, Scout or Rat (owner decision 2026-10-07: the duty belongs to the slot, and "duty" is the word, not "responsibility"). It is set when the slots are defined, in the guided cards, in typed lines as a bracket at the end (`Tank - Great Axe (Caller)`), or in a preset, and can be changed later by the creator, a member with Manage Server, or the officer role with `/content duty position:<n> duty:<...>`. It shows after the weapon on the roster line, on open positions too, and stays when a player leaves or moves. The list is fixed in code (`src/domain/duties.ts`).
+Guided steps shall let the officer find a weapon through a weapon list taken from the `ao-bin-dumps` game data (ADR 0009, 0015): by weapon class then weapon, or by typing with live search in `/content slot`. The icon of each weapon, from Albion's render service, is uploaded once as an application emoji (ADR 0017, owner decision 2026-10-07, rights accepted by the owner) and shown inline beside the weapon name in the roster, in menus and on buttons. A weapon without an icon (a new weapon, or Black Hands, which the render service lacks) shows its name only. `/content weapon` and the guided card still show the linked thumbnail (ADR 0013).
 
 ## Non-functional requirements
 

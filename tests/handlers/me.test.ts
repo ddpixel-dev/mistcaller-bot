@@ -1,5 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { discordProblems, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId } from "../../src/db/content.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
@@ -60,7 +61,8 @@ test("signing up from the panel updates the roster message and enables Leave for
   assert.deepEqual(await holders(sql, id), ["u1", null]);
   assert.equal(edits.length, 1);
   assert.deepEqual([edits[0].channelId, edits[0].messageId], ["t1", "m1"]);
-  assert.ok(edits[0].body.embeds[0].description.includes("sworn: <@u1>"));
+  assert.ok(textOf(edits[0].body).includes("Sworn: <@u1>"));
+  assert.deepEqual(discordProblems(edits[0].body), []);
   const other: any = await d(command("u2"));
   assert.equal(leaveBtn(other).disabled, true);
   assert.ok(other.data.components[0].components[0].options[0].description === "Taken");
@@ -113,4 +115,16 @@ test("after the start the panel is closed for moves but still lets a signed-up m
   await sql`update content set status = 'cancelled' where id = ${id}`;
   assert.ok(((await d(command())) as any).data.content.includes("no active content"));
   assert.ok(((await d(command("u1", { channel: { id: "other", type: 11, parent_id: "fp" } }))) as any).data.content.includes("no active content"));
+});
+
+test("the /content me panel and the roster it refreshes stay inside Discord's limits", async () => {
+  const { d, id, slots } = await setup();
+  const seen: any[] = [];
+  const run = async (i: Interaction) => { const r: any = await d(i); seen.push(r.data); return r; };
+  await run(command());
+  await run(press(`me:pick:${id}`, [slots[0]]));
+  await run(press(`me:pick:${id}`, [slots[1]]));
+  await run(press(`me:leave:${id}`));
+  const problems = seen.flatMap((data, n) => discordProblems(data).map((p) => `message ${n}: ${p}`));
+  assert.deepEqual(problems, []);
 });
