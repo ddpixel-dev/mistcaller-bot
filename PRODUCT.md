@@ -35,7 +35,7 @@ satisfies: FR-005, FR-006
 A member picks a position from a menu to sign up, picks another to move, or presses Leave.
 
 ### FT-003: Waitlist
-status: not started
+status: built (needs migration 0011)
 phase: MVP
 priority: must
 satisfies: FR-007
@@ -174,7 +174,7 @@ At most one member shall hold a slot. When two members claim the same slot at th
 
 ### FR-007: Waitlist
 status: accepted
-A member shall be able to join the waitlist of a taken slot. When that slot frees up, the first waitlisted member is promoted and pinged.
+When every position of a role is taken, a member shall be able to join the waitlist for that role, from a menu under the roster (owner decision 2026-10-08: the waitlist is per role). The roster lists the waitlist in join order with each member's role. When a position of a role frees up (the holder leaves or moves, or a position is added or renamed in an edit) while the content is open, the first member waiting for that role is seated in it, in the same database change so nobody can slip in between, and is pinged in the content's post. A member who holds a position cannot wait; a waiting member who takes an open position, or presses Leave, leaves the waitlist; changing the role waited for puts the member at the back. No promotion happens once the content is locked or started.
 
 ### FR-008: Loot vote
 status: accepted
@@ -354,7 +354,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.10.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.11.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
 Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 

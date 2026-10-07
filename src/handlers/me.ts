@@ -3,7 +3,8 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
-import { claimSlot, leaveContent } from "../db/signup.ts";
+import { claimSlot, leaveContent, type Promotion } from "../db/signup.ts";
+import { announcePromotions } from "./waitlist.ts";
 import type { RosterView } from "../domain/types.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 
@@ -57,9 +58,10 @@ export async function handleMeCommand(deps: Deps, i: Interaction): Promise<Inter
 }
 
 // The shared roster is edited through the API; a failed edit never undoes the change.
-async function refresh(deps: Deps, id: string, userId: string): Promise<InteractionResponse> {
+async function refresh(deps: Deps, id: string, userId: string, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
+  await announcePromotions(deps, view.threadId, view.title, promoted);
   try {
     if (view.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
   } catch (err) {
@@ -76,22 +78,24 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
   if (prefix !== "me" || !id || extra !== undefined || !UUID.test(id) || !userId || !guildId) return reply(INVALID);
 
   if (action === "leave") {
-    const result = await leaveContent(deps.sql, { contentId: id, userId, guildId });
+    const promoted: Promotion[] = [];
+    const result = await leaveContent(deps.sql, { contentId: id, userId, guildId, now: deps.now(), promoted });
     if (result === "not_found") return reply(NOT_FOUND);
     if (result === "not_signed") return reply("You are not signed up for this content.");
     if (result === "unavailable") return reply("This content is no longer open, so you cannot leave it.");
-    return await refresh(deps, id, userId);
+    return await refresh(deps, id, userId, promoted);
   }
   if (action === "pick") {
     const values = data?.values;
     const slotId = Array.isArray(values) && values.length === 1 ? values[0] : undefined;
     if (typeof slotId !== "string" || !UUID.test(slotId)) return reply(INVALID);
-    const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now() });
+    const promoted: Promotion[] = [];
+    const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now(), promoted });
     if (result === "unchanged") return reply("You already hold this position.");
     if (result === "taken") return reply("That position is already taken. Pick another one.");
     if (result === "locked") return reply("Signups are locked for this content.");
     if (result === "not_found") return reply(NOT_FOUND);
-    return await refresh(deps, id, userId);
+    return await refresh(deps, id, userId, promoted);
   }
   return reply(INVALID);
 }

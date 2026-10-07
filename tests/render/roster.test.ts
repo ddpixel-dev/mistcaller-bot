@@ -240,13 +240,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote use 9 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 11 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
   assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 9);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 7);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 9);
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -257,4 +257,44 @@ test("worst case text: 20 slots with the longest roles and weapons and a long no
   assert.ok(txt(v).length <= 4000, String(txt(v).length));
   assert.deepEqual(discordProblems(msg(v)), []);
   assert.ok(txt(v).includes("The Company (20/20)"));
+});
+
+test("the waitlist shows its members in order with the role they wait for, and nothing when empty", () => {
+  const v = view({ slots: slots(4, 4, "Healer", "Holy Staff"), waitlist: [{ userId: "901", role: "Healer" }, { userId: "902", role: "Tank" }] });
+  assert.ok(txt(v).includes("🕒 **Waitlist (2):** 1. <@901> (Healer) · 2. <@902> (Tank)"));
+  assert.ok(!txt(view()).includes("Waitlist"));
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("a menu to join the waitlist lists only the roles with no open position", () => {
+  const mixed = view({ slots: [
+    { id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: "1" },
+    { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: "2" },
+    { id: "s3", position: 3, role: "Healer", weapon: "Fallen", userId: null },
+    { id: "s4", position: 4, role: "DPS", weapon: "Bow", userId: "3" },
+    { id: "s5", position: 5, role: "DPS", weapon: "Bow", userId: "4" },
+  ], waitlist: [{ userId: "9", role: "DPS" }] });
+  const menu = byId(mixed, "wait:")[0]!;
+  assert.equal(menu.custom_id, "wait:c1");
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["Tank", "DPS"]);
+  assert.deepEqual(menu.options.map((o: any) => o.description), ["0 waiting", "1 waiting"]);
+  assert.ok(menu.options[0].label.startsWith("Tank (all taken)"));
+  assert.equal(byId(view({ slots: slots(4, 2) }), "wait:").length, 0);
+  for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }, { started: true }] as const) {
+    assert.equal(byId(view({ ...over, slots: slots(4, 4) }), "wait:").length, 0, JSON.stringify(over));
+  }
+  assert.deepEqual(discordProblems(msg(mixed)), []);
+});
+
+test("Leave is enabled for someone who is only on the waitlist", () => {
+  const onlyWaiting = view({ slots: slots(3, 0), waitlist: [{ userId: "9", role: "DPS" }] });
+  assert.equal(byId(onlyWaiting, "leave:c1")[0]!.disabled, false);
+  assert.equal(byId(view({ slots: slots(3, 0) }), "leave:c1")[0]!.disabled, true);
+});
+
+test("the waitlist text and the menus stay inside Discord's limits with 20 positions and a long waitlist", () => {
+  const waiting = Array.from({ length: 30 }, (_, i) => ({ userId: `${900000000000000000 + i}`, role: "R".repeat(30) }));
+  const v = view({ slots: slots(20, 20, "R".repeat(30), "Great Axe"), waitlist: waiting, hasLoot: true });
+  assert.deepEqual(discordProblems(msg(v)), []);
+  assert.ok(txt(v).length <= 4000);
 });
