@@ -76,7 +76,8 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   assert.equal(weapon.disabled, true);
   assert.equal(weapon.placeholder, "Weapon (press Search weapon first)");
   assert.deepEqual(weapon.options.map((o: any) => o.label), ["Search a weapon first"]);
-  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "None"]);
+  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat"]);
+  assert.deepEqual([duty.min_values, duty.max_values], [0, 1]);
   assert.ok([role, weapon, duty].every((s: any) => s.options.every((o: any) => !o.default)));
   const buttons = card.data.components[3].components;
   assert.deepEqual(buttons.map((b: any) => [b.label, !!b.disabled]), [["Next", true], ["Back", false], ["Same as previous", true], ["Fill the rest", true], ["Cancel", false]]);
@@ -117,6 +118,17 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   const stored = (await getDraft(sql, id, NOW))!;
   assert.equal(stored.slots[0]!.duty, "caller");
   assert.deepEqual([stored.role, stored.weapon, stored.duty, stored.step], [null, null, null, 1]);
+});
+
+test("deselecting the duty clears it, since there is no None entry", async () => {
+  const { sql, d } = await setup();
+  const { id } = await begin(d, "2");
+  let r: any = await d(press(`gs:duty:${id}`, ["rat"]));
+  assert.deepEqual(find(r, "gs:duty").options.filter((o: any) => o.default).map((o: any) => o.value), ["rat"]);
+  r = await d(press(`gs:duty:${id}`, []));
+  assert.deepEqual(find(r, "gs:duty").options.filter((o: any) => o.default), []);
+  assert.equal((await getDraft(sql, id, NOW))!.duty, null);
+  assert.ok(!JSON.stringify(find(r, "gs:duty").options).includes("None"));
 });
 
 test("Search weapon opens a form; the weapon list shows only the matches; Clear search empties it again", async () => {
@@ -211,7 +223,7 @@ test("/content slot fills the card in one command, needs a draft and the count, 
   assert.equal(r.data.flags, 64);
   assert.ok(embed(r).description.includes("1. Support - Broadsword · 🏹 Scout"));
   assert.ok(embed(r).description.includes("Slot 2 of 3"));
-  const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon", duty: "none" }));
+  const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon" }));
   assert.ok(embed(typed).description.includes("2. DPS - Some New Weapon"));
   assert.ok((await d(slotCmd({ role: "Wizard", weapon: "Mace" })) as any).data.content.includes("Pick a role"));
   assert.ok((await d(slotCmd({ role: "DPS", weapon: "   " })) as any).data.content.includes("Type part"));
