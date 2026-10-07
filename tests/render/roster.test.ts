@@ -27,7 +27,7 @@ test("formatUtc", () => {
 
 test("description contents", () => {
   const d = desc(view());
-  for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:F>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
+  for (const s of ["Wed 7 Oct 2026, 18:00 UTC", "<t:1791396000:f>", "<t:1791396000:R>", "T5.3–T7.0", "PvP",
     "Loot vote: On", "1. Tank - Axe · sworn: <@111>", "2. Healer - Holy · open", "The Company (1/2)"]) {
     assert.ok(d.includes(s), s);
   }
@@ -229,7 +229,7 @@ test("cancelled and done are greyed with a status banner and nothing enabled", (
 test("time lines: UTC and Your time are separate labelled lines", () => {
   const lines = desc(view()).split("\n");
   assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
-  assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:F> · <t:1791396000:R>"));
+  assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:f> · <t:1791396000:R>"));
 });
 
 test("notes get a Notes: label and a different icon than the title", () => {
