@@ -65,7 +65,7 @@ test("after signing up, the shared Leave button is enabled", async () => {
   const { deps, contentId, slots } = await setup();
   const r: any = await handleJoin(deps, pickMenu(contentId, [slots[0]]));
   const leave = flatComponents(r.data).find((c) => c.custom_id === `leave:${contentId}`);
-  assert.equal(leave.disabled, false);
+  assert.equal(leave!.disabled, false);
   assert.equal(flatComponents(r.data).filter((c) => String(c.custom_id ?? "").startsWith("leaveslot:")).length, 0);
 });
 

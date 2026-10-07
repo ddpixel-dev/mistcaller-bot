@@ -1,5 +1,6 @@
 import type { Sql } from "./client.ts";
 import { planSlotEdit } from "../domain/slots.ts";
+import { needsReminder } from "../domain/vote.ts";
 import type { ContentStatus, RosterSlot, SlotDef, TierRange } from "../domain/types.ts";
 
 export type ManageTarget = {
@@ -92,6 +93,10 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== input.startsAt.getTime();
+    if (startChanged) {
+      // A new start time resets the reminder (FR-009), unless the new start is already inside the lead time.
+      await tx`update content set reminder_sent_at = ${needsReminder(input.startsAt, now) ? null : now} where id = ${id}`;
+    }
     const notify = startChanged
       ? (await tx`select user_id from signup where content_id = ${id} and status = 'signed' order by joined_at`).map(
           (r) => r.user_id as string,

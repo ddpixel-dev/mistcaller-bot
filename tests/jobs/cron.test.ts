@@ -5,7 +5,8 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, setMessageId, getRosterView, type NewContent } from "../../src/db/content.ts";
 import { claimSlot } from "../../src/db/signup.ts";
 import { castVote } from "../../src/db/vote.ts";
-import { isAuthorized, lockStarted, postVoteResults, runJobs } from "../../src/jobs/cron.ts";
+import { editContent } from "../../src/db/manage.ts";
+import { isAuthorized, lockStarted, postVoteResults, runJobs, sendReminders } from "../../src/jobs/cron.ts";
 import * as cronRoute from "../../api/cron.ts";
 import { handleCron } from "../../src/jobs/cron-handler.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
@@ -244,10 +245,10 @@ test("runJobs posts results before locking, even when both are due", async () =>
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { locked: 1, resultsPosted: 1, draftsPurged: 0 });
+  assert.deepEqual(out, { locked: 1, resultsPosted: 1, remindersSent: 0, draftsPurged: 0 });
   assert.deepEqual(order, ["edit:open", "post", "edit:locked"]);
   assert.equal(await status(sql, id), "locked");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, remindersSent: 0, draftsPurged: 0 });
 });
 
 // cron handler
@@ -385,4 +386,109 @@ test("runJobs purges guided-slot drafts older than an hour and keeps fresh ones"
   assert.equal((await runJobs({ sql, rest, now: () => now })).draftsPurged, 1);
   assert.deepEqual((await sql`select user_id from slot_draft`).map((r) => r.user_id), ["new"]);
   assert.equal((await runJobs({ sql, rest, now: () => now })).draftsPurged, 0);
+});
+
+// reminders (FR-011)
+const LEAD = 30 * 60 * 1000;
+const sentAt = async (sql: any, id: string) => (await sql`select reminder_sent_at as r from content where id = ${id}`)[0].r;
+const signUp = async (sql: any, id: string, users: string[]) => {
+  const slots = await sql`select id from slot where content_id = ${id} order by position`;
+  for (let i = 0; i < users.length; i++) await claimSlot(sql, { contentId: id, slotId: slots[i].id, userId: users[i]!, guildId: "g1", now: new Date("2026-11-01T00:00:00Z") });
+};
+const created = new Date(startsAt.getTime() - 3 * 3600000);
+const twentyFiveBefore = new Date(startsAt.getTime() - 25 * 60000);
+
+test("a reminder pings the signed-up players once, about 30 minutes before the start, and not again", async () => {
+  const { sql, id } = await make({ now: created });
+  assert.equal(await sentAt(sql, id), null);
+  await signUp(sql, id, ["alice", "bob"]);
+  const { rest, calls } = fakeRest();
+  const deps = (now: Date): Deps => ({ sql, rest, now: () => now });
+  assert.equal(await sendReminders(deps(new Date(startsAt.getTime() - LEAD - 60000))), 0);
+  assert.equal(calls.posts.length, 0);
+  assert.equal(await sendReminders(deps(twentyFiveBefore)), 1);
+  assert.equal(calls.posts.length, 1);
+  assert.equal(calls.posts[0]!.channel, "t1");
+  assert.ok(calls.posts[0]!.body.content.includes("<@alice> <@bob>"));
+  assert.ok(calls.posts[0]!.body.content.includes("Loot run"));
+  assert.ok(calls.posts[0]!.body.content.includes(`<t:${Math.floor(startsAt.getTime() / 1000)}:R>`));
+  assert.deepEqual(calls.posts[0]!.body.allowed_mentions, { users: ["alice", "bob"] });
+  assert.notEqual(await sentAt(sql, id), null);
+  assert.equal(await sendReminders(deps(new Date(twentyFiveBefore.getTime() + 300000))), 0);
+  assert.equal(calls.posts.length, 1);
+});
+
+test("waitlisted players are not pinged, and with nobody signed up nothing is posted but the reminder is spent", async () => {
+  const { sql, id } = await make({ now: created });
+  const slots = await sql`select id from slot where content_id = ${id} order by position`;
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'w', ${slots[0].id}, 'waitlist')`;
+  const { rest, calls } = fakeRest();
+  assert.equal(await sendReminders({ sql, rest, now: () => twentyFiveBefore }), 0);
+  assert.equal(calls.posts.length, 0);
+  assert.notEqual(await sentAt(sql, id), null);
+});
+
+test("no reminder for content created inside the 30 minutes, for locked or cancelled content, or after the start", async () => {
+  const late = await make({ now: new Date(startsAt.getTime() - 20 * 60000) });
+  assert.notEqual(await sentAt(late.sql, late.id), null);
+  const { sql, id } = await make({ threadId: "t2", now: created });
+  await signUp(sql, id, ["alice"]);
+  const { rest, calls } = fakeRest();
+  await sql`update content set status = 'cancelled' where id = ${id}`;
+  assert.equal(await sendReminders({ sql, rest, now: () => twentyFiveBefore }), 0);
+  await sql`update content set status = 'open'`;
+  assert.equal(await sendReminders({ sql, rest, now: () => new Date(startsAt.getTime() + 1000) }), 0);
+  assert.equal(calls.posts.length, 0);
+});
+
+test("a failed reminder is released so the next run sends it; other contents are not blocked", async () => {
+  const a = await make({ now: created });
+  const b = await make({ threadId: "t2", now: created });
+  await signUp(a.sql, a.id, ["alice"]);
+  await signUp(b.sql, b.id, ["bob"]);
+  let calls = 0;
+  const { rest, calls: seen } = fakeRest({ post: () => (++calls === 1 ? new DiscordApiError(500, "boom") : undefined) });
+  const deps: Deps = { sql: a.sql, rest, now: () => twentyFiveBefore };
+  assert.equal(await sendReminders(deps), 1);
+  const states = await Promise.all([sentAt(a.sql, a.id), sentAt(b.sql, b.id)]);
+  assert.equal(states.filter((x) => x === null).length, 1);
+  assert.equal(await sendReminders(deps), 1);
+  assert.equal(seen.posts.length, 2);
+});
+
+test("editing the start time resets the reminder; moving it inside the 30 minutes marks it spent", async () => {
+  const { sql, id } = await make({ now: created });
+  await signUp(sql, id, ["alice"]);
+  const { rest } = fakeRest();
+  await sendReminders({ sql, rest, now: () => twentyFiveBefore });
+  assert.notEqual(await sentAt(sql, id), null);
+  const edit = (start: Date, now: Date) => editContent(sql, id, {
+    title: "Loot run", notes: null, startsAt: start, tier: base.tier, hasLoot: null, kind: null, slots: base.slots,
+  }, now);
+  const later = new Date(startsAt.getTime() + 24 * 3600000);
+  assert.equal((await edit(later, created)).result, "ok");
+  assert.equal(await sentAt(sql, id), null);
+  const sooner = new Date(created.getTime() + 20 * 60000);
+  assert.equal((await edit(sooner, created)).result, "ok");
+  assert.notEqual(await sentAt(sql, id), null);
+  await edit(sooner, created);
+  assert.notEqual(await sentAt(sql, id), null);
+});
+
+test("an edit that keeps the same start time leaves the reminder alone", async () => {
+  const { sql, id } = await make({ now: created });
+  const { rest } = fakeRest();
+  await signUp(sql, id, ["alice"]);
+  await sendReminders({ sql, rest, now: () => twentyFiveBefore });
+  const before = await sentAt(sql, id);
+  await editContent(sql, id, { title: "New title", notes: null, startsAt, tier: base.tier, hasLoot: null, kind: null, slots: base.slots }, created);
+  assert.deepEqual(await sentAt(sql, id), before);
+});
+
+test("runJobs runs the reminders too and reports how many were sent", async () => {
+  const { sql, id } = await make({ now: created });
+  await signUp(sql, id, ["alice"]);
+  const { rest } = fakeRest();
+  const out = await runJobs({ sql, rest, now: () => twentyFiveBefore });
+  assert.equal(out.remindersSent, 1);
 });

@@ -67,7 +67,7 @@ satisfies: FR-016
 `/content setup` sets the officer role and the PvP and PvE forums. The POC uses a manually seeded settings row.
 
 ### FT-007: Reminders
-status: not started
+status: built (needs migration 0010)
 phase: MVP
 priority: should
 satisfies: FR-011
@@ -190,7 +190,7 @@ A member shall create at most 5 content posts in any rolling 24 hours, counting 
 
 ### FR-011: Reminders
 status: accepted
-Signed-up members shall be pinged once, about 30 minutes before the start. Sending shall be idempotent.
+Signed-up members (not the waitlist) shall be pinged once in the content's post, about 30 minutes before the start: "⏰ *Title* starts in 30 minutes" with their mentions (and nobody else's). Sending shall be idempotent: it is claimed in the database before sending and released if the send fails. Content created inside the 30 minutes, or edited to start inside them, gets no reminder. Changing the start time resets the reminder (FR-009). The scheduled job runs every 5 minutes, so the ping arrives between about 25 and 35 minutes before the start.
 
 ### FR-012: Auto-lock
 status: accepted
