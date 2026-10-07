@@ -150,7 +150,7 @@ status: accepted
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, plus a `loot-vote` option on the command (renamed from `loot`, owner request 2026-10-07). The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) comes from the forum, so it is not asked. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
@@ -346,19 +346,19 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.4.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.5.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
-Next step: owner runs migrations 0003 and 0004, deploys, re-registers the commands and tests. Then FT-015 phase 2 (weapon data and search) and phase 3 (guided steps), then waitlist, lock and cap, reminders, `/content list`, attendance.
+Next step: owner deploys 0.5.0, re-registers the commands and tests (no migration). Then FT-015 phase 2 (weapon data and search) and phase 3 (guided steps), then waitlist, lock and cap, reminders, `/content list`, attendance.
 
 | Item | Status | Note |
 |---|---|---|
 | FT-001, FT-002, FT-004 | built, live | Live checks CHK-002, CHK-003, CHK-005 still to record |
 | FT-012 one content per post | live (0.2.0) | |
 | FT-005 edit and cancel | live (0.2.0) | Lock and the creation cap are not built |
-| FT-013 banner style | live, art pending | Headers and a neon ANSI block in 0.4.0 |
-| FT-014 content kinds | in 0.4.0 | Needs migration 0003 |
-| FT-006 `/content setup` | in 0.4.0 | |
-| FT-015 slot builder and presets | phase 1 (presets) in 0.4.0 | Needs migration 0004; phases 2 and 3 not started |
+| FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
+| FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
+| FT-006 `/content setup` | live (0.4.0) | |
+| FT-015 slot builder and presets | phase 1 (presets) live | Weapon-data spike done; phases 2 and 3 not started |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |

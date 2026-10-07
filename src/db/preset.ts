@@ -53,3 +53,8 @@ export async function searchPresetNames(sql: Sql, guildId: string, text: string)
     order by lower(name) limit 25`;
   return rows.map((r) => r.name as string);
 }
+
+export async function getPresetById(sql: Sql, guildId: string, id: string): Promise<Preset | null> {
+  const [r] = await sql`select * from slot_preset where guild_id = ${guildId} and id = ${id}`;
+  return r ? toPreset(r) : null;
+}
