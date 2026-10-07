@@ -157,7 +157,7 @@ test("vote line placement while open", () => {
   const d = desc(view({ notes: "hello", votes: { split: 3, regear: 2 } }));
   const lines = d.split("\n");
   const t = lines.findIndex((l) => l.includes("Tier **"));
-  assert.equal(lines[t + 3], "Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
+  assert.equal(lines[t + 3], "💰 Spoils vote: Split 3 - Regear 2 · closes <t:1791395700:R>");
   assert.ok(d.indexOf("Spoils vote:") < d.indexOf("**The Company"));
   assert.equal(d.split("Spoils vote").length, 2);
 });
@@ -254,4 +254,9 @@ test("notes get a Notes: label and a different icon than the title", () => {
 test("the closing time of the vote is shown only while it is open", () => {
   assert.ok(desc(view()).includes("closes <t:1791395700:R>"));
   assert.ok(!desc(view({ voteClosed: true, voteResult: "none" })).includes("closes"));
+});
+
+test("a cancelled content says so in the title", () => {
+  assert.equal(renderRosterMessage(view({ status: "cancelled" })).embeds[0]!.title, "✖ CANCELLED — Ava roam");
+  assert.equal(renderRosterMessage(view({ status: "locked" })).embeds[0]!.title, "📜 ⚜ Ava roam ⚜");
 });

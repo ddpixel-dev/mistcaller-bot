@@ -23,6 +23,8 @@ export const WORDS = {
 export const RULE = "═══════════════════════";
 export const TITLE_MARK = "⚜";
 export const SCROLL = "📜";
+export const VOTE_ICON = "💰";
+export const CANCELLED_TAG = "✖ CANCELLED —";
 const BAR_CELLS = 10;
 
 export function embedColor(type: ContentType, status: ContentStatus): number {
