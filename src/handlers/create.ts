@@ -1,8 +1,11 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
+import { modalValues, textInput } from "../discord/modal.ts";
 import { getGuildSettings } from "../db/settings.ts";
-import { createContent, deleteContent, getRosterView, setMessageId } from "../db/content.ts";
+import {
+  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
+} from "../db/content.ts";
 import { forumContentType } from "../domain/forum.ts";
 import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
@@ -25,44 +28,39 @@ function lootOption(i: Interaction): boolean {
   return create?.options?.find((o) => o.name === "loot")?.value === true;
 }
 
-const input = (
-  custom_id: string,
-  label: string,
-  max_length: number,
-  extra: Record<string, unknown> = {},
-) => ({
-  type: 1,
-  components: [{ type: 4, custom_id, label, style: 1, max_length, required: true, ...extra }],
-});
+async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
+  const existing = await findContentInThread(deps.sql, guildId, threadId);
+  if (!existing) return null;
+  const link = existing.messageId ? ` https://discord.com/channels/${guildId}/${threadId}/${existing.messageId}` : "";
+  return reply(takenMessage(existing.status, link));
+}
+
+function takenMessage(status: string, link: string): string {
+  return status === "done"
+    ? `This post's content has finished, so it cannot take a new one.${link}`
+    : `This post already has content.${link} Cancel it first to create a new one.`;
+}
 
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if ((await forumType(deps, i)) === null) return reply(NOT_FORUM);
+  if (i.guild_id && i.channel?.id) {
+    const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
+    if (taken) return taken;
+  }
   return {
     type: MODAL,
     data: {
       custom_id: `create:${lootOption(i) ? 1 : 0}`,
       title: "Create content",
       components: [
-        input("title", "Title", 100),
-        input("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
-        input("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
-        input("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
-        input("notes", "Notes (optional)", 500, { required: false }),
+        textInput("title", "Title", 100),
+        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
+        textInput("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
+        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, placeholder: "Tank - Axe" }),
+        textInput("notes", "Notes (optional)", 500, { required: false }),
       ],
     },
   };
-}
-
-function modalValues(i: Interaction): Record<string, string> {
-  const rows = ((i.data as { components?: unknown[] } | undefined)?.components ?? []) as {
-    components?: { custom_id?: string; value?: string }[];
-  }[];
-  const out: Record<string, string> = {};
-  for (const row of rows) {
-    const c = row.components?.[0];
-    if (c && typeof c.custom_id === "string") out[c.custom_id] = typeof c.value === "string" ? c.value : "";
-  }
-  return out;
 }
 
 export async function handleCreateModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
@@ -86,18 +84,24 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   const customId = (i.data as { custom_id?: string }).custom_id ?? "";
   const hasLoot = customId === "create:1";
 
-  const id = await createContent(deps.sql, {
-    guildId: i.guild_id,
-    threadId,
-    type,
-    title: title.value,
-    notes: notes.value,
-    startsAt: start.value,
-    tier: tier.value,
-    hasLoot,
-    createdBy: creator,
-    slots: slots.value,
-  });
+  let id: string;
+  try {
+    id = await createContent(deps.sql, {
+      guildId: i.guild_id,
+      threadId,
+      type,
+      title: title.value,
+      notes: notes.value,
+      startsAt: start.value,
+      tier: tier.value,
+      hasLoot,
+      createdBy: creator,
+      slots: slots.value,
+    });
+  } catch (err) {
+    if (err instanceof PostTakenError) return (await postTakenReply(deps, i.guild_id, threadId)) ?? reply(FAILED);
+    throw err;
+  }
   const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
   let postedId: string | null = null;
   try {
@@ -113,7 +117,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     if (postedId !== null) {
       await deps.rest.deleteMessage(threadId, postedId).catch((e) => {
         console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
-      });
+    });
     }
     console.error(JSON.stringify({ evt: "create_failed", name: errName(err) }));
     return reply(FAILED);

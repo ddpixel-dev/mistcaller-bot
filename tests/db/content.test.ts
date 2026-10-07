@@ -1,7 +1,10 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { createContent, deleteContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
+import {
+  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
+  type NewContent,
+} from "../../src/db/content.ts";
 import { getGuildSettings } from "../../src/db/settings.ts";
 
 const startsAt = new Date("2026-12-01T18:00:00Z");
@@ -140,4 +143,50 @@ test("getRosterView sets started when starts_at <= now", async () => {
   assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() - 1)))!.started, false);
   assert.equal((await getRosterView(sql, id, startsAt))!.started, true);
   assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() + 1)))!.started, true);
+});
+
+test("a second content in the same post is rejected with PostTakenError", async () => {
+  const sql = await testSql();
+  await createContent(sql, base);
+  await assert.rejects(createContent(sql, { ...base, title: "Again" }), PostTakenError);
+  const [{ n }] = await sql`select count(*)::int as n from content`;
+  assert.equal(n, 1);
+  const [{ s }] = await sql`select count(*)::int as s from slot`;
+  assert.equal(s, 3);
+});
+
+test("the same thread id in another guild is allowed", async () => {
+  const sql = await testSql();
+  await createContent(sql, base);
+  await createContent(sql, { ...base, guildId: "g2" });
+});
+
+test("a cancelled content frees the post; locked and done do not", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, base);
+  for (const status of ["locked", "done"]) {
+    await sql`update content set status = ${status} where id = ${id}`;
+    await assert.rejects(createContent(sql, base), PostTakenError);
+  }
+  await sql`update content set status = 'cancelled' where id = ${id}`;
+  await createContent(sql, { ...base, title: "Second" });
+});
+
+test("two simultaneous creates in one post leave exactly one winner", async () => {
+  const sql = await testSql();
+  const results = await Promise.allSettled([createContent(sql, base), createContent(sql, base)]);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+  const lost = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+  assert.ok(lost.reason instanceof PostTakenError);
+});
+
+test("findContentInThread returns the blocking content, ignoring cancelled", async () => {
+  const sql = await testSql();
+  assert.equal(await findContentInThread(sql, "g1", "t1"), null);
+  const id = await createContent(sql, base);
+  await setMessageId(sql, id, "m1");
+  assert.deepEqual(await findContentInThread(sql, "g1", "t1"), { id, status: "open", messageId: "m1" });
+  assert.equal(await findContentInThread(sql, "g2", "t1"), null);
+  await sql`update content set status = 'cancelled' where id = ${id}`;
+  assert.equal(await findContentInThread(sql, "g1", "t1"), null);
 });

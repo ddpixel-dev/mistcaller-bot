@@ -1,7 +1,16 @@
 import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
+import {
+  BANNER_URL, ICON_URL, RULE, SCROLL, TITLE_MARK, WORDS, embedColor, fillBar, roleIcon, statusBanner,
+} from "./theme.ts";
 
-export type Embed = { title?: string; description?: string; color?: number };
+export type Embed = {
+  title?: string;
+  description?: string;
+  color?: number;
+  image?: { url: string };
+  thumbnail?: { url: string };
+};
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -34,12 +43,12 @@ function voteRow(view: RosterView) {
 
 export function voteLine(view: RosterView): string {
   const { split, regear } = view.votes;
-  if (!view.voteClosed) return `Loot vote: Split ${split} - Regear ${regear}`;
+  if (!view.voteClosed) return `Spoils vote: Split ${split} - Regear ${regear}`;
   switch (view.voteResult) {
-    case "split": return `Loot vote result: Split won ${split}-${regear}`;
-    case "regear": return `Loot vote result: Regear won ${regear}-${split}`;
-    case "tie": return `Loot vote result: Tie ${split}-${regear}`;
-    default: return "Loot vote result: no votes";
+    case "split": return `Spoils vote result: Split won ${split}-${regear}`;
+    case "regear": return `Spoils vote result: Regear won ${regear}-${split}`;
+    case "tie": return `Spoils vote result: Tie ${split}-${regear}`;
+    default: return "Spoils vote result: no votes";
   }
 }
 
@@ -50,24 +59,43 @@ export function renderRosterMessage(view: RosterView): {
 } {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
   const filled = view.slots.filter((s) => s.userId !== null).length;
+  const kind = view.type === "pvp" ? "PvP" : "PvE";
   const head = [
-    `${formatUtc(view.startsAt)} (<t:${epoch}:F>, <t:${epoch}:R>)`,
-    `Tier: ${formatTier(view.tier)} · ${view.type === "pvp" ? "PvP" : "PvE"} · Loot: ${view.hasLoot ? "Yes" : "No"}`,
+    `⚔️ **${kind}** · Tier **${formatTier(view.tier)}** · ${WORDS.spoils}: ${view.hasLoot ? "Yes" : "No"}`,
+    `🕰️ ${formatUtc(view.startsAt)} (<t:${epoch}:F>, <t:${epoch}:R>)`,
   ];
+  const banner = statusBanner(view.status, view.started);
+  if (banner) head.push(banner);
   if (view.hasLoot) head.push(voteLine(view));
   const slotLines = view.slots.map(
-    (s) => `${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${s.userId ? `<@${s.userId}>` : "open"}`,
+    (s) =>
+      `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${
+        s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
+      }`,
   );
-  const roster = ["", `**Roster (${filled}/${view.slots.length})**`, ...slotLines];
+  const roster = [
+    RULE,
+    `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`,
+    ...slotLines,
+    RULE,
+  ];
   const base = [...head, ...roster].join("\n");
   let description = base;
   if (view.notes) {
-    const withNotes = [...head, escapeText(view.notes), ...roster].join("\n");
+    const withNotes = [...head, `📜 ${escapeText(view.notes)}`, ...roster].join("\n");
     if (withNotes.length <= DESC_LIMIT) description = withNotes;
   }
   if (description.length > DESC_LIMIT) description = description.slice(0, DESC_LIMIT);
+  const title = `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
+  const embed: Embed = {
+    title: Array.from(title).slice(0, TITLE_LIMIT).join(""),
+    description,
+    color: embedColor(view.type, view.status),
+    ...(BANNER_URL ? { image: { url: BANNER_URL } } : {}),
+    ...(ICON_URL ? { thumbnail: { url: ICON_URL } } : {}),
+  };
   return {
-    embeds: [{ title: escapeText(view.title).slice(0, TITLE_LIMIT), description }],
+    embeds: [embed],
     components: [
       {
         type: 1,
@@ -82,18 +110,6 @@ export function renderRosterMessage(view: RosterView): {
               value: s.id,
               description: s.userId ? "Taken" : "Open",
             })),
-          },
-        ],
-      },
-      {
-        type: 1,
-        components: [
-          {
-            type: 2,
-            style: 2,
-            label: "Leave",
-            custom_id: `leave:${view.id}`,
-            disabled: view.status === "cancelled" || view.status === "done",
           },
         ],
       },
