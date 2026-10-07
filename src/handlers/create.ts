@@ -105,6 +105,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
       hasLoot,
       createdBy: creator,
       slots: slots.value,
+      now: deps.now(),
     });
   } catch (err) {
     if (err instanceof PostTakenError) return (await postTakenReply(deps, i.guild_id, threadId)) ?? reply(FAILED);

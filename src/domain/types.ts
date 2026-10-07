@@ -26,6 +26,7 @@ export type RosterView = {
   hasLoot: boolean;
   status: ContentStatus;
   slots: RosterSlot[];
+  waitlist?: { userId: string; role: string }[];
   votes: { split: number; regear: number };
   voteClosed: boolean;
   started: boolean;

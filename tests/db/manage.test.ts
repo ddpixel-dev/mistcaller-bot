@@ -43,7 +43,7 @@ test("edit changes the fields and keeps the loot flag when null", async () => {
   const r = await editContent(sql, id, edit({
     title: "New", notes: "bring food", tier: { min: { tier: 6, enchant: 1 }, max: { tier: 8, enchant: 0 } },
   }), NOW);
-  assert.deepEqual(r, { result: "ok", startChanged: false, notify: [] });
+  assert.deepEqual(r, { result: "ok", startChanged: false, notify: [], promoted: [] });
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.title, "New");
   assert.equal(v.notes, "bring food");
@@ -62,7 +62,7 @@ test("changing the start reports the signed members, in join order, not the wait
   await sign(sql, id, "w", slotIds[0]!, "waitlist");
   const later = new Date("2026-12-02T18:00:00Z");
   const r = await editContent(sql, id, edit({ startsAt: later }), NOW);
-  assert.deepEqual(r, { result: "ok", startChanged: true, notify: ["a", "b"] });
+  assert.deepEqual(r, { result: "ok", startChanged: true, notify: ["a", "b"], promoted: [] });
   assert.equal((await getRosterView(sql, id, NOW))!.startsAt.getTime(), later.getTime());
 });
 

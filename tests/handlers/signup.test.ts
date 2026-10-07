@@ -2,7 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
-import { OLD_LAYOUT, handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl } from "../../src/handlers/signup.ts";
+import { OLD_LAYOUT, handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handleWait } from "../../src/handlers/signup.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { IS_COMPONENTS_V2 } from "../../src/render/roster.ts";
 import type { Rest } from "../../src/discord/rest.ts";
@@ -65,7 +65,7 @@ test("after signing up, the shared Leave button is enabled", async () => {
   const { deps, contentId, slots } = await setup();
   const r: any = await handleJoin(deps, pickMenu(contentId, [slots[0]]));
   const leave = flatComponents(r.data).find((c) => c.custom_id === `leave:${contentId}`);
-  assert.equal(leave.disabled, false);
+  assert.equal(leave!.disabled, false);
   assert.equal(flatComponents(r.data).filter((c) => String(c.custom_id ?? "").startsWith("leaveslot:")).length, 0);
 });
 
@@ -186,4 +186,82 @@ test("an interaction without a message (tests, tools) is treated as a current ro
   const i = pickMenu(contentId, [slots[0]]);
   delete (i as any).message;
   assert.equal(((await handleJoin(deps, i)) as any).type, 7);
+});
+
+// waitlist (FR-007, per role)
+const waitMenu = (contentId: string, role: unknown, user: string, over: Partial<Interaction> = {}): Interaction => ({
+  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1", message: v2,
+  member: { user: { id: user }, roles: [] },
+  data: { custom_id: `wait:${contentId}`, component_type: 3, values: [role] }, ...over,
+});
+
+async function fullHealers() {
+  const ctx = await setup();
+  await ctx.sql`update slot set role = 'Healer' where id = ${ctx.slots[1]}`;
+  await ctx.sql`update slot set role = 'Healer', weapon = 'Fallen' where id = ${ctx.slots[2]}`;
+  await handleJoin(ctx.deps, pickMenu(ctx.contentId, [ctx.slots[1]], "h1"));
+  await handleJoin(ctx.deps, pickMenu(ctx.contentId, [ctx.slots[2]], "h2"));
+  return ctx;
+}
+
+test("a member joins the waitlist for a full role; it shows on the roster and in the waitlist menu", async () => {
+  const { deps, contentId } = await fullHealers();
+  const r: any = await handleWait(deps, waitMenu(contentId, "Healer", "w1"));
+  assert.equal(r.type, 7);
+  assert.deepEqual(discordProblems(r.data), []);
+  assert.ok(textOf(r.data).includes("🕒 **Waitlist (1):** 1. <@w1> (Healer)"));
+  assert.equal(flatComponents(r.data).find((c) => c.custom_id === `leave:${contentId}`)!.disabled, false);
+});
+
+test("the waitlist is refused for a role with an open position, a seated member, a duplicate, and bad input", async () => {
+  const { deps, contentId, slots } = await fullHealers();
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Tank", "w1")), "just opened");
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Mage", "w1")), "not on this roster");
+  await handleWait(deps, waitMenu(contentId, "Healer", "w1"));
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Healer", "w1")), "already waiting");
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Healer", "h1")), "Leave it first");
+  for (const bad of [undefined, [], [5], [""], ["a", "b"]]) {
+    isEphemeral(await handleWait(deps, waitMenu(contentId, "x", "w1", { data: { custom_id: `wait:${contentId}`, component_type: 3, values: bad } })));
+  }
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Healer", "w1", { guild_id: "g2" })));
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Healer", "w1", { message: { id: "m0", flags: 0 } })), "older layout");
+  isEphemeral(await handleWait(deps, waitMenu(contentId, "Healer", "w1", { data: { custom_id: "wait:nope", component_type: 3, values: ["Healer"] } })));
+  void slots;
+});
+
+test("when a healer leaves, the first healer on the waitlist is seated and announced, and a tank waiter is not", async () => {
+  const posts: any[] = [];
+  const { sql, deps, contentId, slots } = await fullHealers();
+  deps.rest = { ...rest, async createMessage(c, b) { posts.push({ c, b }); return { id: "p" }; } };
+  await handleWait(deps, waitMenu(contentId, "Healer", "w1"));
+  await sql`update slot set role = 'Tank' where id = ${slots[0]}`;
+  await handleJoin(deps, pickMenu(contentId, [slots[0]], "t1"));
+  await handleWait(deps, waitMenu(contentId, "Tank", "w2"));
+  const r: any = await handleLeave(deps, press(`leave:${contentId}`, "h1"));
+  assert.equal(r.type, 7);
+  assert.deepEqual(await holders(sql, contentId), ["t1", "w1", "h2"]);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].c, "t1");
+  assert.ok(posts[0].b.content.includes("<@w1> a position opened for you: **2. Healer - Holy**"));
+  assert.deepEqual(posts[0].b.allowed_mentions, { users: ["w1"] });
+  assert.ok(textOf(r.data).includes("<@w2> (Tank)"));
+});
+
+test("leaving while on the waitlist removes you from it and seats nobody", async () => {
+  const { sql, deps, contentId } = await fullHealers();
+  await handleWait(deps, waitMenu(contentId, "Healer", "w1"));
+  const r: any = await handleLeave(deps, press(`leave:${contentId}`, "w1"));
+  assert.equal(r.type, 7);
+  assert.ok(!textOf(r.data).includes("Waitlist"));
+  assert.equal((await sql`select count(*)::int as n from signup where user_id = 'w1'`)[0]!.n, 0);
+});
+
+test("a failed announcement does not undo the seating", async () => {
+  const { sql, deps, contentId, slots } = await fullHealers();
+  await handleWait(deps, waitMenu(contentId, "Healer", "w1"));
+  deps.rest = { ...rest, async createMessage() { throw new Error("boom"); } };
+  const r: any = await handleLeave(deps, press(`leave:${contentId}`, "h1"));
+  assert.equal(r.type, 7);
+  assert.deepEqual(await holders(sql, contentId), [null, "w1", "h2"]);
+  void slots;
 });
