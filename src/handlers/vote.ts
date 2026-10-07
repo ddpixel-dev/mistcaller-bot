@@ -4,6 +4,7 @@ import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
 import { castVote } from "../db/vote.ts";
 import { renderRosterMessage } from "../render/roster.ts";
+import { OLD_LAYOUT, isOldRoster } from "./signup.ts";
 import type { VoteChoice } from "../domain/vote.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,6 +22,7 @@ function parse(i: Interaction): { id: string; choice: VoteChoice } | null {
 }
 
 export async function handleVote(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  if (isOldRoster(i)) return reply(OLD_LAYOUT);
   const parsed = parse(i);
   const userId = i.member?.user?.id;
   const guildId = i.guild_id;

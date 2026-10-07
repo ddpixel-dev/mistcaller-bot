@@ -8,6 +8,7 @@ export interface Interaction {
   channel?: { id: string; type: number; parent_id?: string };
   member?: { user: { id: string }; permissions?: string; roles: string[] };
   data?: unknown;
+  message?: { id: string; flags?: number };
 }
 
 export type InteractionResponse = { type: number; data?: unknown };

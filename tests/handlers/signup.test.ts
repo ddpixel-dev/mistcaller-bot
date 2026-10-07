@@ -2,17 +2,19 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
-import { handleSignup, handleLeave, handlePick } from "../../src/handlers/signup.ts";
+import { OLD_LAYOUT, handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl } from "../../src/handlers/signup.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
+import { IS_COMPONENTS_V2 } from "../../src/render/roster.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
+import { discordProblems, flatComponents, textOf } from "../helpers/discordLimits.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null,
   startsAt: new Date("2026-12-01T18:00:00Z"),
   tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "u1",
-  slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
+  slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],
 };
 const rest: Rest = { async createMessage() { return { id: "m" }; }, async editMessage() {}, async deleteMessage() {} };
 
@@ -26,14 +28,18 @@ async function setup() {
   const v = (await getRosterView(sql, contentId, NOW))!;
   const ov = (await getRosterView(sql, other, NOW))!;
   const deps: Deps = { sql, rest, now: () => NOW };
-  return { sql, deps, contentId, otherId: other, slots: v.slots.map((s) => s.id), otherSlots: ov.slots.map((s) => s.id) };
+  return { sql, deps, d: createDispatch(deps), contentId, otherId: other, slots: v.slots.map((s) => s.id), otherSlots: ov.slots.map((s) => s.id) };
 }
 
-const select = (customId: string, values: unknown, over: Partial<Interaction> = {}): Interaction => ({
-  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1",
-  member: { user: { id: "u1" }, roles: [] },
-  data: { custom_id: customId, component_type: 3, values },
-  ...over,
+const v2 = { id: "m1", flags: IS_COMPONENTS_V2 };
+const pickMenu = (contentId: string, values: unknown, user = "u1", over: Partial<Interaction> = {}): Interaction => ({
+  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1", message: v2,
+  member: { user: { id: user }, roles: [] },
+  data: { custom_id: `join:${contentId}`, component_type: 3, values }, ...over,
+});
+const press = (customId: string, user = "u1", over: Partial<Interaction> = {}): Interaction => ({
+  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1", message: v2,
+  member: { user: { id: user }, roles: [] }, data: { custom_id: customId, component_type: 2 }, ...over,
 });
 const holders = async (sql: any, id: string) => (await getRosterView(sql, id, NOW))!.slots.map((s) => s.userId);
 const isEphemeral = (r: any, text?: string) => {
@@ -41,194 +47,143 @@ const isEphemeral = (r: any, text?: string) => {
   assert.equal(r.data.flags, 64);
   if (text) assert.ok(r.data.content.includes(text), r.data.content);
 };
-const menu = (r: any) => r.data.components[0].components[0];
-const leaveButton = (r: any) => r.data.components[r.data.components.length - 1].components[0];
+const menuValues = (r: any) => flatComponents(r.data).find((c) => c.type === 3)?.options.map((o: any) => o.value) ?? [];
 
-test("valid selection updates the shared roster message, no private reply", async () => {
+test("picking an open position signs up, updates the shared roster, and the position leaves the menu", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  const r: any = await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
+  const r: any = await handleJoin(deps, pickMenu(contentId, [slots[1]]));
   assert.equal(r.type, 7);
-  assert.ok(r.data.embeds[0].description.includes("1. Tank - Mace · sworn: <@u1>"));
+  assert.equal(r.data.flags & IS_COMPONENTS_V2, IS_COMPONENTS_V2);
+  assert.deepEqual(discordProblems(r.data), []);
+  assert.ok(textOf(r.data).includes("2. 💚 Healer - Holy · Sworn: <@u1>"));
+  assert.deepEqual(menuValues(r), [slots[0], slots[2]]);
+  assert.deepEqual(await holders(sql, contentId), [null, "u1", null]);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
-  assert.equal(menu(r).custom_id, `pick:${contentId}:${slots[0]}`);
-  assert.equal(menu(r).disabled, true);
-  assert.equal(leaveButton(r).disabled, false);
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
 });
 
-test("moving to another slot updates the message", async () => {
+test("after signing up, the shared Leave button is enabled", async () => {
+  const { deps, contentId, slots } = await setup();
+  const r: any = await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  const leave = flatComponents(r.data).find((c) => c.custom_id === `leave:${contentId}`);
+  assert.equal(leave.disabled, false);
+  assert.equal(flatComponents(r.data).filter((c) => String(c.custom_id ?? "").startsWith("leaveslot:")).length, 0);
+});
+
+test("picking another open position moves the player and frees the old one", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  const r: any = await handleSignup(deps, select(`signup:${contentId}`, [slots[1]]));
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  const r: any = await handleJoin(deps, pickMenu(contentId, [slots[2]]));
   assert.equal(r.type, 7);
-  assert.deepEqual(await holders(sql, contentId), [null, "u1"]);
+  assert.deepEqual(await holders(sql, contentId), [null, null, "u1"]);
+  assert.deepEqual(menuValues(r), [slots[0], slots[1]]);
 });
 
-test("re-selecting the position you already hold is refused privately and changes nothing", async () => {
+test("a position someone else took meanwhile is refused with a clear message, no change", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]])), "already hold");
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
+  await handleJoin(deps, pickMenu(contentId, [slots[0]], "u2"));
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1")), "just taken");
+  assert.deepEqual(await holders(sql, contentId), ["u2", null, null]);
 });
 
-const press = (customId: string, over: Partial<Interaction> = {}): Interaction => ({
-  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1",
-  member: { user: { id: "u1" }, roles: [] }, data: { custom_id: customId, component_type: 2 }, ...over,
+test("picking the position you already hold is refused privately", async () => {
+  const { deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]])), "already hold");
 });
 
-test("the Leave button removes a signed-up member and updates the shared roster", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  const r: any = await handleLeave(deps, press(`leave:${contentId}`));
-  assert.equal(r.type, 7);
-  assert.ok(r.data.embeds[0].description.includes("1. Tank - Mace · open"));
-  assert.equal(leaveButton(r).disabled, true);
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-});
-
-test("the Leave button pressed by someone not signed up only tells them so", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { member: { user: { id: "u2" }, roles: [] } }));
-  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`)), "not signed up");
-  assert.deepEqual(await holders(sql, contentId), ["u2", null]);
-});
-
-test("the Leave button works on locked content, is refused when cancelled, guild-checked and validated", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`, { guild_id: "g2" })));
-  for (const bad of ["leave:", "leave:nope", `signup:${contentId}`, `leave:${contentId}:x`]) isEphemeral(await handleLeave(deps, press(bad)));
-  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`, { member: undefined })));
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
-  await sql`update content set status = 'locked' where id = ${contentId}`;
-  assert.equal(((await handleLeave(deps, press(`leave:${contentId}`))) as any).type, 7);
-  await sql`update content set status = 'cancelled' where id = ${contentId}`;
-  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`)));
-});
-
-test("picking Leave removes the signed-up member and updates the roster", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  const r: any = await handleSignup(deps, select(`signup:${contentId}`, ["leave"]));
-  assert.equal(r.type, 7);
-  assert.ok(r.data.embeds[0].description.includes("1. Tank - Mace · open"));
-  assert.equal(menu(r).disabled, false);
-  assert.equal(leaveButton(r).disabled, true);
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-});
-
-test("picking Leave when not signed is refused privately and changes nothing", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { member: { user: { id: "u2" }, roles: [] } }));
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, ["leave"])), "not signed up");
-  assert.deepEqual(await holders(sql, contentId), ["u2", null]);
-});
-
-test("Leave still works on locked content, and is refused on cancelled content", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  await sql`update content set status = 'locked' where id = ${contentId}`;
-  assert.equal(((await handleSignup(deps, select(`signup:${contentId}`, ["leave"]))) as any).type, 7);
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-  await sql`update content set status = 'cancelled' where id = ${contentId}`;
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, ["leave"])));
-});
-
-test("taken slot is refused, no change", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { member: { user: { id: "u2" }, roles: [] } }));
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]])), "taken");
-  assert.deepEqual(await holders(sql, contentId), ["u2", null]);
-});
-
-test("slot of another content is refused, no change", async () => {
-  const { sql, deps, contentId, otherId, otherSlots } = await setup();
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [otherSlots[0]])));
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-  assert.deepEqual(await holders(sql, otherId), [null, null]);
-});
-
-test("guild mismatch is refused for signup and for leave", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { guild_id: "g2" })));
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-  await handleSignup(deps, select(`signup:${contentId}`, [slots[0]]));
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, ["leave"], { guild_id: "g2" })));
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
-});
-
-test("locked content refuses signup", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  await sql`update content set status = 'locked' where id = ${contentId}`;
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]])), "locked");
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-});
-
-test("unknown content id is refused", async () => {
-  const { deps, slots } = await setup();
-  isEphemeral(await handleSignup(deps, select("signup:00000000-0000-4000-8000-000000000000", [slots[0]])));
-  isEphemeral(await handleSignup(deps, select("signup:00000000-0000-4000-8000-000000000000", ["leave"])));
-});
-
-test("malformed custom ids, values and DM are refused", async () => {
-  const { sql, deps, contentId, slots } = await setup();
-  for (const id of ["signup:", "signup", "signup:not-a-uuid", `signup:${contentId}:x`, `leave:${contentId}`, `signup:${contentId}'; drop table content;--`]) {
-    isEphemeral(await handleSignup(deps, select(id, [slots[0]])));
+test("signing up is refused when locked, in another guild, for another content, or with bad input", async () => {
+  const { sql, deps, contentId, otherId, slots, otherSlots } = await setup();
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [otherSlots[0]])));
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1", { guild_id: "g2" })));
+  for (const values of [undefined, [], [5], [""], ["not-a-uuid"], "x", [slots[0], slots[1]]]) {
+    isEphemeral(await handleJoin(deps, pickMenu(contentId, values)));
   }
-  for (const values of [undefined, [], [5], [""], ["not-a-uuid"], "x", [slots[0], slots[1]], ["Leave"]]) {
-    isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, values)));
+  for (const id of ["join:", "join:nope", `join:${contentId}:x`, `signup:${contentId}`]) {
+    isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1", { data: { custom_id: id, component_type: 3, values: [slots[0]] } })));
   }
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { member: undefined })));
-  isEphemeral(await handleSignup(deps, select(`signup:${contentId}`, [slots[0]], { guild_id: undefined })));
-  isEphemeral(await handleSignup(deps, { ...select(`signup:${contentId}`, [slots[0]]), data: undefined }));
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1", { member: undefined })));
+  assert.deepEqual(await holders(sql, contentId), [null, null, null]);
+  assert.deepEqual(await holders(sql, otherId), [null, null, null]);
+  await sql`update content set status = 'locked' where id = ${contentId}`;
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]])), "locked");
 });
 
 test("user id comes only from member.user.id", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  const i = select(`signup:${contentId}`, [slots[0]]);
+  const i = pickMenu(contentId, [slots[0]]);
   (i as any).user = { id: "evil" };
   (i.data as any).user_id = "evil";
-  (i.data as any).member = { user: { id: "evil" } };
-  await handleSignup(deps, i);
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
+  await handleJoin(deps, i);
+  assert.deepEqual(await holders(sql, contentId), ["u1", null, null]);
 });
 
-test("dispatch routes signup: and the legacy leave: button", async () => {
+test("the Leave button on a row frees the position for the player who holds it", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  const d = createDispatch(deps);
-  assert.equal((await d(select(`signup:${contentId}`, [slots[0]]))).type, 7);
-  assert.equal((await d(select(`signup:${contentId}`, ["leave"]))).type, 7);
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-  await d(select(`signup:${contentId}`, [slots[0]]));
-  assert.equal((await d(press(`leave:${contentId}`))).type, 7);
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  const r: any = await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`));
+  assert.equal(r.type, 7);
+  assert.deepEqual(discordProblems(r.data), []);
+  assert.deepEqual(await holders(sql, contentId), [null, null, null]);
+  assert.deepEqual(menuValues(r), slots);
 });
 
-const pick = (contentId: string, slotId: string, over: Partial<Interaction> = {}): Interaction => press(`pick:${contentId}:${slotId}`, over);
-
-test("a position button signs up, moves and refuses a held or taken position", async () => {
+test("another player pressing someone's Leave button is told it is not theirs, and nothing changes", async () => {
   const { sql, deps, contentId, slots } = await setup();
-  const first: any = await handlePick(deps, pick(contentId, slots[0]!));
-  assert.equal(first.type, 7);
-  assert.ok(first.data.embeds[0].description.includes("sworn: <@u1>"));
-  assert.deepEqual(await holders(sql, contentId), ["u1", null]);
-  isEphemeral(await handlePick(deps, pick(contentId, slots[0]!)), "already hold");
-  const moved: any = await handlePick(deps, pick(contentId, slots[1]!));
-  assert.equal(moved.type, 7);
-  assert.deepEqual(await holders(sql, contentId), [null, "u1"]);
-  isEphemeral(await handlePick(deps, pick(contentId, slots[1]!, { member: { user: { id: "u2" }, roles: [] } })), "taken");
+  await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1"));
+  await handleJoin(deps, pickMenu(contentId, [slots[1]], "u2"));
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`, "u2")), "not your position");
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`, "u3")), "not signed up");
+  assert.deepEqual(await holders(sql, contentId), ["u1", "u2", null]);
 });
 
-test("a position button is refused when locked, in another guild, malformed or for another content", async () => {
-  const { sql, deps, contentId, otherId, slots, otherSlots } = await setup();
-  isEphemeral(await handlePick(deps, pick(contentId, slots[0]!, { guild_id: "g2" })));
-  isEphemeral(await handlePick(deps, pick(contentId, otherSlots[0]!)));
-  for (const bad of ["pick:", "pick:nope:nope", `pick:${contentId}`, `pick:${contentId}:${slots[0]}:x`, `leave:${contentId}:${slots[0]}`]) {
-    isEphemeral(await handlePick(deps, press(bad)));
+test("a row's Leave button works on locked content and is refused when cancelled, in another guild, or malformed", async () => {
+  const { sql, deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`, "u1", { guild_id: "g2" })));
+  for (const bad of ["leaveslot:", "leaveslot:nope:nope", `leaveslot:${contentId}`, `leaveslot:${contentId}:${slots[0]}:x`]) {
+    isEphemeral(await handleLeaveSlot(deps, press(bad)));
   }
-  isEphemeral(await handlePick(deps, pick(contentId, slots[0]!, { member: undefined })));
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`, "u1", { member: undefined })));
+  assert.deepEqual(await holders(sql, contentId), ["u1", null, null]);
   await sql`update content set status = 'locked' where id = ${contentId}`;
-  isEphemeral(await handlePick(deps, pick(contentId, slots[0]!)), "locked");
-  assert.deepEqual(await holders(sql, contentId), [null, null]);
-  assert.deepEqual(await holders(sql, otherId), [null, null]);
+  assert.equal(((await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`))) as any).type, 7);
+  await sql`update content set status = 'cancelled' where id = ${contentId}`;
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`)));
+});
+
+test("the shared Leave button (big parties) removes whoever presses it if signed up, and tells others", async () => {
+  const { sql, deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1"));
+  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`, "u2")), "not signed up");
+  const r: any = await handleLeave(deps, press(`leave:${contentId}`, "u1"));
+  assert.equal(r.type, 7);
+  assert.deepEqual(await holders(sql, contentId), [null, null, null]);
+  isEphemeral(await handleLeave(deps, press("leave:nope")));
+});
+
+test("rosters posted with the older layout are not changed; the controls explain why", async () => {
+  const { sql, deps, contentId, slots } = await setup();
+  const old = { id: "m0", flags: 0 };
+  isEphemeral(await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1", { message: old })), "older layout");
+  isEphemeral(await handleLeave(deps, press(`leave:${contentId}`, "u1", { message: old })), "older layout");
+  isEphemeral(await handleLeaveSlot(deps, press(`leaveslot:${contentId}:${slots[0]}`, "u1", { message: old })), "older layout");
+  isEphemeral(await handleOldRosterControl(), "older layout");
+  assert.equal(OLD_LAYOUT.includes("cancel it and create a new one"), true);
+  assert.deepEqual(await holders(sql, contentId), [null, null, null]);
+});
+
+test("dispatch routes the new controls and the stale old ones", async () => {
+  const { sql, d, contentId, slots } = await setup();
+  assert.equal((await d(pickMenu(contentId, [slots[0]]))).type, 7);
+  assert.equal((await d(press(`leaveslot:${contentId}:${slots[0]}`))).type, 7);
+  assert.deepEqual(await holders(sql, contentId), [null, null, null]);
+  isEphemeral(await d({ ...press(`pick:${contentId}:${slots[0]}`) }), "older layout");
+  isEphemeral(await d({ ...pickMenu(contentId, [slots[0]]), data: { custom_id: `signup:${contentId}`, component_type: 3, values: [slots[0]] } }), "older layout");
+});
+
+test("an interaction without a message (tests, tools) is treated as a current roster", async () => {
+  const { deps, contentId, slots } = await setup();
+  const i = pickMenu(contentId, [slots[0]]);
+  delete (i as any).message;
+  assert.equal(((await handleJoin(deps, i)) as any).type, 7);
 });

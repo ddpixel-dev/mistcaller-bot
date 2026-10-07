@@ -1,5 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { discordProblems, flatComponents, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
@@ -439,10 +440,15 @@ test("a Discord rejection when posting is logged with its status, code and reaso
   assert.equal((await sql`select 1 from content`).length, 0);
 });
 
-test("a roster with a Healer slot posts a message Discord accepts: valid emoji on every button", async () => {
+test("a roster with every role posts a message Discord accepts: V2 flag, valid emoji, within the limits", async () => {
   const { deps, posts } = await setup();
-  await handleCreateModal(deps, modal({ ...good, slots: "Tank - Axe\nHealer - Holy Staff\nSupport - Occult Staff\nDPS - Bow" }));
-  const buttons = posts[0]!.body.components.flatMap((r: any) => r.components).filter((c: any) => c.emoji);
-  assert.ok(buttons.length >= 4);
-  assert.ok(buttons.every((b: any) => /\p{Emoji_Presentation}|️/u.test(b.emoji.name)), JSON.stringify(buttons.map((b: any) => b.emoji.name)));
+  await handleCreateModal(deps, modal({ ...good, slots: "Tank - Axe\nHealer - Holy Staff\nSupport - Occult Staff\nDPS - Bow (Caller)" }));
+  const body = posts[0]!.body;
+  assert.equal(body.flags & (1 << 15), 1 << 15);
+  assert.deepEqual(discordProblems(body), []);
+  const menu = flatComponents(body).find((c) => c.type === 3)!;
+  assert.equal(menu.options.length, 4);
+  assert.ok(menu.options.every((o: any) => o.emoji));
+  assert.ok(textOf(body).includes("💚 Healer"));
+  assert.ok(textOf(body).includes("📯 Caller"));
 });

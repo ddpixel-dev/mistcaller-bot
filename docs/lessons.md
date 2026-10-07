@@ -9,6 +9,15 @@ date: 2026-10-06
 
 Dated entries, newest first. Record what surprised us, what we would do differently, and any rule worth adding to `AGENTS.md`.
 
+## 2026-10-07: Test against Discord's rules, not only our own structure
+- What happened: a button emoji that is not a real emoji made Discord refuse a whole roster message (see the lesson below), and our tests did not notice because they checked the shape of our payloads.
+- What we learned: Discord's limits (components per message, buttons per row, menu options, text length, unique ids, real emoji) can be written as a checker and applied to every message we build.
+- Follow-up: `tests/helpers/discordLimits.ts` checks classic and V2 messages; the roster, the create panel, the guided cards and the `/content me` panel are run through it, including every party size from 1 to 20.
+
+## 2026-10-07: GitHub write failures cleared by themselves
+- What happened: pushes to `main`, a new branch and even an empty commit all failed with "Internal Server Error" for a few minutes while GitHub's status page showed all systems operational.
+- What we learned: it is on GitHub's side, and a later push of `develop` worked; `main` had received the commit anyway. Check the remote with `git ls-remote` before re-merging.
+
 ## 2026-10-07: A button emoji must be a real emoji, and logs must carry Discord's reason
 - What happened: after release 0.8.0, creating a roster with a Healer slot failed with "Could not create the content". The log showed only `create_failed` and `DiscordApiError`. The Healer icon was "✚", a dingbat that looks like an emoji but is not one, and Discord rejects a button carrying it, so the whole roster message was refused.
 - What we learned: text can use any symbol, but a component's `emoji` must be a real emoji. Also, logging only an error's class name hid the cause. Discord's own error code and message are safe to log (they never contain the token).
