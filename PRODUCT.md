@@ -115,7 +115,7 @@ satisfies: FR-019
 A forum post holds at most one active content, so rosters cannot be duplicated by accident.
 
 ### FT-013: Fantasy roster style
-status: not started
+status: built (art URLs pending the owner)
 phase: MVP
 priority: should
 satisfies: FR-022
@@ -226,7 +226,7 @@ The same managers shall be able to cancel an open or locked content with `/conte
 
 ### FR-022: Medieval Banner roster style
 status: accepted
-The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold embed colors by content type, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line dividers, and the words "company", "sworn" and "spoils". The roster lists one slot per line (Lines layout). The owner supplies the bot icon and banner art. No third-party game art is used without permission, and the style stays readable for screen readers and under Discord's embed limits.
+The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold embed colors by content type, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line dividers, and the words "company", "sworn" and "spoils". The roster lists one slot per line (Lines layout). Status shows as a banner line (closed, cancelled, concluded) and cancelled or finished content is greyed with every control disabled. The banner and icon art are set in `src/render/theme.ts` once the owner hosts the files. The owner supplies the bot icon and banner art. No third-party game art is used without permission, and the style stays readable for screen readers and under Discord's embed limits.
 
 ### FR-023: Content kinds
 status: accepted

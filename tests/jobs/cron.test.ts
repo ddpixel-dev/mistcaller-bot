@@ -121,10 +121,10 @@ test("postVoteResults at the cutoff: one edit, one thread message, marked, secon
   const deps: Deps = { sql, rest, now: () => CUTOFF };
   assert.equal(await postVoteResults(deps), 1);
   assert.equal(calls.edits.length, 1);
-  assert.ok(JSON.stringify(calls.edits[0]!.body).includes("Loot vote result: Split won 2-1"));
+  assert.ok(JSON.stringify(calls.edits[0]!.body).includes("Spoils vote result: Split won 2-1"));
   assert.equal(calls.posts.length, 1);
   assert.equal(calls.posts[0]!.channel, "t1");
-  assert.equal(calls.posts[0]!.body.content, "Loot vote result: Split won 2-1");
+  assert.equal(calls.posts[0]!.body.content, "Spoils vote result: Split won 2-1");
   assert.deepEqual(calls.posts[0]!.body.allowed_mentions, { parse: [] });
   assert.deepEqual(await posted(sql, id), CUTOFF);
   assert.equal(await postVoteResults(deps), 0);
@@ -136,7 +136,7 @@ test("postVoteResults with no votes says no votes", async () => {
   const { sql } = await make();
   const { rest, calls } = fakeRest();
   await postVoteResults({ sql, rest, now: () => CUTOFF });
-  assert.equal(calls.posts[0]!.body.content, "Loot vote result: no votes");
+  assert.equal(calls.posts[0]!.body.content, "Spoils vote result: no votes");
 });
 
 test("postVoteResults never touches content without loot, cancelled or done", async () => {

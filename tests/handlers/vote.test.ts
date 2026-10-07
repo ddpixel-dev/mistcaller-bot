@@ -52,7 +52,7 @@ test("signed user votes Split: type 7 with updated count", async () => {
   const r: any = await handleVote(deps, click(`vote:${contentId}:split`));
   assert.equal(r.type, 7);
   assert.deepEqual(labels(r), ["Split (1)", "Regear (0)"]);
-  assert.ok(r.data.embeds[0].description.includes("Loot vote: Split 1 - Regear 0"));
+  assert.ok(r.data.embeds[0].description.includes("Spoils vote: Split 1 - Regear 0"));
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
@@ -107,7 +107,7 @@ test("response after the cutoff shows the result line and disabled buttons", asy
   const { getRosterView: g } = await import("../../src/db/content.ts");
   const { renderRosterMessage } = await import("../../src/render/roster.ts");
   const m: any = renderRosterMessage((await g(deps.sql, contentId, CUTOFF))!);
-  assert.ok(m.embeds[0].description.includes("Loot vote result: Split won 1-0"));
+  assert.ok(m.embeds[0].description.includes("Spoils vote result: Split won 1-0"));
   assert.ok(m.components[1].components.every((b: any) => b.disabled === true));
 });
 
