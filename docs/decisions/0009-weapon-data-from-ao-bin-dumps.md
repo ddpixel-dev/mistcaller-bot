@@ -19,4 +19,4 @@ Build a small import that reads the weapon category from `ao-bin-dumps`, keeps o
 
 ## Consequences
 - The snapshot is refreshed by hand when the game changes, so a new weapon appears only after a refresh.
-- The repository has no license file. The data is used as a community-standard source, and the rights stay unconfirmed (see 0011).
+- The repository has no license file. The data is used as a community-standard source, and the rights stay unconfirmed (see 0013).
