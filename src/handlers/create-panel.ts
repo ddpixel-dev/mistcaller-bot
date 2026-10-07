@@ -17,7 +17,7 @@ export const DEFAULT_DRAFT: CreateDraft = { loot: false, kind: DEFAULT_KIND, pre
 
 const encode = (d: CreateDraft) => `${d.loot ? 1 : 0}:${d.kind}:${d.presetId ?? "-"}`;
 
-function decode(parts: string[]): CreateDraft | null {
+export function decodeDraft(parts: string[]): CreateDraft | null {
   const [loot, kind, preset] = parts;
   if ((loot !== "0" && loot !== "1") || !kind || !/^[a-z-]{1,30}$/.test(kind)) return null;
   if (preset !== "-" && !(preset && UUID.test(preset))) return null;
@@ -67,7 +67,10 @@ export async function createPanel(
   }
   rows.push({
     type: 1,
-    components: [{ type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}` }],
+    components: [
+      { type: 2, style: 3, label: "Continue", custom_id: `cpgo:${suffix}` },
+      { type: 2, style: 2, label: "Guided slots", custom_id: `cpgs:${suffix}` },
+    ],
   });
   const data = {
     content: "**Create content**\nPick the options, then press Continue to enter the title, time, tier and slots.",
@@ -84,7 +87,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   const raw = (i.data as { custom_id?: unknown; values?: unknown } | undefined);
   const parts = typeof raw?.custom_id === "string" ? raw.custom_id.split(":") : [];
   const field = parts[1];
-  const draft = decode(parts.slice(2));
+  const draft = decodeDraft(parts.slice(2));
   const values = Array.isArray(raw?.values) ? (raw!.values as unknown[]) : null;
   const type = await forumType(deps, i);
   if (parts[0] !== "cp" || !draft || !values || !i.guild_id || values.length > 1) return reply(INVALID);
@@ -117,7 +120,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
 export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof raw === "string" ? raw.split(":") : [];
-  const draft = parts[0] === "cpgo" ? decode(parts.slice(1)) : null;
+  const draft = parts[0] === "cpgo" ? decodeDraft(parts.slice(1)) : null;
   if (!draft || !i.guild_id) return reply(INVALID);
   const type = await forumType(deps, i);
   if (type === null) return reply(NOT_FORUM);

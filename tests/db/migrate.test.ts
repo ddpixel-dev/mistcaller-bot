@@ -6,7 +6,7 @@ import { applyMigrations } from "../../src/db/migrate.ts";
 
 let sql: Sql;
 const dir = new URL("../../supabase/migrations", import.meta.url).pathname;
-const tables = ["guild_settings", "content", "slot", "signup", "vote", "slot_preset"];
+const tables = ["guild_settings", "content", "slot", "signup", "vote", "slot_preset", "slot_draft"];
 
 before(async () => {
   sql = await testSql(); // runs the safety guard before anything destructive

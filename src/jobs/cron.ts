@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Deps } from "../discord/dispatch.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import { getRosterView } from "../db/content.ts";
+import { purgeDrafts } from "../db/draft.ts";
 import { renderRosterMessage, voteLine } from "../render/roster.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 
@@ -106,8 +107,11 @@ export async function postVoteResults(deps: Deps): Promise<number> {
   return marked;
 }
 
-export async function runJobs(deps: Deps): Promise<{ locked: number; resultsPosted: number }> {
+export async function runJobs(
+  deps: Deps,
+): Promise<{ locked: number; resultsPosted: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
   const locked = await lockStarted(deps);
-  return { locked, resultsPosted };
+  const draftsPurged = await purgeDrafts(deps.sql, deps.now());
+  return { locked, resultsPosted, draftsPurged };
 }

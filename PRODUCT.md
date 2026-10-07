@@ -131,7 +131,7 @@ satisfies: FR-023
 Different kinds of PvP and PvE content, each with its own label and color.
 
 ### FT-015: Slot builder and presets
-status: phase 1 built (presets); weapon search and guided steps next (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
+status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
 priority: should
 satisfies: FR-024, FR-025, FR-026
@@ -158,7 +158,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot through one select menu, move by selecting another slot, and leave by choosing "Leave the roster" in the same menu (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so the Leave option appears only while at least one member is signed up, and says it works only for signed-up members). After the start the menu keeps only the Leave option, so members can still leave. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up for a slot through a select menu and move by selecting another slot. Selecting the position they already hold is refused privately. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. `/content me` opens a private panel (owner request 2026-10-07) with a sign-up or move menu and a Leave button that is enabled only for that member and only when they are signed up. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
 
 ### FR-006: Atomic slot claim
 status: accepted
@@ -234,7 +234,7 @@ Each content shall have a kind inside its forum type (a PvP kind or a PvE kind),
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (as today), guided steps (a member count, then a role and a weapon for each slot, with "same as previous" and "fill the rest"), or a saved preset. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. In the guided steps (the "Guided slots" button of the create panel) the member picks a member count, then for each slot a role from a fixed list and a weapon found by searching the weapon list, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -346,9 +346,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.5.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.6.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
-Next step: owner deploys 0.5.0, re-registers the commands and tests (no migration). Then FT-015 phase 2 (weapon data and search) and phase 3 (guided steps), then waitlist, lock and cap, reminders, `/content list`, attendance.
+Next step: owner runs migration 0005, deploys 0.6.0, re-registers the commands and tests. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 
 | Item | Status | Note |
 |---|---|---|
@@ -358,7 +358,7 @@ Next step: owner deploys 0.5.0, re-registers the commands and tests (no migratio
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
 | FT-006 `/content setup` | live (0.4.0) | |
-| FT-015 slot builder and presets | phase 1 (presets) live | Weapon-data spike done; phases 2 and 3 not started |
+| FT-015 slot builder and presets | built; phases 2 and 3 in 0.6.0 | Weapon search (`/content weapon`) and guided steps; steps need migration 0005 |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |
