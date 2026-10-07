@@ -11,11 +11,11 @@ Read `PRODUCT.md` and [INDEX.md](../INDEX.md) first. Then this note.
 
 ## Where things stand
 - Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions pinned to `dub1`, Supabase eu-west-1. Repo `ddpixel-dev/mistcaller-bot`.
-- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released: v0.2.0, v0.2.1, v0.3.0, v0.4.0, v0.5.0. Release 0.6.0 is prepared (needs migration 0005).
+- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to v0.6.0. Release 0.7.0 is prepared (needs migrations 0006 and 0007).
 - Tests: `docker compose run --rm node npm test` and `... npm run typecheck`. Everything runs through Docker.
 - Release steps (the sandbox blocks pushes to `main` and production database access, so the owner runs them): `npm run migrate`, merge and tag and push `main`, merge back into `develop`, wait for Vercel, `npm run register`. If GitHub answers a push with "Internal Server Error", it is on their side: retry later (lesson not yet recorded).
 
-## Built in this stretch
+## Built in this stretch (0.7.0 adds: one button per position, duties, guided steps v2)
 - One content per post, edit and cancel, `/content setup`, kinds (fixed list), presets, `/content weapon`, guided slot steps, `/content me` (private panel with your own Leave button), a shared Leave button (dimmed while nobody is signed up), a create panel (kind, loot vote, preset, guided slots).
 
 ## Open work
