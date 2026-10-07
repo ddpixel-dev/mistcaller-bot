@@ -16,4 +16,5 @@ jobs:
         env:
           CRON_URL: ${{ secrets.CRON_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: curl --fail --silent --show-error -X POST -H "Authorization: Bearer $CRON_SECRET" "$CRON_URL"
+        run: |
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $CRON_SECRET" "$CRON_URL"
