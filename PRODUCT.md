@@ -59,7 +59,7 @@ satisfies: FR-009, FR-010
 Creator, server admins and the officer role can edit, lock and cancel content. Creation is capped per user.
 
 ### FT-006: Guild setup
-status: not started
+status: built (re-register commands after release)
 phase: MVP
 priority: must
 satisfies: FR-016
