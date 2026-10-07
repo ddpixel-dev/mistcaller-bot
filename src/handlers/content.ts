@@ -5,6 +5,7 @@ import { subcommandName } from "../discord/modal.ts";
 import { handleCreateCommand } from "./create.ts";
 import { handleCancelCommand, handleEditCommand } from "./manage.ts";
 import { handleSetupCommand } from "./setup.ts";
+import { handlePresetCommand } from "./preset.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
@@ -12,6 +13,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "edit": return await handleEditCommand(deps, i);
     case "cancel": return await handleCancelCommand(deps, i);
     case "setup": return await handleSetupCommand(deps, i);
+    case "preset": return await handlePresetCommand(deps, i);
     default: return reply("Not implemented yet");
   }
 }

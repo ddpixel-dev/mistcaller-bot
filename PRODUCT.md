@@ -131,7 +131,7 @@ satisfies: FR-023
 Different kinds of PvP and PvE content, each with its own label and color.
 
 ### FT-015: Slot builder and presets
-status: not started
+status: phase 1 built (presets); weapon search and guided steps next (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
 priority: should
 satisfies: FR-024, FR-025, FR-026
