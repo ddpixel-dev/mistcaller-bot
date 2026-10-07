@@ -184,35 +184,33 @@ test("no menu when the roster is full, closed, started, cancelled or done", () =
   assert.equal(byId(view({ slots: slots(4, 1) }), "join:").length, 1);
 });
 
-test("small parties: each sworn row is a section with its own Leave button; open rows have none", () => {
-  const v = view({ slots: slots(5, 2) });
-  const sections = comps(v).filter((c) => c.type === 9);
-  assert.equal(sections.length, 2);
-  assert.deepEqual(sections.map((s) => s.accessory.custom_id), ["leaveslot:c1:s1", "leaveslot:c1:s2"]);
-  assert.ok(sections.every((s) => s.accessory.style === 4 && s.accessory.label === "Leave" && s.accessory.disabled === false));
-  assert.ok(sections[0]!.components[0].content.includes("<@100>"));
-  assert.equal(byId(v, "leave:c1").length, 0);
-  assert.equal(comps(v).filter((c) => c.type === 10 && c.content.includes("Open")).length, 1);
-});
-
-test("each sworn row's Leave is dimmed once the content is cancelled or done, and stays on when locked", () => {
-  for (const status of ["cancelled", "done"] as const) {
-    assert.ok(byId(view({ status, slots: slots(4, 2) }), "leaveslot:").every((b) => b.disabled === true));
+test("one shared Leave button for every party size: enabled while anyone is signed up, no per-row buttons", () => {
+  for (const n of [1, 5, 11, 12, 20]) {
+    const v = view({ slots: slots(n, 1) });
+    assert.equal(comps(v).filter((c) => c.type === 9).length, 0, `n=${n}`);
+    const leave = byId(v, "leave:c1");
+    assert.equal(leave.length, 1, `n=${n}`);
+    assert.deepEqual(leave[0], { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: "leave:c1", disabled: false });
+    assert.equal(byId(v, "leaveslot:").length, 0);
   }
-  assert.ok(byId(view({ status: "locked", slots: slots(4, 2) }), "leaveslot:").every((b) => b.disabled === false));
-  assert.ok(byId(view({ started: true, slots: slots(4, 2) }), "leaveslot:").every((b) => b.disabled === false));
+  assert.equal(byId(view({ slots: slots(8, 0) }), "leave:c1")[0]!.disabled, true);
 });
 
-test("big parties (12 or more positions): rows are one text block and Leave is one shared button", () => {
-  const v = view({ slots: slots(12, 3) });
-  assert.equal(comps(v).filter((c) => c.type === 9).length, 0);
-  const leave = byId(v, "leave:c1");
-  assert.equal(leave.length, 1);
-  assert.equal(leave[0]!.disabled, false);
-  assert.equal(byId(view({ slots: slots(12, 0) }), "leave:c1")[0]!.disabled, true);
-  assert.equal(byId(view({ slots: slots(12, 3), status: "cancelled" }), "leave:c1")[0]!.disabled, true);
-  assert.equal(byId(view({ slots: slots(12, 3), status: "locked" }), "leave:c1")[0]!.disabled, false);
-  assert.ok(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length === 12);
+test("the shared Leave stays on when locked or started, and is dimmed when cancelled or done", () => {
+  assert.equal(byId(view({ slots: slots(4, 2), status: "locked" }), "leave:c1")[0]!.disabled, false);
+  assert.equal(byId(view({ slots: slots(4, 2), started: true }), "leave:c1")[0]!.disabled, false);
+  for (const status of ["cancelled", "done"] as const) {
+    assert.equal(byId(view({ slots: slots(4, 2), status }), "leave:c1")[0]!.disabled, true);
+  }
+});
+
+test("all rows sit in one text block; Leave and the vote buttons share the last row", () => {
+  const v = view({ slots: slots(20, 7), hasLoot: true });
+  assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
+  const rows = comps(v).filter((c) => c.type === 1);
+  const last = rows[rows.length - 1]!;
+  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear"]);
+  assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
 test("vote buttons: counts, styles and ids; dimmed after the cutoff, when cancelled or done", () => {
@@ -242,14 +240,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component counts: 11 sworn rows with a loot vote use 38 of 40; 20 rows use far fewer", () => {
+test("component count stays small at any size: 20 positions with a loot vote use 9 of 40", () => {
   const count = (v: RosterView) => {
-    const m: any = msg(v);
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
-    return n(m.components[0]);
+    return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(11, 11), hasLoot: true })), 38);
-  assert.ok(count(view({ slots: slots(20, 10), hasLoot: true })) < 15);
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 9);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 7);
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {

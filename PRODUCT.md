@@ -166,7 +166,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up, or move, by picking from a menu that lists only the open positions, so a taken position disappears from it (owner decision 2026-10-07, ADR 0018). Each sworn row carries its own **Leave** button, which only that player can use; anyone else is told it is not their position. This needs the Components V2 layout, which allows 40 components, so per-row Leave buttons exist for parties of up to 11 positions; for 12 or more, one shared Leave button (dimmed while nobody is signed up) serves everyone. `/content me` opens a private panel with the same actions. Every change updates the shared roster message. A member holds at most one active entry per content. Rosters posted before this layout keep their old look and no longer respond.
+A member shall sign up, or move, by picking from a menu that lists only the open positions, so a taken position disappears from it (owner decision 2026-10-07, ADR 0018). One shared **Leave** button sits under the roster for every party size: it is enabled while anyone is signed up and dimmed otherwise, and it only ever acts for a signed-up player (anyone else gets a private "You are not signed up"). Discord cannot enable a control for some viewers only. `/content me` opens a private panel with a Leave button of one's own. Every change updates the shared roster message. A member holds at most one active entry per content. Rosters posted before this layout keep their old look and no longer respond.
 
 ### FR-006: Atomic slot claim
 status: accepted
