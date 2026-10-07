@@ -39,6 +39,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [Next-session handoff](plan/next-session-handoff.md)
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 - [FT-015 slot builder and presets design](plan/2026-10-07-ft-015-slot-builder-design.md)
+- [Roster joining, header lines and weapon icons: options](plan/2026-10-07-roster-ux-options.md): proposed, awaiting owner decisions
 
 ## Working notes
 - [Open questions](open-questions.md)
