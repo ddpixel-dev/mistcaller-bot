@@ -69,7 +69,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(commands[0]!.name, "content");
   assert.equal(create.name, "create");
   assert.equal(create.options, undefined);
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "cancel"]);
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "end", "attendance", "history", "cancel"]);
 });
 
 test("429 with retry_after 30 waits at most 2 seconds (injected sleep)", async () => {
@@ -125,4 +125,29 @@ test("a Discord error keeps its code and message, never the token, in the error 
   assert.ok(!JSON.stringify([err.message, err.detail]).includes("SECRET"));
   const bare: any = await createRest("SECRET", (async () => res(500, {})) as unknown as typeof fetch).createMessage("c1", {}).catch((e) => e);
   assert.deepEqual([bare.status, bare.code, bare.detail], [500, undefined, undefined]);
+});
+
+test("createDm opens a direct message channel with the member and returns its id", async () => {
+  const calls: { url: string; body: any }[] = [];
+  const rest = createRest("SECRET", (async (url: string, init: any) => { calls.push({ url, body: JSON.parse(init.body) }); return res(200, { id: "dm-1" }); }) as unknown as typeof fetch);
+  assert.equal(await rest.createDm!("42"), "dm-1");
+  assert.equal(calls[0]!.url, "https://discord.com/api/v10/users/@me/channels");
+  assert.deepEqual(calls[0]!.body, { recipient_id: "42" });
+});
+
+test("a refused direct message (closed DMs) rejects with the Discord error", async () => {
+  const rest = createRest("SECRET", (async () => res(403, { code: 50007, message: "Cannot send messages to this user" })) as unknown as typeof fetch);
+  const err: any = await rest.createDm!("42").catch((e) => e);
+  assert.equal(err.name, "DiscordApiError");
+  assert.equal(err.code, 50007);
+});
+
+test("memberName prefers the nickname, then the display name, then the username, and is null when unavailable", async () => {
+  const name = async (body: unknown, status = 200) =>
+    createRest("S", (async () => res(status, body)) as unknown as typeof fetch).memberName!("g1", "42");
+  assert.equal(await name({ nick: "Nick", user: { global_name: "Global", username: "user" } }), "Nick");
+  assert.equal(await name({ nick: null, user: { global_name: "Global", username: "user" } }), "Global");
+  assert.equal(await name({ nick: null, user: { global_name: null, username: "user" } }), "user");
+  assert.equal(await name({ code: 10007, message: "Unknown Member" }, 404), null);
+  assert.equal(await name({}), null);
 });

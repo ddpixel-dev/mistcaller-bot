@@ -19,6 +19,9 @@ export type Rest = {
   createMessage(channelId: string, body: unknown): Promise<{ id: string }>;
   editMessage(channelId: string, messageId: string, body: unknown): Promise<void>;
   deleteMessage(channelId: string, messageId: string): Promise<void>;
+  // Optional so older test doubles keep working; the real client has both.
+  createDm?(userId: string): Promise<string>;
+  memberName?(guildId: string, userId: string): Promise<string | null>;
 };
 
 export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -67,6 +70,22 @@ export function createRest(
     },
     async deleteMessage(channelId, messageId) {
       await call("DELETE", `/channels/${channelId}/messages/${messageId}`, undefined, [404]);
+    },
+    // A direct message channel with a member: the only way to message someone privately without a click.
+    async createDm(userId) {
+      const out = (await call("POST", "/users/@me/channels", { recipient_id: userId })) as { id: string };
+      return out.id;
+    },
+    // The name shown in the server: nickname, then display name, then username. Null when unavailable.
+    async memberName(guildId, userId) {
+      try {
+        const m = (await call("GET", `/guilds/${guildId}/members/${userId}`, undefined)) as {
+          nick?: string | null; user?: { global_name?: string | null; username?: string };
+        };
+        return m.nick || m.user?.global_name || m.user?.username || null;
+      } catch {
+        return null;
+      }
     },
   };
 }
