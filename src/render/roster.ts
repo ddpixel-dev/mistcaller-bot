@@ -61,39 +61,35 @@ function voteText(view: RosterView): string {
   }
 }
 
+// Kept so roster messages from release 0.3 to 0.5, which still carry the old menu option, keep working.
 export const LEAVE_VALUE = "leave";
 
-const leaveOption = {
-  label: "Leave the roster",
-  value: LEAVE_VALUE,
-  description: "Only works if you are signed up",
-  emoji: { name: "🚪" },
-};
-
-// One menu for everyone: slots to sign up or move, plus Leave while anyone is signed up.
-// After the start the slots go away and only Leave stays, so members can still leave.
-function signupMenu(view: RosterView, filled: number) {
+// One menu for everyone: pick a position to sign up or move. Closed once the roll is closed.
+function signupMenu(view: RosterView) {
   const closed = view.status !== "open" || view.started;
-  const live = view.status === "open" || view.status === "locked";
-  const slotOptions = view.slots.map((s) => ({
-    label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
-    value: s.id,
-    description: s.userId ? "Taken" : "Open",
-  }));
-  if (closed && live && filled > 0) {
-    return {
-      type: 3,
-      custom_id: `signup:${view.id}`,
-      placeholder: "The roll is closed. You can still leave.",
-      options: [leaveOption],
-    };
-  }
   return {
     type: 3,
     custom_id: `signup:${view.id}`,
     placeholder: closed ? "The roll is closed" : "Pick a position",
     disabled: closed,
-    options: filled > 0 && !closed ? [...slotOptions, leaveOption] : slotOptions,
+    options: view.slots.map((s) => ({
+      label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
+      value: s.id,
+      description: s.userId ? "Taken" : "Open",
+    })),
+  };
+}
+
+// Shared by everyone, so it is dimmed while nobody is signed up and enabled once anyone is.
+// Pressing it without a signup only tells that person so. Leaving stays possible after the start.
+function leaveRow(view: RosterView, filled: number) {
+  const live = view.status === "open" || view.status === "locked";
+  return {
+    type: 1,
+    components: [{
+      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
+      disabled: !(live && filled > 0),
+    }],
   };
 }
 
@@ -146,7 +142,8 @@ export function renderRosterMessage(view: RosterView): {
   return {
     embeds: [embed],
     components: [
-      { type: 1, components: [signupMenu(view, filled)] },
+      { type: 1, components: [signupMenu(view)] },
+      leaveRow(view, filled),
       ...(view.hasLoot ? [voteRow(view)] : []),
     ],
     allowed_mentions: { parse: [] },
