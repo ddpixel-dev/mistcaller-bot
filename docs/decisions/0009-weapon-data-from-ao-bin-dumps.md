@@ -9,6 +9,8 @@ satisfies: [FR-026]
 
 # 0009: Weapon list from ao-bin-dumps through a provider adapter
 
+The storage detail below is superseded by [0015](0015-weapon-data-as-generated-file.md): a generated file in the repo, not a database table.
+
 ## Context
 The owner pointed to the `ao-bin-dumps` repository as the source for the weapon list. An earlier spike (in the separate Albion hub project) found: it is game data only, with names, IDs and categories; it has no icons; GitHub reports no license; and it is large, with an English localization file of about 94 MB that must be streamed. Third-party data should enter through an adapter and be stored with its source and version.
 

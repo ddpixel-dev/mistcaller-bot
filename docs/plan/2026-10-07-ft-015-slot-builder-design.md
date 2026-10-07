@@ -15,7 +15,7 @@ Satisfies FR-024, FR-025, FR-026. Decisions: ADR 0004 (slot model), 0009 (weapon
 - `/content create preset:<name>` opens the usual form with the slots box already filled from the preset, so the officer adjusts it. The `preset` option uses autocomplete over the guild's preset names.
 
 ## Phase 2: weapon data and search (FR-026, ADR 0009)
-- A script reads the weapon category of `ao-bin-dumps` and stores weapon id, display name, class and a base id (tier and enchant stripped) in a `weapon` table with its source and fetch date. The bot reads only this table.
+- Built (ADR 0015): `scripts/import-weapons.ts` writes `src/data/weapons.ts` (base id, name, class, icon tier, source and date). `/content weapon <name>` with autocomplete shows a match and its linked icon, so the icons can be checked before the guided steps use them.
 - A weapon is found by typing part of its name in a small form. The result is a menu of up to 25 matches. Icons are links to the render service built from the item id in the adapter (ADR 0013); where Discord can show them (a thumbnail in the builder) is checked with a real test message.
 
 ### Spike result (2026-10-07)
