@@ -492,3 +492,12 @@ test("runJobs runs the reminders too and reports how many were sent", async () =
   const out = await runJobs({ sql, rest, now: () => twentyFiveBefore });
   assert.equal(out.remindersSent, 1);
 });
+
+test("a roster locked early still gets its reminder", async () => {
+  const { sql, id } = await make({ now: created });
+  await signUp(sql, id, ["alice"]);
+  await sql`update content set status = 'locked' where id = ${id}`;
+  const { rest, calls } = fakeRest();
+  assert.equal(await sendReminders({ sql, rest, now: () => twentyFiveBefore }), 1);
+  assert.ok(calls.posts[0]!.body.content.includes("<@alice>"));
+});

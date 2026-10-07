@@ -186,7 +186,7 @@ export async function sendReminders(deps: Deps): Promise<number> {
       update content set reminder_sent_at = ${now}
       where id in (
         select id from content
-        where status = 'open' and starts_at > ${now} and starts_at <= ${dueBefore} and reminder_sent_at is null
+        where status in ('open', 'locked') and starts_at > ${now} and starts_at <= ${dueBefore} and reminder_sent_at is null
           and id <> all(${[...failed]}::uuid[])
         order by starts_at, id
         limit 1
