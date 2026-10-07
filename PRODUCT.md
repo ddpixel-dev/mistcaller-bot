@@ -130,6 +130,14 @@ satisfies: FR-023
 
 Different kinds of PvP and PvE content, each with its own label and color.
 
+### FT-016: Duties
+status: built (needs migration 0006)
+phase: MVP
+priority: should
+satisfies: FR-027
+
+A manager gives Caller, Scout or Rat to players in the party; the duty appears on the roster line.
+
 ### FT-015: Slot builder and presets
 status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
 phase: MVP
@@ -158,7 +166,7 @@ The roster message shall show the start time as plain UTC text and as Discord ti
 
 ### FR-005: Sign up, move, leave
 status: accepted
-A member shall sign up for a slot through a select menu and move by selecting another slot. Selecting the position they already hold is refused privately. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. `/content me` opens a private panel (owner request 2026-10-07) with a sign-up or move menu and a Leave button that is enabled only for that member and only when they are signed up. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
+A member shall sign up for a slot by pressing that position's button on the roster and move by pressing another open position (owner decision 2026-10-07, replacing the menu). A held position is dimmed for everyone, which also stops the holder from picking it again. A bottom row holds the Leave button and, with a loot vote, the two vote buttons, so 20 positions fit five rows. A **Leave** button on the roster is dimmed while nobody is signed up and enabled once anyone is (owner decision 2026-10-07; Discord cannot show a control to some viewers only, so it is shared). Pressing it without a signup only tells that person so. It stays available after the start so members can still leave. `/content me` opens a private panel (owner request 2026-10-07) with a sign-up or move menu and a Leave button that is enabled only for that member and only when they are signed up. Every change updates the shared roster message. A member holds at most one active entry per content. The menu is hidden or rejects input once the content is locked.
 
 ### FR-006: Atomic slot claim
 status: accepted
@@ -234,7 +242,7 @@ Each content shall have a kind inside its forum type (a PvP kind or a PvE kind),
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. In the guided steps (the "Guided slots" button of the create panel) the member picks a member count, then for each slot a role from a fixed list and a weapon found by searching the weapon list, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the create form), guided steps, or a saved preset. After pressing Continue in the create panel, the member chooses between writing the slots in a form and the guided steps (a chosen preset opens the filled form directly). The guided steps (owner decisions 2026-10-07): there are only four roles, Tank, Healer, Support and DPS; the member types how many of each in one small form (at most 20 in total); then for each slot, in role order, only the weapon is chosen, either with `/content slot` and its searchable weapon list or with the Find weapon button, with "Same as previous", "Fill the rest" and "Back". Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in, so a custom role can still be typed there. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -243,6 +251,10 @@ An officer shall be able to save the slots defined in the typed-lines mode or th
 ### FR-026: Weapon list and icons
 status: accepted
 Guided steps shall let the officer find a weapon by searching a weapon list taken from the `ao-bin-dumps` game data through a provider adapter (ADR 0009). The weapon icon shall be shown beside the role and weapon name, linked by URL from Albion's render service and never stored or uploaded (ADR 0013). If an icon cannot load, the roster still shows the names.
+
+### FR-027: Duties
+status: accepted
+A manager (the creator, a member with Manage Server, or the officer role) shall be able to give a player in the party a duty, Caller, Scout or Rat, with `/content duty position:<n> duty:<...>` (owner request 2026-10-07; the word "duty" was suggested instead of "responsibility" and can be renamed in `src/domain/duties.ts`). A duty goes only on a position someone holds and is shown after the player on the roster line. Clearing is always allowed. Leaving or moving clears it. Duties are not part of slot lines, presets or the guided steps. The list is fixed in code.
 
 ## Non-functional requirements
 
@@ -346,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.6.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.7.0 prepared (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
-Next step: owner runs migration 0005, deploys 0.6.0, re-registers the commands and tests. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
+Next step: migrations 0006 and 0007, deploy 0.7.0, re-register the commands and test. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 
 | Item | Status | Note |
 |---|---|---|
@@ -358,7 +370,8 @@ Next step: owner runs migration 0005, deploys 0.6.0, re-registers the commands a
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
 | FT-006 `/content setup` | live (0.4.0) | |
-| FT-015 slot builder and presets | built; phases 2 and 3 in 0.6.0 | Weapon search (`/content weapon`) and guided steps; steps need migration 0005 |
+| FT-015 slot builder and presets | built; 0.7.0 reworks the guided steps | Role numbers, `/content slot` search, Continue choice; needs migration 0007 |
+| FT-016 duties | in 0.7.0 | `/content duty`; needs migration 0006 |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |
 | FT-010, FT-011 | not started | later |
 | CHK-001, CHK-006 | done | 2026-10-06 |

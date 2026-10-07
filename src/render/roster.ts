@@ -2,6 +2,7 @@ import type { RosterView } from "../domain/types.ts";
 import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
+import { dutyDef } from "../domain/duties.ts";
 import {
   BANNER_URL, CANCELLED_TAG, ICON_URL, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner,
 } from "./theme.ts";
@@ -32,15 +33,12 @@ export function escapeText(s: string): string {
     .replace(/</g, "<\u200B");
 }
 
-function voteRow(view: RosterView) {
+function voteButtons(view: RosterView) {
   const disabled = view.voteClosed || view.status === "cancelled" || view.status === "done";
-  return {
-    type: 1,
-    components: [
-      { type: 2, style: 1, label: `Split (${view.votes.split})`, custom_id: `vote:${view.id}:split`, disabled },
-      { type: 2, style: 3, label: `Regear (${view.votes.regear})`, custom_id: `vote:${view.id}:regear`, disabled },
-    ],
-  };
+  return [
+    { type: 2, style: 1, label: `Split (${view.votes.split})`, custom_id: `vote:${view.id}:split`, disabled },
+    { type: 2, style: 3, label: `Regear (${view.votes.regear})`, custom_id: `vote:${view.id}:regear`, disabled },
+  ];
 }
 
 export function voteLine(view: RosterView): string {
@@ -64,32 +62,37 @@ function voteText(view: RosterView): string {
 // Kept so roster messages from release 0.3 to 0.5, which still carry the old menu option, keep working.
 export const LEAVE_VALUE = "leave";
 
-// One menu for everyone: pick a position to sign up or move. Closed once the roll is closed.
-function signupMenu(view: RosterView) {
+// One button per position (owner choice 2026-10-07). A held position is dimmed for everyone, which also
+// stops the holder from picking it again. Everything is dimmed once the roll is closed.
+function slotRows(view: RosterView) {
   const closed = view.status !== "open" || view.started;
-  return {
-    type: 3,
-    custom_id: `signup:${view.id}`,
-    placeholder: closed ? "The roll is closed" : "Pick a position",
-    disabled: closed,
-    options: view.slots.map((s) => ({
-      label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
-      value: s.id,
-      description: s.userId ? "Taken" : "Open",
-    })),
-  };
+  const buttons = view.slots.map((s) => ({
+    type: 2,
+    style: 2,
+    label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 80).join(""),
+    emoji: { name: roleIcon(s.role) },
+    custom_id: `pick:${view.id}:${s.id}`,
+    disabled: closed || s.userId !== null,
+  }));
+  const rows: unknown[] = [];
+  for (let at = 0; at < buttons.length; at += 5) rows.push({ type: 1, components: buttons.slice(at, at + 5) });
+  return rows;
 }
 
-// Shared by everyone, so it is dimmed while nobody is signed up and enabled once anyone is.
+// Leave is shared by everyone, so it is dimmed while nobody is signed up and enabled once anyone is.
 // Pressing it without a signup only tells that person so. Leaving stays possible after the start.
-function leaveRow(view: RosterView, filled: number) {
+// With a loot vote, its two buttons share this last row, so 20 positions plus this row fit five rows.
+function bottomRow(view: RosterView, filled: number) {
   const live = view.status === "open" || view.status === "locked";
   return {
     type: 1,
-    components: [{
-      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
-      disabled: !(live && filled > 0),
-    }],
+    components: [
+      {
+        type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
+        disabled: !(live && filled > 0),
+      },
+      ...(view.hasLoot ? voteButtons(view) : []),
+    ],
   };
 }
 
@@ -115,7 +118,7 @@ export function renderRosterMessage(view: RosterView): {
     (s) =>
       `${roleIcon(s.role)} ${s.position}. ${escapeText(s.role)} - ${escapeText(s.weapon)} · ${
         s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
-      }`,
+      }${s.userId && dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`,
   );
   const roster = [
     RULE,
@@ -142,9 +145,8 @@ export function renderRosterMessage(view: RosterView): {
   return {
     embeds: [embed],
     components: [
-      { type: 1, components: [signupMenu(view)] },
-      leaveRow(view, filled),
-      ...(view.hasLoot ? [voteRow(view)] : []),
+      ...slotRows(view),
+      bottomRow(view, filled),
     ],
     allowed_mentions: { parse: [] },
   };

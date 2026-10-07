@@ -111,3 +111,24 @@ export async function cancelContent(sql: Sql, id: string): Promise<CancelResult>
     return { result: "ok", notify: rows.map((r) => r.user_id as string) };
   });
 }
+
+export type DutyResult = "ok" | "no_slot" | "empty" | "unavailable";
+
+// A duty goes on a held position only. Clearing is always allowed. Locked content can still be assigned.
+export async function setSlotDuty(
+  sql: Sql,
+  a: { contentId: string; position: number; duty: string | null },
+): Promise<DutyResult> {
+  return await sql.begin(async (tx): Promise<DutyResult> => {
+    const [c] = await tx`select status from content where id = ${a.contentId} for update`;
+    if (!c || (c.status !== "open" && c.status !== "locked")) return "unavailable";
+    const [slot] = await tx`
+      select s.id, su.user_id from slot s
+      left join signup su on su.slot_id = s.id and su.status = 'signed'
+      where s.content_id = ${a.contentId} and s.position = ${a.position}`;
+    if (!slot) return "no_slot";
+    if (a.duty !== null && !slot.user_id) return "empty";
+    await tx`update slot set duty = ${a.duty} where id = ${slot.id}`;
+    return "ok";
+  });
+}
