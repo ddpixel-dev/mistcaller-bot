@@ -103,18 +103,23 @@ export function renderRosterMessage(view: RosterView): {
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;
   let notes = true;
-  const fits = () => headerText(view, filled, notes).length + view.slots.reduce((n, s) => n + rowText(s, withEmoji).length + 1, 0) <= TEXT_LIMIT;
+  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30));
+  const fits = () => headerText(view, filled, notes).length + waitLen + view.slots.reduce((n, s) => n + rowText(s, withEmoji).length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
+  const waiting = view.waitlist ?? [];
+  const waitText = waiting.length
+    ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
+    : "";
   const rows = view.slots.map((s) => ({ s, text: rowText(s, withEmoji) }));
-  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - 1;
+  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2;
   let used = 0;
   const kept = rows.filter((r) => (used += r.text.length + 1) <= budget);
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, filled, notes)), text(kept.map((r) => r.text).join("\n"))];
+  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept.map((r) => r.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   if (view.status === "open" && !view.started && open.length > 0) {
@@ -130,8 +135,27 @@ export function renderRosterMessage(view: RosterView): {
       }],
     });
   }
+  // A role with no open position can be waited for (FR-007, per role).
+  const fullRoles = [...new Set(view.slots.map((s) => s.role))].filter(
+    (role) => !view.slots.some((s) => s.role === role && s.userId === null),
+  );
+  if (view.status === "open" && !view.started && fullRoles.length > 0) {
+    body.push({
+      type: 1,
+      components: [{
+        type: 3, custom_id: `wait:${view.id}`, placeholder: "Join the waitlist for a full role",
+        options: fullRoles.slice(0, 25).map((role) => ({
+          label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
+          description: `${waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
+        })),
+      }],
+    });
+  }
   const buttons: unknown[] = [
-    { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`, disabled: !(live && filled > 0) },
+    {
+      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
+      disabled: !(live && (filled > 0 || waiting.length > 0)),
+    },
   ];
   if (view.hasLoot) buttons.push(...voteButtons(view));
   body.push({ type: 1, components: buttons });

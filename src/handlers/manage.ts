@@ -12,6 +12,7 @@ import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { formatTier, parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { announcePromotions } from "./waitlist.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -135,6 +136,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
       result.notify,
     );
   }
+  await announcePromotions(deps, checked.target.threadId, title.value, result.promoted);
   return reply(refreshed ? "Content updated." : "Content updated, but the roster message could not be refreshed. It will update on the next change.");
 }
 

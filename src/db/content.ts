@@ -87,7 +87,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const [slots, voteRows] = await Promise.all([
+  const [slots, voteRows, waiting] = await Promise.all([
     sql`
       select s.id, s.position, s.role, s.weapon, s.duty, su.user_id
       from slot s
@@ -95,6 +95,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       where s.content_id = ${contentId}
       order by s.position`,
     sql`select choice from vote where content_id = ${contentId}`,
+    sql`select user_id, wait_role from signup where content_id = ${contentId} and status = 'waitlist' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const started = c.starts_at <= now;
@@ -123,6 +124,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       duty: s.duty ?? null,
       userId: s.user_id ?? null,
     })),
+    waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
     voteClosed,
     started,
