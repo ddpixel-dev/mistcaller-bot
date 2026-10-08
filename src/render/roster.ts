@@ -5,7 +5,6 @@ import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { CANCELLED_TAG, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
 import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
-import { EN, FIG, padTo, textWidth, widest } from "./align.ts";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -59,32 +58,41 @@ function lootValue(view: RosterView): string {
   return `On · Split ${view.votes.split} · Regear ${view.votes.regear} · closes <t:${closes}:R>`;
 }
 
-// roleIcon Role - WeaponIcon Weapon - Duty (if any) · Sworn: Player (or Open)
-// roleIcon Role - WeaponIcon Weapon - Duty (if any) · Sworn: Player (or Open). With `aligned`, the role, weapon and
-// duty columns are padded to the widest of their rows so the text sits beneath each other (approximately).
-function rowsText(slots: RosterSlot[], withEmoji: boolean, aligned: boolean): string[] {
-  const hasDuty = slots.some((s) => dutyDef(s.duty));
-  const roleW = aligned ? widest(slots.map((s) => s.role)) : 0;
-  const weaponW = aligned ? widest(slots.map((s) => s.weapon)) : 0;
-  const dutyW = aligned ? widest(slots.map((s) => (dutyDef(s.duty) ? `${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""))) : 0;
-  const anyEmoji = withEmoji && slots.some((s) => weaponEmojiTag(s.weapon));
-  return slots.map((s) => {
-    const emoji = withEmoji ? weaponEmojiTag(s.weapon) : "";
-    const duty = dutyDef(s.duty);
-    const num = aligned && slots.length >= 10 && s.position < 10 ? `${FIG}${s.position}.` : `${s.position}.`;
-    const role = `${escapeText(s.role)}${aligned ? padTo(s.role, roleW) : ""}`;
-    // A row without an icon keeps the icon's room, so the weapon names still line up.
-    const icon = emoji ? `${emoji} ` : anyEmoji && aligned ? EN.repeat(3) : "";
-    const weapon = `${escapeText(s.weapon)}${aligned ? padTo(s.weapon, weaponW) : ""}`;
-    const dutyCell = duty ? `${duty.icon} ${duty.label}` : "";
-    // A row without a duty keeps the duty column's room (no dangling dash), so the Sworn/Open column still lines up.
-    const dutyPart = duty ? ` - ${dutyCell}${aligned ? padTo(dutyCell, dutyW, 0) : ""}` : hasDuty && aligned ? padTo("", dutyW + textWidth(" - "), 0) : "";
-    return `${num} ${roleIcon(s.role)} ${role} - ${icon}${weapon}${dutyPart} · ${s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open}`;
-  });
+// Layout E (owner decision 2026-10-08): the rows are grouped under a heading per role, so there is no role column to
+// line up. A row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`); the duty only when set.
+// Groups follow the order in which each role first appears; rows keep their position numbers.
+type Line = { text: string; heading: boolean };
+
+function rowLines(slots: RosterSlot[], withEmoji: boolean): Line[] {
+  const groups = new Map<string, RosterSlot[]>();
+  for (const s of slots) {
+    const key = s.role.trim().toLowerCase();
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+  const lines: Line[] = [];
+  for (const group of groups.values()) {
+    const first = group[0]!;
+    const taken = group.filter((s) => s.userId !== null).length;
+    lines.push({ text: `### ${roleIcon(first.role)} ${escapeText(first.role)} · ${taken}/${group.length}`, heading: true });
+    for (const s of group) {
+      const emoji = withEmoji ? weaponEmojiTag(s.weapon) : "";
+      const duty = dutyDef(s.duty);
+      lines.push({
+        text: `${s.position}. ${emoji ? `${emoji} ` : ""}${escapeText(s.weapon)}${duty ? ` - ${duty.icon} ${duty.label}` : ""} · ${
+          s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
+        }`,
+        heading: false,
+      });
+    }
+  }
+  return lines;
 }
 
-const LABELS = ["Type", "Gear tier", "Loot vote", "UTC", "Your time"];
-const labelWidth = widest(LABELS) * 1.06; // bold is a little wider
+// The header labels start their values in one column: each label is followed by this many EN SPACEs. The counts were
+// measured on a screenshot of Discord's desktop text (a label's width, plus 6.7 px per en space, plus about 4 px),
+// so the columns agree to within a few pixels. Discord's font is proportional, so this cannot be exact.
+const EN = "\u2002";
+const HEADER_PAD: Record<string, number> = { Type: 6, "Gear tier": 3, "Loot vote": 2, UTC: 7, "Your time": 2 };
 
 function headerText(view: RosterView, filled: number, notes: boolean): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
@@ -94,8 +102,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   const title = view.status === "cancelled"
     ? `${CANCELLED_TAG} ${escapeText(view.title)}`
     : `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
-  // Each label is followed by padding so the values start in the same column (approximately).
-  const fact = (icon: string, label: string, value: string) => `${icon} **${label}**${padTo(label, labelWidth, 2)}${value}`;
+  const fact = (icon: string, label: string, value: string) => `${icon} **${label}**${EN.repeat(HEADER_PAD[label] ?? 2)}${value}`;
   const lines = [
     `**${Array.from(title).slice(0, TITLE_LIMIT).join("")}**`,
     fact("⚔️", "Type", `**${kind}**`),
@@ -123,27 +130,24 @@ export function renderRosterMessage(view: RosterView): {
 
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;
-  let aligned = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30));
-  const fits = () => headerText(view, filled, notes).length + waitLen + rowsText(view.slots, withEmoji, aligned).reduce((n, t) => n + t.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, filled, notes).length + waitLen + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
-  if (!fits()) aligned = false;
   if (!fits()) notes = false;
 
   const waiting = view.waitlist ?? [];
   const waitText = waiting.length
     ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
     : "";
-  const rowTexts = rowsText(view.slots, withEmoji, aligned);
-  const rows = view.slots.map((s, n) => ({ s, text: rowTexts[n]! }));
   const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2;
   let used = 0;
-  const kept = rows.filter((r) => (used += r.text.length + 1) <= budget);
+  const kept = rowLines(view.slots, withEmoji).filter((l) => (used += l.text.length + 1) <= budget);
+  while (kept.length > 0 && kept[kept.length - 1]!.heading) kept.pop(); // never end on a heading with no row
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept.map((r) => r.text), ...(waitText ? [waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   if (view.status === "open" && !view.started && open.length > 0) {

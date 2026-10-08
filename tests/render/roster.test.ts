@@ -92,7 +92,7 @@ test("the loot vote line carries the tally and closing time while open, and the 
   assert.equal(voteLine(view({ voteClosed: true, votes: { split: 2, regear: 1 }, voteResult: "split" })), "💰 Loot vote result: Split won 2-1");
 });
 
-test("a roster row reads: number, role icon, role - weapon - duty, then Sworn: player or Open", () => {
+test("rows sit under a heading per role and read: number, weapon icon, weapon - duty, then Sworn: player or Open", () => {
   // Weapons without an icon (not in the list) show only their name, so the text format is easy to read here.
   const t = txt(view({ slots: [
     { id: "s1", position: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
@@ -100,10 +100,24 @@ test("a roster row reads: number, role icon, role - weapon - duty, then Sworn: p
     { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: "222" },
     { id: "s4", position: 4, role: "Support", weapon: "Mystery Orb", userId: null },
   ] }));
-  assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - 📯 Caller · Sworn: <@111>"));
-  assert.ok(t.includes("2. 💚 Healer - Mystery Staff - 🏹 Scout · Open"));
-  assert.ok(t.includes("3. ⚔️ DPS - Mystery Bow · Sworn: <@222>"));
-  assert.ok(t.includes("4. 🤝 Support - Mystery Orb · Open"));
+  assert.ok(t.includes("### 🛡️ Tank · 1/1\n1. Mystery Axe - 📯 Caller · Sworn: <@111>"));
+  assert.ok(t.includes("### 💚 Healer · 0/1\n2. Mystery Staff - 🏹 Scout · Open"));
+  assert.ok(t.includes("### ⚔️ DPS · 1/1\n3. Mystery Bow · Sworn: <@222>"));
+  assert.ok(t.includes("### 🤝 Support · 0/1\n4. Mystery Orb · Open"));
+});
+
+test("slots of one role share a heading with its count, even when they are not next to each other; groups follow first appearance", () => {
+  const t = txt(view({ slots: [
+    { id: "s1", position: 1, role: "DPS", weapon: "Bow", userId: "111" },
+    { id: "s2", position: 2, role: "Tank", weapon: "Mace", userId: null },
+    { id: "s3", position: 3, role: "dps", weapon: "Axe", userId: null },
+    { id: "s4", position: 4, role: "DPS", weapon: "Spear", userId: "222" },
+  ] }));
+  const lines = t.split("\n");
+  assert.deepEqual(lines.filter((l) => l.startsWith("### ")), ["### ⚔️ DPS · 2/3", "### 🛡️ Tank · 0/1"]);
+  const dps = lines.indexOf("### ⚔️ DPS · 2/3");
+  assert.ok(/^1\. /.test(lines[dps + 1]!) && /^3\. /.test(lines[dps + 2]!) && /^4\. /.test(lines[dps + 3]!));
+  assert.ok(/^2\. /.test(lines[lines.indexOf("### 🛡️ Tank · 0/1") + 1]!));
 });
 
 test("the weapon icon sits inline before the weapon name when its emoji exists, and not when it does not", () => {
@@ -111,16 +125,20 @@ test("the weapon icon sits inline before the weapon name when its emoji exists, 
   assert.ok(withIds > 100, "run scripts/sync-emoji.ts");
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
   const t = txt(view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
-  assert.ok(t.includes(`1. 🛡️ Tank - <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword · Open`));
-  assert.ok(t.includes("2. 🛡️ Tank - Mystery Blade · Open"));
+  assert.ok(t.includes(`1. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword · Open`));
+  assert.ok(t.includes("2. Mystery Blade · Open"));
 });
 
 test("user text is escaped in the title, notes, role and weapon, and nothing can ping", () => {
   const t = txt(view({ title: "@everyone **x**", notes: "@here *hi*", slots: [{ id: "s", position: 1, role: "_R_", weapon: "@W", userId: null }] }));
   assert.ok(t.includes("@​everyone \\*\\*x\\*\\*"));
   assert.ok(t.includes("@​here \\*hi\\*"));
-  assert.ok(t.includes("\\_R\\_ - @​W"));
+  assert.ok(t.includes("\\_R\\_ · 0/1"));
+  assert.ok(t.includes("1. @​W · Open"));
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
+  // a role like "# big" cannot break out of its heading into another one
+  const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
+  assert.ok(h.split("\n").filter((l) => l.startsWith("# ")).length === 0);
 });
 
 test("notes get a Notes: label and a different icon than the title", () => {
@@ -300,48 +318,27 @@ test("the waitlist text and the menus stay inside Discord's limits with 20 posit
   assert.ok(txt(v).length <= 4000);
 });
 
-// ---- Alignment (owner decision 2026-10-08): padded spaces, approximate ----
+// ---- Header columns (owner decision 2026-10-08): padded with en spaces, measured, approximate ----
 
-test("header values start after padding, so the labels share a column", () => {
+test("header labels are followed by the measured number of en spaces, so the values share a column", () => {
   const lines = raw(view({ kind: "zvz" })).split("\n");
-  const label = (name: string) => lines.find((l) => l.includes(`**${name}**`))!;
-  for (const name of ["Type", "Gear tier", "Loot vote", "UTC", "Your time"]) {
-    const l = label(name);
-    const pad = l.slice(l.indexOf(`**${name}**`) + name.length + 4).match(/^ +/);
-    assert.ok(pad && pad[0].length >= 1, `${name} is followed by padding`);
-  }
-  // the shortest label gets more padding than the longest one
-  const padOf = (name: string) => label(name).split(`**${name}**`)[1]!.match(/^ */)![0].length;
-  assert.ok(padOf("UTC") > padOf("Your time"));
-  assert.ok(padOf("Type") > padOf("Gear tier"));
+  const pad = (name: string) => lines.find((l) => l.includes(`**${name}**`))!.split(`**${name}**`)[1]!.match(/^\u2002*/)![0].length;
+  assert.deepEqual(["Type", "Gear tier", "Loot vote", "UTC", "Your time"].map(pad), [6, 3, 2, 7, 2]);
+  // the shortest labels get the most padding
+  assert.ok(pad("UTC") > pad("Gear tier") && pad("Type") > pad("Loot vote"));
 });
 
-test("role, weapon and duty columns are padded to the widest entry, and a missing icon keeps its room", () => {
-  const v = view({ slots: [
-    { id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: null, duty: "caller" },
-    { id: "s2", position: 2, role: "Healer", weapon: "Mystery Staff of Light", userId: null },
-    { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: null, duty: "scout" },
-  ] });
-  const rows = raw(v).split("\n").filter((l) => /^\d\./.test(l.replace(/ /g, "")));
-  assert.equal(rows.length, 3);
-  const trailingPad = (row: string, role: string) => row.split(` ${role}`)[1]!.match(/^ */)![0].length;
-  assert.ok(trailingPad(rows[2]!, "DPS") > trailingPad(rows[1]!, "Healer"), "short roles are padded more");
-  assert.ok(rows.every((r) => r.includes(" · ")));
-  assert.ok(rows[1]!.includes("Mystery Staff of Light"));
-  assert.ok(!plain(rows[1]!).includes("- ·"), "no dangling dash on a row without a duty");
-  assert.ok(/Tank - .*Mace - 📯 Caller/.test(plain(rows[0]!)));
-});
-
-test("numbers 1 to 9 get a figure space when the roster has ten or more rows, so the roles line up", () => {
-  const big = raw(view({ slots: slots(12, 0) })).split("\n").filter((l) => /^ ?\d+\./.test(l));
-  assert.equal(big.length, 12);
-  assert.ok(big[0]!.startsWith(" 1."));
-  assert.ok(big[11]!.startsWith("12."));
-  const small = raw(view({ slots: slots(4, 0) })).split("\n").filter((l) => /^\d\./.test(l));
-  assert.equal(small.length, 4);
-});
-
-test("a full roster of long names still fits Discord's limits (padding is dropped before rows are cut)", () => {
-  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: "Support", weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
+test("a full roster of long names still fits Discord's limits, and a cut never ends on a heading", () => {
+  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role number ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
   assert.deepEqual(discordProblems(msg(v)), []);
+  const lines = raw(v).split("\n");
+  assert.ok(lines.length > 10);
+  assert.ok(!lines.filter((l) => l !== "").at(-1)!.startsWith("### "));
+});
+
+test("all 20 slots show, grouped, when the roles repeat", () => {
+  const v = view({ slots: [...slots(8, 3, "Tank", "Mace"), ...slots(7, 7, "DPS", "Bow").map((s, i) => ({ ...s, id: `d${i}`, position: 9 + i })), ...slots(5, 0, "Healer", "Holy").map((s, i) => ({ ...s, id: `h${i}`, position: 16 + i }))] });
+  const lines = raw(v).split("\n");
+  assert.equal(lines.filter((l) => /^\d+\. /.test(l)).length, 20);
+  assert.deepEqual(lines.filter((l) => l.startsWith("### ")), ["### 🛡️ Tank · 3/8", "### ⚔️ DPS · 7/7", "### 💚 Healer · 0/5"]);
 });

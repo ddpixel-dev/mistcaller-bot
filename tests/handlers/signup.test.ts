@@ -55,7 +55,7 @@ test("picking an open position signs up, updates the shared roster, and the posi
   assert.equal(r.type, 7);
   assert.equal(r.data.flags & IS_COMPONENTS_V2, IS_COMPONENTS_V2);
   assert.deepEqual(discordProblems(r.data), []);
-  assert.ok(plain(textOf(r.data)).includes("2. 💚 Healer - Holy · Sworn: <@u1>"));
+  assert.ok(plain(textOf(r.data)).includes("### 💚 Healer · 1/1\n2. Holy · Sworn: <@u1>"));
   assert.deepEqual(menuValues(r), [slots[0], slots[2]]);
   assert.deepEqual(await holders(sql, contentId), [null, "u1", null]);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
