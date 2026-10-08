@@ -485,11 +485,12 @@ test("an edit that keeps the same start time leaves the reminder alone", async (
   assert.deepEqual(await sentAt(sql, id), before);
 });
 
-test("runJobs runs the reminders too and reports how many were sent", async () => {
+test("runJobs sends the automatic reminders only when switched on, and reports how many", async () => {
   const { sql, id } = await make({ now: created });
   await signUp(sql, id, ["alice"]);
   const { rest } = fakeRest();
-  const out = await runJobs({ sql, rest, now: () => twentyFiveBefore });
+  assert.equal((await runJobs({ sql, rest, now: () => twentyFiveBefore })).remindersSent, 0);
+  const out = await runJobs({ sql, rest, now: () => twentyFiveBefore }, { autoReminders: true });
   assert.equal(out.remindersSent, 1);
 });
 

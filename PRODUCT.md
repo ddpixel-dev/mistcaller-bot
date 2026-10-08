@@ -162,7 +162,7 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the tier or range on its own line, the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set.
+The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set.
 
 ### FR-005: Sign up, move, leave
 status: accepted
@@ -190,7 +190,7 @@ A member shall create at most 5 content posts in any rolling 24 hours, counting 
 
 ### FR-011: Reminders
 status: accepted
-Signed-up members (not the waitlist) shall be pinged once in the content's post, about 30 minutes before the start: "⏰ *Title* starts in 30 minutes" with their mentions (and nobody else's). Sending shall be idempotent: it is claimed in the database before sending and released if the send fails. Content created inside the 30 minutes, or edited to start inside them, gets no reminder. Changing the start time resets the reminder (FR-009). The scheduled job runs every 5 minutes, so the ping arrives between about 25 and 35 minutes before the start.
+The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, and tells the owner how many were reached and who could not be (closed private messages). The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
 
 ### FR-012: Auto-lock
 status: accepted

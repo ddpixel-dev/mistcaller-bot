@@ -28,7 +28,7 @@ function buildDeps(): Deps {
 function handle(request: Request): Promise<Response> {
   return handleCron(request, {
     secret: process.env.CRON_SECRET,
-    run: () => runJobs(buildDeps()),
+    run: () => runJobs(buildDeps(), { autoReminders: process.env.AUTO_REMINDERS === "on" }),
   });
 }
 

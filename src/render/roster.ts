@@ -78,7 +78,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   const lines = [
     `**${Array.from(title).slice(0, TITLE_LIMIT).join("")}**`,
     `⚔️ **${kind}**`,
-    `🛡️ **Tier:** ${formatTier(view.tier)}`,
+    `⚙️ **Gear tier:** ${formatTier(view.tier)}`,
     lootLine(view),
     `🕰️ **UTC** · ${formatUtc(view.startsAt)}`,
     `🌍 **Your time** · <t:${epoch}:f> · <t:${epoch}:R>`,
@@ -158,6 +158,11 @@ export function renderRosterMessage(view: RosterView): {
     },
   ];
   if (view.hasLoot) buttons.push(...voteButtons(view));
+  // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
+  buttons.push({
+    type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
+    disabled: !(live && filled > 0),
+  });
   body.push({ type: 1, components: buttons });
 
   return {

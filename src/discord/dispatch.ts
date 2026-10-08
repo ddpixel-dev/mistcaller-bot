@@ -6,6 +6,7 @@ import { handleCreateModal } from "../handlers/create.ts";
 import { handleCreateCancel, handleCreateContinue, handleCreatePanel } from "../handlers/create-panel.ts";
 import { handleMeComponent } from "../handlers/me.ts";
 import { handleAttendanceComponent } from "../handlers/attendance.ts";
+import { handlePing } from "../handlers/ping.ts";
 import { handleGuidedComponent, handleGuidedModal } from "../handlers/guided.ts";
 import { handleContentCommand } from "../handlers/content.ts";
 import { handleAutocomplete } from "../handlers/preset.ts";
@@ -21,7 +22,7 @@ const commandHandlers: Record<string, Handler> = { content: handleContentCommand
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, leaveslot: handleLeaveSlot, leave: handleLeave, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent,
+  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
