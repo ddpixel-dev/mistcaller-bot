@@ -162,7 +162,7 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set.
+The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set. The header labels (Type, Gear tier, Loot vote, UTC, Your time) and the role, weapon and duty columns of the rows are padded with en spaces so the values line up (owner decision 2026-10-08). Discord draws text in a proportional font, so this is approximate: it is estimated, not exact, and the padding is dropped first when a very full roster would not fit Discord's text limit.
 
 ### FR-005: Sign up, move, leave
 status: accepted
@@ -190,7 +190,7 @@ A member shall create at most 5 content posts in any rolling 24 hours, counting 
 
 ### FR-011: Reminders
 status: accepted
-The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, and tells the owner how many were reached and who could not be (closed private messages). The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
+The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it, and only **once per content**: the first use is recorded (`content.pinged_at`, migration 0013) and the button is dimmed on the roster so nobody spams the players; if nobody could be reached the use is given back. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, and tells the owner how many were reached and who could not be (closed private messages). The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
 
 ### FR-012: Auto-lock
 status: accepted
@@ -198,7 +198,7 @@ Content shall lock automatically at its start time.
 
 ### FR-013: Scheduled jobs
 status: accepted
-A GitHub Actions workflow shall call the protected cron route every 5 minutes. The route sends due reminders, auto-locks, posts vote results and marks finished content done.
+An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results and marks finished content done.
 
 ### FR-014: Attendance and history
 status: accepted
@@ -358,7 +358,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.13.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.13.0 live (0.14.0 in preparation: single-use Ping, aligned text, migration 0013) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
 Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 

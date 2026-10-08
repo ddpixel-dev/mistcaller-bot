@@ -11,7 +11,7 @@ Anything uncertain goes here instead of being assumed. Resolve an entry by recor
 
 | ID | Kind | Question or risk | Affects | Status | Resolution |
 |---|---|---|---|---|---|
-| Q1 | risk | Does a 5-minute GitHub Actions schedule post the vote result early enough? Free-tier schedules can be delayed or skipped | FR-008, FR-013 | open | Measured 2026-10-08: GitHub ran the 5-minute schedule only about every 4 to 6 hours (scheduled runs at 20:24, 00:16 and 06:12 UTC), so CHK-005 fails and the reminder, lock-at-start, vote result and attendance DM all fire hours late. Options and the decision are open: Supabase `pg_cron` (ADR 0002 alternative), an external cron service, or keeping GitHub with manual buttons |
+| Q1 | risk | Does a 5-minute GitHub Actions schedule post the vote result early enough? Free-tier schedules can be delayed or skipped | FR-008, FR-013 | open | Measured 2026-10-08: GitHub ran the 5-minute schedule only about every 4 to 6 hours (scheduled runs at 20:24, 00:16 and 06:12 UTC), so CHK-005 fails and the reminder, lock-at-start, vote result and attendance DM all fire hours late. Decided 2026-10-08 (ADR 0019): an external cron service calls the route; stays open until an on-time lock and vote result are seen |
 | Q2 | question | Are `pg_cron` and `pg_net` usable on the Supabase free tier, in case the alternative is needed? | FR-013 | open | |
 | Q3 | risk | Does Supabase pause the free project during a quiet week? | NFR-003 | open | Measured in CHK-007 |
 | Q4 | risk | Vercel Hobby is non-commercial. Fine for the guild, but it blocks monetization | NFR-003 | open | Revisit before FT-010 |

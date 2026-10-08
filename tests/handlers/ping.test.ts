@@ -116,3 +116,39 @@ test("a 20-player ping answers well within the time limit", async () => {
   assert.ok(text(r).includes("Sent to 19 of 19 players."));
   assert.ok(Date.now() - started < 1500);
 });
+
+test("the ping can be used once: the button is dimmed, a second press is refused and nothing more is sent", async () => {
+  const { sql, id, d, sent } = await setup();
+  const ping = async () => flatComponents(renderRosterMessage((await getRosterView(sql, id, NOW))!)).find((c) => c.custom_id === `ping:${id}`)!;
+  assert.equal((await ping()).disabled, false);
+  assert.ok(text(await d(press(id, OWNER))).includes("Sent to 2 of 2 players."));
+  assert.equal((await ping()).disabled, true);
+  const sentOnce = sent.length;
+  const again: any = await d(press(id, OWNER));
+  assert.equal(again.data.flags, 64);
+  assert.ok(text(again).includes("once"));
+  assert.equal(sent.length, sentOnce);
+});
+
+test("after a ping, the roster message is edited so the button shows as used", async () => {
+  const { sql, id, deps } = await setup();
+  const edits: any[] = [];
+  deps.rest.editMessage = async (_c, _m, body) => { edits.push(body); };
+  await handlePing(deps, press(id, OWNER));
+  assert.equal(edits.length, 1);
+  assert.equal(flatComponents(edits[0]).find((c) => c.custom_id === `ping:${id}`)!.disabled, true);
+});
+
+test("when nobody can be reached the ping is not used up", async () => {
+  const { sql, id, d } = await setup([A, B]);
+  assert.ok(text(await d(press(id, OWNER))).includes("Nobody could be reached"));
+  const [row] = await sql`select pinged_at from content where id = ${id}`;
+  assert.equal(row!.pinged_at, null);
+  assert.equal(flatComponents(renderRosterMessage((await getRosterView(sql, id, NOW))!)).find((c) => c.custom_id === `ping:${id}`)!.disabled, false);
+});
+
+test("two simultaneous presses send the messages only once", async () => {
+  const { id, deps, sent } = await setup();
+  await Promise.all([handlePing(deps, press(id, OWNER)), handlePing(deps, press(id, OWNER))]);
+  assert.equal(sent.length, 2);
+});

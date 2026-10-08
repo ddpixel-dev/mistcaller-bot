@@ -1,6 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { discordProblems, flatComponents, textOf } from "../helpers/discordLimits.ts";
+import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
 import { claimSlot } from "../../src/db/signup.ts";
@@ -54,7 +54,7 @@ test("signed user votes Split: type 7 with updated count", async () => {
   const r: any = await handleVote(deps, click(`vote:${contentId}:split`));
   assert.equal(r.type, 7);
   assert.deepEqual(labels(r), ["Split (1)", "Regear (0)"]);
-  assert.ok(textOf(r.data).includes("💰 **Loot vote:** On · Split 1 · Regear 0"));
+  assert.ok(plain(textOf(r.data)).includes("💰 **Loot vote** On · Split 1 · Regear 0"));
   assert.deepEqual(discordProblems(r.data), []);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
@@ -110,7 +110,7 @@ test("response after the cutoff shows the result line and disabled buttons", asy
   const { getRosterView: g } = await import("../../src/db/content.ts");
   const { renderRosterMessage } = await import("../../src/render/roster.ts");
   const m: any = renderRosterMessage((await g(deps.sql, contentId, CUTOFF))!);
-  assert.ok(textOf(m).includes("💰 **Loot vote:** On · Result: Split won 1-0"));
+  assert.ok(plain(textOf(m)).includes("💰 **Loot vote** On · Result: Split won 1-0"));
   assert.ok(voteButtons(m).length === 2 && voteButtons(m).every((b: any) => b.disabled === true));
 });
 

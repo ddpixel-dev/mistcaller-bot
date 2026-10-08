@@ -114,6 +114,9 @@ export const textOf = (body: C): string => {
   return out.join("\n");
 };
 
+// The text with the alignment padding (en and figure spaces) taken out, for assertions about the words themselves.
+export const plain = (s: string): string => s.replace(/\u2007/g, "").replace(/\u2002+/g, " ").replace(/ {2,}/g, " ");
+
 export const flatComponents = (body: C): C[] => {
   const out: C[] = [];
   const visit = (c: C) => {
