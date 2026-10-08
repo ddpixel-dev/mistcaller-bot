@@ -198,7 +198,7 @@ Content shall lock automatically at its start time.
 
 ### FR-013: Scheduled jobs
 status: accepted
-An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results and marks finished content done.
+An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results, sends the attendance message and report, and ends content that nobody ended **4 hours after its start** (owner decision 2026-10-08): it becomes done and the roster shows it as concluded. Submitting the attendance form does not end content, because somebody can join late; only `/content end` or this 4-hour rule does. No message is posted in the thread for the automatic end, the same as for `/content end`.
 
 ### FR-014: Attendance and history
 status: accepted
