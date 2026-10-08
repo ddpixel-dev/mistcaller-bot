@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTier, formatTier, parseSlots, parseUtcStart, parseTitle, parseNotes } from "../../src/domain/parse.ts";
+import { parseGearTier, parseSlots, parseUtcStart, parseTitle, parseNotes } from "../../src/domain/parse.ts";
 
 function ok<T>(r: { ok: true; value: T } | { ok: false; error: string }): T {
   assert.equal(r.ok, true, r.ok ? "" : r.error);
@@ -11,26 +11,20 @@ function err(r: { ok: boolean; error?: string }): string {
   return r.error as string;
 }
 
-test("parseTier single", () => {
-  assert.deepEqual(ok(parseTier("T5.3")), { min: { tier: 5, enchant: 3 }, max: null });
-  assert.deepEqual(ok(parseTier("t5.3")), { min: { tier: 5, enchant: 3 }, max: null });
-});
-
-test("parseTier ranges", () => {
-  for (const s of ["T5.3-T7.0", "T5.3 - T7.0", "T5.3–T7.0"]) {
-    assert.deepEqual(ok(parseTier(s)), { min: { tier: 5, enchant: 3 }, max: { tier: 7, enchant: 0 } }, s);
+test("parseGearTier accepts any text and shows it as typed", () => {
+  for (const s of ["T5.3", "T5.3-T7.0", "Weapon T7.1 - Gear T4.3", "Any gear, no mounts", "8.3 weapon / 6.0 armour", "Mixed 🛡️"]) {
+    assert.equal(ok(parseGearTier(s)), s);
   }
 });
 
-test("parseTier errors mention the example", () => {
-  for (const s of ["T7.0-T5.3", "T9.0", "T5.5", "5.3", "T5", ""]) {
-    assert.ok(err(parseTier(s)).includes("T5.3"), s);
-  }
+test("parseGearTier trims, collapses spaces and line breaks, and strips control characters", () => {
+  assert.equal(ok(parseGearTier("  Weapon   T7.1 \n Gear\tT4.3\u0007  ")), "Weapon T7.1 Gear T4.3");
 });
 
-test("formatTier", () => {
-  assert.equal(formatTier({ min: { tier: 5, enchant: 3 }, max: null }), "T5.3");
-  assert.equal(formatTier({ min: { tier: 5, enchant: 3 }, max: { tier: 7, enchant: 0 } }), "T5.3–T7.0");
+test("parseGearTier refuses an empty or over-long text, and says what to type", () => {
+  for (const s of ["", "   ", "\n\t"]) assert.ok(err(parseGearTier(s)).includes("Weapon T7.1 - Gear T4.3"), JSON.stringify(s));
+  assert.equal(ok(parseGearTier("x".repeat(80))).length, 80);
+  assert.ok(err(parseGearTier("x".repeat(81))).includes("80"));
 });
 
 test("parseSlots happy path", () => {
@@ -95,11 +89,6 @@ test("parseSlots CRLF and original line numbers", () => {
     { role: "Healer", weapon: "Holy" },
   ]);
   assert.ok(err(parseSlots("Tank - Axe\n\n\nBroken")).includes("line 4"));
-});
-
-test("parseTier extra edge cases", () => {
-  assert.ok(err(parseTier("T5.3-T7.0-T8.0")).includes("T5.3"));
-  assert.ok(err(parseTier("T5.3,T7.0")).includes("T5.3"));
 });
 
 test("parseUtcStart edge cases", () => {

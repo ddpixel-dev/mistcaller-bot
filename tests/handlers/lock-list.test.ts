@@ -20,7 +20,7 @@ async function setup(now = NOW) {
   const make = async (over: Partial<Parameters<typeof createContent>[1]> = {}) => {
     const id = await createContent(sql, {
       guildId: "g1", threadId: "t1", type: "pvp", title: "Raid", notes: null, startsAt: START,
-      tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss", now: new Date(START.getTime() - 24 * 3600000),
+      tier: "T8.0", hasLoot: false, createdBy: "boss", now: new Date(START.getTime() - 24 * 3600000),
       slots: [{ role: "Tank", weapon: "Mace" }, { role: "DPS", weapon: "Bow" }], ...over,
     });
     await setMessageId(sql, id, `m-${over.threadId ?? "t1"}`);

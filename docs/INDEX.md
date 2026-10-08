@@ -26,6 +26,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
 - [0018 Roster as Components V2](decisions/0018-roster-as-components-v2.md): open-positions menu, one shared Leave button
 - [0019 External cron service](decisions/0019-external-cron-service.md): reminders and jobs on time; automatic reminder stays off until verified
+- [0022 Server-only commands](decisions/0022-server-only-commands.md): works in any server it is added to
 - [0021 Roster rows grouped by role](decisions/0021-roster-rows-grouped-by-role.md): layout E, measured header columns
 - [0020 Setup without forums; admin roles](decisions/0020-setup-without-forums-admin-roles.md): any channel, global commands, role picker
 - [0017 Weapon icons as application emoji](decisions/0017-weapon-icons-as-application-emoji-accepted.md): accepted, supersedes 0013 for the roster
@@ -54,3 +55,4 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 ## Process
 - [Guardrails and audit](process/guardrails.md)
 - [Recording rules](process/recording.md)
+- [Adding the bot to a server](guides/adding-the-bot-to-a-server.md): invite steps, permissions, removing the bot

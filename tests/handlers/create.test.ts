@@ -139,8 +139,8 @@ test("choosing the type loads that type's categories, shown as plain values", as
   let p = panelOf(pvp);
   assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false]);
   assert.equal(p.kind.disabled, false);
-  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
-  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "gank-squad", "bomb-squad", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Gank Squad", "Bomb Squad", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
   assert.ok(p.kind.options.every((o: any) => !o.default));
   assert.equal(p.go.disabled, false);
   assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-");
@@ -194,7 +194,7 @@ test("with a preset, Continue opens the form directly with its slots, carrying t
   assert.equal(inputs[3].style, 2);
   assert.equal(inputs[3].value, "Tank - Mace (Caller)\nDPS - Bow");
   assert.equal(inputs[4].required, false);
-  assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 30, 1500, 500]);
+  assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 80, 1500, 500]);
 });
 
 test("panel and Continue refuse tampered values, a wrong-type kind and a taken post", async () => {
@@ -253,7 +253,8 @@ test("modal submit from a place that cannot hold a roster creates nothing", asyn
 test("invalid inputs respond ephemeral with the parser message and create nothing", async () => {
   const { deps, sql, posts } = await setup();
   const cases: Record<string, Record<string, string>> = {
-    "tier": { ...good, tier: "T9.9" },
+    "gear tier": { ...good, tier: "   " },
+    "80 characters": { ...good, tier: "x".repeat(81) },
     "not a real": { ...good, start: "2026-02-30 18:00" },
     "not in the future": { ...good, start: "2026-10-01 18:00" },
     "Too many slots": { ...good, slots: Array.from({ length: 21 }, () => "Tank - Axe").join("\n") },
@@ -474,4 +475,48 @@ test("a roster with every role posts a message Discord accepts: V2 flag, valid e
   assert.ok(menu.options.every((o: any) => o.emoji));
   assert.ok(textOf(body).includes("💚 Healer"));
   assert.ok(textOf(body).includes("📯 Caller"));
+});
+
+// ---- The bot's install and permissions are checked before anything is saved ----
+const VIEW = 1n << 10n, SEND = 1n << 11n, SEND_T = 1n << 38n;
+
+test("a bot added only to an account, not the server, is told so, and nothing is saved or posted", async () => {
+  const { deps, sql, posts } = await setup();
+  const owners = { authorizing_integration_owners: { "1": "u1" } };
+  const a = await handleCreateCommand(deps, command(undefined, owners));
+  assert.equal((a.data as any).flags, 64);
+  assert.match(content(a), /not added to this server/);
+  assert.match(content(await handleCreateModal(deps, modal(good, "1", owners))), /not added to this server/);
+  const c: any = await createDispatch(deps)(component("cp:type:-:-:-:-", ["pvp"], owners));
+  assert.match(content(c), /not added to this server/);
+  assert.equal((await sql`select 1 from content`).length, 0);
+  assert.equal(posts.length, 0);
+  // a server install (key 0, alone or with a user install) is fine
+  assert.ok(((await handleCreateCommand(deps, command(undefined, { authorizing_integration_owners: { "0": GUILD, "1": "u1" } }))).data as any).components);
+});
+
+test("a channel the bot cannot see or write in is explained, and one it can is not", async () => {
+  const { deps, sql, posts } = await setup();
+  const withPerms = (bits: bigint, channel = { id: "c1", type: 0 }) => ({ app_permissions: String(bits), channel });
+  for (const bits of [0n, VIEW, SEND, SEND | SEND_T]) {
+    const r = await handleCreateModal(deps, modal(good, "1", withPerms(bits)));
+    assert.match(content(r), /cannot post here/, `bits ${bits}`);
+  }
+  // threads and forum posts need Send Messages in Threads, not plain Send Messages
+  assert.match(content(await handleCreateModal(deps, modal(good, "1", withPerms(VIEW | SEND, { id: "t1", type: 11 })))), /cannot post here/);
+  assert.equal((await sql`select 1 from content`).length, 0);
+  assert.equal(posts.length, 0);
+  const ok = await handleCreateModal(deps, modal(good, "1", withPerms(VIEW | SEND, { id: "plain", type: 0 })));
+  assert.ok(!/cannot post|not added/.test(content(ok)));
+  const okThread = await handleCreateModal(deps, modal(good, "1", withPerms(VIEW | SEND_T, { id: "thread", type: 11 })));
+  assert.ok(!/cannot post|not added/.test(content(okThread)));
+  assert.equal(posts.length, 2);
+});
+
+test("Administrator, or no permission information at all, lets creation try", async () => {
+  const { deps, posts } = await setup();
+  await handleCreateModal(deps, modal(good, "1", { app_permissions: "8", channel: { id: "a", type: 0 } }));
+  await handleCreateModal(deps, modal(good, "1", { app_permissions: undefined, channel: { id: "b", type: 0 } }));
+  await handleCreateModal(deps, modal(good, "1", { app_permissions: "garbage", channel: { id: "c", type: 0 } }));
+  assert.equal(posts.length, 3);
 });

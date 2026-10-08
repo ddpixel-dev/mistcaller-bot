@@ -293,7 +293,7 @@ test("Continue is refused while the post already has content; a chosen preset sk
   await d(slotCmd({ role: "Tank", weapon: "Mace" }));
   await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "x", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
+    tier: "T8.0", hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
   });
   for (const cid of [`gs:done:${id}`, "cpgo:pvp:0:other:-"]) {
     const r: any = await d(press(cid));

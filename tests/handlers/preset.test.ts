@@ -19,7 +19,7 @@ async function setup() {
   await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss",
+    tier: "T8.0", hasLoot: false, createdBy: "boss",
     slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
   });
   await setMessageId(sql, id, "m1");

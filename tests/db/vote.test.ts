@@ -16,7 +16,7 @@ const base: NewContent = {
   title: "Loot run",
   notes: null,
   startsAt,
-  tier: { min: { tier: 8, enchant: 0 }, max: null },
+  tier: "T8.0",
   hasLoot: true,
   createdBy: "u1",
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],

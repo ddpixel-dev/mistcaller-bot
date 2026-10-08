@@ -154,11 +154,11 @@ The bot shall expose the slash command `/content` with the subcommands `create`,
 
 ### FR-002: Creation location and content type
 status: accepted
-`/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019).
+`/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019). Before anything is saved, the bot checks the install type and its own permissions that Discord sends with the interaction, and explains the problem instead of a vague failure: it is not added to the server (only to an account), or it lacks View Channel and Send Messages (Send Messages in Threads for threads and forum posts) in that place.
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) comes from the forum, so it is not asked. The tier is one value (`T5.3`) or a range (`T5.3-T7.0`). Each slot is one line of the form `Role - Weapon`, optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
@@ -208,6 +208,10 @@ About 5 minutes after the start, the bot shall send the content's creator a **pr
 status: accepted
 The creator, a member with Manage Server, or an admin role shall be able to end content that has started with `/content end` (owner decision 2026-10-08: the command only, no button). The content becomes done, the roster shows it as concluded, and its controls are dimmed. Ending does not post the attendance report; that waits for the attendance form to be submitted (FR-014).
 
+### FR-029: Help and owner tips
+status: accepted
+`/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
+
 ### FR-015: Upcoming list
 status: accepted
 `/content list` shall show the server's upcoming content (open, or locked early and not yet started; not cancelled, ended or already started), soonest first, up to 15, each with its start (relative), title, type and category, how many positions are filled, a lock mark when locked, and a link to its roster message. The reply is private.
@@ -242,7 +246,7 @@ The roster message shall use the Medieval Banner theme chosen by the owner on 20
 
 ### FR-023: Content kinds
 status: accepted
-Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
+Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Gank Squad, Bomb Squad (added 2026-10-08), Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted
@@ -358,9 +362,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.16.0 live (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.17.0 live (gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.16.0 (automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.17.0 (adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|

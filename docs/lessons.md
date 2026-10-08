@@ -9,6 +9,11 @@ date: 2026-10-06
 
 Dated entries, newest first. Record what surprised us, what we would do differently, and any rule worth adding to `AGENTS.md`.
 
+## 2026-10-08: A command can be visible where the bot is not a member
+- What happened: after the bot was invited to a second server, creating content kept failing with "Could not create the content right now". The bot's own guild list showed only the first server, so the invite had not made it a member there (an install to an account shows the slash commands, but the bot cannot post). In the first server, the bot also could not see the PvE forum.
+- What we learned: the interaction carries `app_permissions` and `authorizing_integration_owners`, so the bot can name the problem before saving anything. Listing `GET /users/@me/guilds` with the bot token is a quick check of where the bot really is.
+- Follow-up: creation now checks both and says what to fix (FR-002).
+
 ## 2026-10-07: Test against Discord's rules, not only our own structure
 - What happened: a button emoji that is not a real emoji made Discord refuse a whole roster message (see the lesson below), and our tests did not notice because they checked the shape of our payloads.
 - What we learned: Discord's limits (components per message, buttons per row, menu options, text length, unique ids, real emoji) can be written as a checker and applied to every message we build.

@@ -23,3 +23,6 @@ Hellgate is one kind (team size is already given by the slot count). The kind is
 - Changing the list is a code edit and a deploy. A per-server editable list is dropped from the MVP and may come back later.
 - Each list fits one select menu (25 options).
 - Supersedes the "configurable per server" part of FR-023.
+
+## Update 2026-10-08
+Gank Squad and Bomb Squad were added to the PvP list at the owner's request. The list is still fixed in code.

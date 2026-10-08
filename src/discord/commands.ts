@@ -20,12 +20,16 @@ export type CommandOption = {
   min_value?: number;
   max_value?: number;
 };
-export type Command = { name: string; description: string; options: CommandOption[] };
+// Server-only commands (ADR 0022): integration type 0 is a server install and context 0 is a server channel, so the
+// commands never show where the bot is not a member (an account install, direct messages).
+export type Command = { name: string; description: string; options: CommandOption[]; integration_types?: number[]; contexts?: number[] };
 
 export const commands = [
   {
     name: "content",
     description: "Guild content signups",
+    integration_types: [0],
+    contexts: [0],
     options: [
       {
         type: 1,
@@ -113,6 +117,7 @@ export const commands = [
         description: "A member's attendance history",
         options: [{ type: 6, name: "member", description: "The member", required: true }],
       },
+      { type: 1, name: "help", description: "What the bot does and every command" },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, admin roles, Manage Server)" },
     ],
   },

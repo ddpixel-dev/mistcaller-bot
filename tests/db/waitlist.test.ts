@@ -8,7 +8,7 @@ import { claimSlot, joinWaitlist, leaveContent, type Promotion } from "../../src
 const NOW = new Date("2026-10-06T12:00:00Z");
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Raid", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
-  tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss", now: NOW,
+  tier: "T8.0", hasLoot: false, createdBy: "boss", now: NOW,
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "Healer", weapon: "Fallen" }, { role: "DPS", weapon: "Bow" }],
 };
 beforeEach(async () => { await resetDb(await testSql()); });

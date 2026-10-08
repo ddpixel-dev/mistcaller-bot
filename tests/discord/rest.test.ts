@@ -70,7 +70,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(create.name, "create");
   assert.equal(create.options, undefined);
   assert.equal(commands[0]!.options.find((o) => o.name === "setup")!.options, undefined);
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "attendance", "history", "cancel"]);
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "attendance", "history", "help", "cancel"]);
 });
 
 test("the old server's command list is cleared with an empty PUT", () => {

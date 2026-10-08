@@ -15,7 +15,7 @@ async function setup() {
   const sql = await testSql();
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss",
+    tier: "T8.0", hasLoot: false, createdBy: "boss",
     slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
   });
   await setMessageId(sql, id, "m1");

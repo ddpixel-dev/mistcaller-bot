@@ -5,7 +5,7 @@ import { KINDS, DEFAULT_KIND, kindDef, resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
-import { NOT_HERE, createForm, inContentPlace, postTakenReply } from "./create.ts";
+import { createForm, placeProblem, postTakenReply } from "./create.ts";
 import { deleteDraft, findDraft } from "../db/draft.ts";
 import { startGuided } from "./guided.ts";
 
@@ -99,7 +99,7 @@ export async function createPanel(
     ],
   });
   const data = {
-    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, tier and slots.",
+    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.",
     components: rows,
     allowed_mentions: { parse: [] },
   };
@@ -116,7 +116,8 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   const draft = decodeDraft(parts.slice(2));
   const values = Array.isArray(raw?.values) ? (raw!.values as unknown[]) : null;
   if (parts[0] !== "cp" || !draft || !values || !i.guild_id || values.length > 1) return reply(INVALID);
-  if (!inContentPlace(i)) return reply(NOT_HERE);
+  const problem = placeProblem(i);
+  if (problem) return reply(problem);
   const value = values[0];
 
   if (field === "type") {
@@ -157,7 +158,8 @@ export async function checked(deps: Deps, i: Interaction, prefix: string): Promi
   const draft = parts[0] === prefix ? decodeDraft(parts.slice(1)) : null;
   if (!draft || !i.guild_id) return { ok: false, response: reply(INVALID) };
   if (!draft.type) return { ok: false, response: reply(NEED_TYPE) };
-  if (!inContentPlace(i)) return { ok: false, response: reply(NOT_HERE) };
+  const problem = placeProblem(i);
+  if (problem) return { ok: false, response: reply(problem) };
   const kind = resolveKind(draft.type, draft.kind);
   if (!kind.ok) return { ok: false, response: reply(kind.error) };
   if (i.channel?.id) {

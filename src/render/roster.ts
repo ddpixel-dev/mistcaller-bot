@@ -1,5 +1,4 @@
 import type { RosterSlot, RosterView } from "../domain/types.ts";
-import { formatTier } from "../domain/parse.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
@@ -107,7 +106,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     // A level-1 heading: Discord draws it at about 24 px, the largest text a message can have (owner request 2026-10-08).
     `# ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
     fact("⚔️", "Type", `**${kind}**`),
-    fact("⚙️", "Gear tier", formatTier(view.tier)),
+    fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     fact(VOTE_ICON, "Loot vote", lootValue(view)),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),
@@ -121,6 +120,12 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
 
 const text = (content: string) => ({ type: 10, content });
 
+// Small grey tips at the very bottom of a live roster (owner request 2026-10-08).
+export const OWNER_TIPS = [
+  "-# 💡 **Tips for the owner**",
+  "-# `/content edit` changes the event · don't forget `/content end` when it is over · `/content help` for more",
+].join("\n");
+
 export function renderRosterMessage(view: RosterView): {
   flags: number;
   components: unknown[];
@@ -133,7 +138,7 @@ export function renderRosterMessage(view: RosterView): {
   let withEmoji = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30));
-  const fits = () => headerText(view, filled, notes).length + waitLen + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, filled, notes).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
@@ -141,7 +146,7 @@ export function renderRosterMessage(view: RosterView): {
   const waitText = waiting.length
     ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
     : "";
-  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2;
+  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
   const kept = rowLines(view.slots, withEmoji).filter((l) => (used += l.text.length + 1) <= budget);
   while (kept.length > 0 && kept[kept.length - 1]!.heading) kept.pop(); // never end on a heading with no row
@@ -193,6 +198,7 @@ export function renderRosterMessage(view: RosterView): {
     disabled: !(live && filled > 0) || view.pinged === true,
   });
   body.push({ type: 1, components: buttons });
+  if (live) body.push(text(OWNER_TIPS));
 
   return {
     flags: IS_COMPONENTS_V2,

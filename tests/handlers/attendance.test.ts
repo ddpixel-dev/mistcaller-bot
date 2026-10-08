@@ -23,7 +23,7 @@ async function setup(opts: { dmFails?: boolean; postFails?: () => boolean } = {}
   await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Raid *night*", notes: null, startsAt: START,
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss", now: BEFORE,
+    tier: "T8.0", hasLoot: false, createdBy: "boss", now: BEFORE,
     slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }, { role: "DPS", weapon: "Axe" }],
   });
   await setMessageId(sql, id, "m1");
@@ -218,7 +218,7 @@ test("/content history counts attended, no-shows and finished contents where the
   await d(click(`att:submit:${id}`));
   const other = await createContent(sql, {
     guildId: "g1", threadId: "t2", type: "pvp", title: "Second", notes: null, startsAt: START,
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss", now: BEFORE,
+    tier: "T8.0", hasLoot: false, createdBy: "boss", now: BEFORE,
     slots: [{ role: "Tank", weapon: "Mace" }],
   });
   const slot = (await getRosterView(sql, other, BEFORE))!.slots[0]!.id;
