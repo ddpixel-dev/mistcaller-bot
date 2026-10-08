@@ -49,6 +49,14 @@ function walk(c: C, out: string[], ids: string[], texts: string[], where: string
       out.push(...emojiProblem(o.emoji, `${where}.o${i} option`));
     });
     if (opts.filter((o: C) => o.default).length > max) out.push(`${where}: more defaults than max_values`);
+  } else if (c.type >= 5 && c.type <= 8) {
+    // user, role, mentionable and channel pickers: Discord supplies the choices, so there are no options to count
+    ids.push(c.custom_id);
+    if (!c.custom_id || c.custom_id.length > 100) out.push(`${where}: picker custom_id missing or over 100`);
+    const max = c.max_values ?? 1, min = c.min_values ?? 1;
+    if (min < 0 || max < 1 || max > 25 || min > max) out.push(`${where}: picker min/max values are not valid`);
+    if ((c.default_values ?? []).length > max) out.push(`${where}: more defaults than max_values`);
+    if (c.placeholder && Array.from(c.placeholder).length > 150) out.push(`${where}: placeholder over 150`);
   } else if (c.type === 9) {
     const kids = c.components ?? [];
     if (kids.length < 1 || kids.length > 3 || kids.some((k: C) => k.type !== 10)) out.push(`${where}: a section holds 1 to 3 text blocks`);
@@ -113,6 +121,9 @@ export const textOf = (body: C): string => {
   for (const e of body.embeds ?? []) out.push(e.title ?? "", e.description ?? "");
   return out.join("\n");
 };
+
+// The text with the alignment padding (en and figure spaces) taken out, for assertions about the words themselves.
+export const plain = (s: string): string => s.replace(/\u2007/g, "").replace(/\u2002+/g, " ").replace(/ {2,}/g, " ");
 
 export const flatComponents = (body: C): C[] => {
   const out: C[] = [];

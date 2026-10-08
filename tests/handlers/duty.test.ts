@@ -13,7 +13,7 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id, officer_role_id) values ('g1', 'fp', 'fe', 'officer')`;
+  await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
     tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss",

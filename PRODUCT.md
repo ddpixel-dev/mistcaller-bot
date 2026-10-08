@@ -12,9 +12,9 @@ The guild uses it every day and no one tracks a roster by hand. It starts as a s
 
 ## Users
 
-- Content creator: any guild member. Posts content in a configured forum and manages it.
+- Content creator: any guild member. Posts content in any channel, thread or forum post and manages it.
 - Participant: any member. Signs up for a position, moves, leaves, votes on loot.
-- Manager: the creator, a member with Manage Server, or a member with the guild's officer role. Edits, locks, cancels content and marks attendance.
+- Manager: the creator, a member with Manage Server, or a member with one of the server's admin roles. Edits, locks, cancels content and marks attendance.
 
 ## Features
 
@@ -51,12 +51,12 @@ satisfies: FR-008, FR-012, FR-013
 Signed-up players vote split or regear. The vote closes 5 minutes before the start and the result is shown.
 
 ### FT-005: Manage content and permissions
-status: edit, cancel, lock and unlock built (FR-020, FR-021, FR-009); creation cap not started
+status: edit, cancel, lock and unlock built (FR-020, FR-021, FR-009); creation cap dropped
 phase: MVP
 priority: must
 satisfies: FR-009, FR-010
 
-Creator, server admins and the officer role can edit, lock and cancel content. Creation is capped per user.
+Creator, server admins and the admin roles can edit, lock and cancel content. Anyone can create; there is no cap (FR-010 dropped).
 
 ### FT-006: Guild setup
 status: built (re-register commands after release)
@@ -64,7 +64,7 @@ phase: MVP
 priority: must
 satisfies: FR-016
 
-`/content setup` sets the officer role and the PvP and PvE forums. The POC uses a manually seeded settings row.
+`/content setup` chooses the admin roles with a role picker (ADR 0020). No forums or server id are configured.
 
 ### FT-007: Reminders
 status: built (needs migration 0010)
@@ -154,7 +154,7 @@ The bot shall expose the slash command `/content` with the subcommands `create`,
 
 ### FR-002: Creation location and content type
 status: accepted
-`/content create` shall work only inside a post of one of the two configured forums. The content type (PvP or PvE) is chosen in the create panel and is not assumed from the forum (changed 2026-10-07, ADR 0016). Elsewhere it shall reply privately with an explanation.
+`/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019).
 
 ### FR-003: Creation input
 status: accepted
@@ -162,7 +162,7 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the tier or range on its own line, the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set.
+The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set. The header labels (Type, Gear tier, Loot vote, UTC, Your time) and the role, weapon and duty columns of the rows are padded with en spaces so the values line up (owner decision 2026-10-08). Discord draws text in a proportional font, so this is approximate: it is estimated, not exact, and the padding is dropped first when a very full roster would not fit Discord's text limit.
 
 ### FR-005: Sign up, move, leave
 status: accepted
@@ -182,15 +182,15 @@ For content with loot, signed-up members (not waitlisted) shall vote split or re
 
 ### FR-009: Management rights
 status: accepted
-The creator, any member with Manage Server, and any member with the guild's officer role shall be able to edit, lock and cancel content and mark attendance. Others are refused. `/content lock` closes signups and moves before the start (players can still leave, and the reminder is still sent); the start locks it anyway. `/content unlock` reopens a roster locked early, before the start, and seats the waitlist in positions freed while it was locked (owner request 2026-10-08). Changing the start time pings signed-up members and resets the reminder.
+The creator, any member with Manage Server or Administrator, and any member with one of the server's admin roles (ADR 0020) shall be able to edit, lock and cancel content and mark attendance. Others are refused. `/content lock` closes signups and moves before the start (players can still leave, and the reminder is still sent); the start locks it anyway. `/content unlock` reopens a roster locked early, before the start, and seats the waitlist in positions freed while it was locked (owner request 2026-10-08). Changing the start time pings signed-up members and resets the reminder.
 
 ### FR-010: Creation cap
-status: accepted
+status: dropped (owner decision 2026-10-08, ADR 0020; not built)
 A member shall create at most 5 content posts in any rolling 24 hours, counting cancelled ones. The limit is a guild setting with a default of 5.
 
 ### FR-011: Reminders
 status: accepted
-Signed-up members (not the waitlist) shall be pinged once in the content's post, about 30 minutes before the start: "⏰ *Title* starts in 30 minutes" with their mentions (and nobody else's). Sending shall be idempotent: it is claimed in the database before sending and released if the send fails. Content created inside the 30 minutes, or edited to start inside them, gets no reminder. Changing the start time resets the reminder (FR-009). The scheduled job runs every 5 minutes, so the ping arrives between about 25 and 35 minutes before the start.
+The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it, and only **once per content**: the first use is recorded (`content.pinged_at`, migration 0013) and the button is dimmed on the roster so nobody spams the players; if nobody could be reached the use is given back. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, and tells the owner how many were reached and who could not be (closed private messages). The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
 
 ### FR-012: Auto-lock
 status: accepted
@@ -198,15 +198,15 @@ Content shall lock automatically at its start time.
 
 ### FR-013: Scheduled jobs
 status: accepted
-A GitHub Actions workflow shall call the protected cron route every 5 minutes. The route sends due reminders, auto-locks, posts vote results and marks finished content done.
+An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results and marks finished content done.
 
 ### FR-014: Attendance and history
 status: accepted
-About 5 minutes after the start, the bot shall send the content's creator a **private message** with a button that opens the attendance form, for the creator to open whenever they can (owner decision 2026-10-08). If the private message cannot be sent, a short note with the command goes in the content's post. A manager (the creator, Manage Server or the officer role) can also open the form privately with `/content attendance` once the content has started. The form lists the signed-up players by their server names; the manager picks everyone who attended and presses **Submit**, which records everyone not picked as a no-show; **Save and finish later** keeps the picks and records nobody as a no-show. Members who are not marked are shown as "not recorded" and are never counted as no-shows. **The report is posted in the content's post only when the owner submits the form** (not when the content ends), listing attended and no-show players without pinging them; a failed post is retried. `/content history @member` shows attended, no-show and not-recorded counts, where not recorded means finished content the member was signed up for with no mark.
+About 5 minutes after the start, the bot shall send the content's creator a **private message** with a button that opens the attendance form, for the creator to open whenever they can (owner decision 2026-10-08). If the private message cannot be sent, a short note with the command goes in the content's post. A manager (the creator, Manage Server or an admin role) can also open the form privately with `/content attendance` once the content has started. The form lists the signed-up players by their server names; the manager picks everyone who attended and presses **Submit**, which records everyone not picked as a no-show; **Save and finish later** keeps the picks and records nobody as a no-show. Members who are not marked are shown as "not recorded" and are never counted as no-shows. **The report is posted in the content's post only when the owner submits the form** (not when the content ends), listing attended and no-show players without pinging them; a failed post is retried. `/content history @member` shows attended, no-show and not-recorded counts, where not recorded means finished content the member was signed up for with no mark.
 
 ### FR-028: End content
 status: accepted
-The creator, a member with Manage Server, or the officer role shall be able to end content that has started with `/content end` (owner decision 2026-10-08: the command only, no button). The content becomes done, the roster shows it as concluded, and its controls are dimmed. Ending does not post the attendance report; that waits for the attendance form to be submitted (FR-014).
+The creator, a member with Manage Server, or an admin role shall be able to end content that has started with `/content end` (owner decision 2026-10-08: the command only, no button). The content becomes done, the roster shows it as concluded, and its controls are dimmed. Ending does not post the attendance report; that waits for the attendance form to be submitted (FR-014).
 
 ### FR-015: Upcoming list
 status: accepted
@@ -214,7 +214,7 @@ status: accepted
 
 ### FR-016: Guild setup
 status: accepted
-`/content setup`, restricted to Manage Server, shall set the officer role, the PvP forum and the PvE forum, and optionally the creation cap.
+`/content setup`, restricted to Manage Server or Administrator, shall open a private role picker listing the server's roles, with the current admin roles preselected, and save a change at once (up to 10 roles, never @everyone; changed 2026-10-08, ADR 0020, replacing the officer role, the two forums and the cap). The commands are registered globally, so no server id is configured.
 
 ### FR-017: Roster recovery
 status: proposed
@@ -230,7 +230,7 @@ A forum post shall hold at most one content whose status is `open` or `locked`. 
 
 ### FR-020: Edit content
 status: accepted
-The creator, a member with Manage Server, or a member with the officer role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot-vote` option changes the loot-vote toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
+The creator, a member with Manage Server, or a member with an admin role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot-vote` option changes the loot-vote toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
 
 ### FR-021: Cancel content
 status: accepted
@@ -250,7 +250,7 @@ An officer shall be able to define the slots in three ways: typing the lines (th
 
 ### FR-025: Saved presets
 status: accepted
-An officer shall be able to save the slots defined in the typed-lines mode or the guided-steps mode as a named preset for the server, and later start a content from a preset and adjust it. Only members with Manage Server or the officer role may save and delete presets, and a server holds at most 25 (ADR 0012).
+An officer shall be able to save the slots defined in the typed-lines mode or the guided-steps mode as a named preset for the server, and later start a content from a preset and adjust it. Only members with Manage Server or an admin role may save and delete presets, and a server holds at most 25 (ADR 0012).
 
 ### FR-026: Weapon list and icons
 status: accepted
@@ -358,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.13.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
-Last updated: 2026-10-07
-Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
+Phase: MVP, release 0.14.0 live (single-use Ping, aligned text, any-channel creation, admin roles, global commands; migrations 0013 and 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Last updated: 2026-10-08
+Next step: owner tests 0.14.0 (aligned text, single-use Ping, `/content setup` role picker, creation in other channels, cron-job.org timing). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
@@ -369,7 +369,7 @@ Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), t
 | FT-005 edit and cancel | live (0.2.0) | Lock and the creation cap are not built |
 | FT-013 banner style | live, art pending | The 0.4.0 headers and ANSI block were reverted in 0.5.0 |
 | FT-014 content kinds | live (0.4.0) | Chosen in the create panel since 0.5.0 |
-| FT-006 `/content setup` | live (0.4.0) | |
+| FT-006 `/content setup` | admin-role picker in 0.14.0 | Replaces forums, officer role and cap (ADR 0020); global commands |
 | FT-015 slot builder and presets | built; 0.7.0 reworks the guided steps | Role numbers, `/content slot` search, Continue choice; needs migration 0007 |
 | FT-016 duties | in 0.7.0 | `/content duty`; needs migration 0006 |
 | FT-003 waitlist, FT-007 reminders, FT-008 list, FT-009 attendance | not started | MVP |

@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { reply } from "../discord/response.ts";
 import { commandPath, focusedOption, leafOption } from "../discord/modal.ts";
-import { getGuildSettings } from "../db/settings.ts";
+import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
 import { MAX_PRESETS, deletePreset, listPresets, savePreset, searchPresetNames } from "../db/preset.ts";
@@ -12,15 +12,15 @@ import { escapeText } from "../render/roster.ts";
 import { WEAPONS } from "../data/weapons.ts";
 import { searchWeapons } from "../domain/weapons.ts";
 
-const NOT_ALLOWED = "Only members with Manage Server or the officer role can manage presets.";
+const NOT_ALLOWED = "Only members with Manage Server or an admin role can manage presets.";
 
 async function mayManage(deps: Deps, i: Interaction): Promise<boolean> {
   const userId = i.member?.user?.id;
   if (!i.guild_id || !userId) return false;
-  const settings = await getGuildSettings(deps.sql, i.guild_id);
+  const adminRoles = await getAdminRoleIds(deps.sql, i.guild_id);
   return canManagePresets(
     { userId, roles: i.member?.roles ?? [], permissions: i.member?.permissions },
-    settings?.officerRoleId ?? null,
+    adminRoles,
   );
 }
 
@@ -32,7 +32,7 @@ export async function handlePresetCommand(deps: Deps, i: Interaction): Promise<I
 
   if (action === "list") {
     const presets = await listPresets(deps.sql, guildId);
-    if (presets.length === 0) return reply("No presets saved yet. An officer can save one with `/content preset save`.");
+    if (presets.length === 0) return reply("No presets saved yet. An admin can save one with `/content preset save`.");
     const lines = presets.map((p) => `• ${escapeText(p.name)} (${p.slots.length} slots)`);
     return reply(`Saved presets (${presets.length}/${MAX_PRESETS}):\n${lines.join("\n")}`);
   }

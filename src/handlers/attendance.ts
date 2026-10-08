@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { leafOption } from "../discord/modal.ts";
-import { getGuildSettings } from "../db/settings.ts";
+import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
 import {
@@ -14,18 +14,18 @@ import { renderRosterMessage } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
-const NOT_ALLOWED = "Only the creator, a member with Manage Server, or the officer role can do that.";
+const NOT_ALLOWED = "Only the creator, a member with Manage Server, or an admin role can do that.";
 const INVALID = "That form is out of date. Run `/content attendance` again.";
 
-// Who may act: in the server, the creator, Manage Server or the officer role. In a direct message (the owner's
+// Who may act: in the server, the creator, Manage Server or an admin role. In a direct message (the owner's
 // form), only the creator, because roles cannot be seen there.
 async function allowed(deps: Deps, i: Interaction, a: Attendance): Promise<string | null> {
   const actor = i.member?.user?.id ?? i.user?.id;
   if (!actor) return null;
   if (i.guild_id && i.guild_id !== a.guildId) return null;
   if (!i.member) return actor === a.createdBy ? actor : null;
-  const settings = await getGuildSettings(deps.sql, a.guildId);
-  const ok = canManage({ userId: actor, roles: i.member.roles ?? [], permissions: i.member.permissions }, { createdBy: a.createdBy }, settings?.officerRoleId ?? null);
+  const adminRoles = await getAdminRoleIds(deps.sql, a.guildId);
+  const ok = canManage({ userId: actor, roles: i.member.roles ?? [], permissions: i.member.permissions }, { createdBy: a.createdBy }, adminRoles);
   return ok ? actor : null;
 }
 

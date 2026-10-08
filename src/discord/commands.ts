@@ -30,35 +30,22 @@ export const commands = [
       {
         type: 1,
         name: "create",
-        description: "Create a content signup in this forum post",
+        description: "Create a content signup in this channel or post",
       },
       {
         type: 1,
         name: "edit",
-        description: "Edit this post's content in a form (creator, officers, Manage Server)",
+        description: "Edit this post's content in a form (creator, admin roles, Manage Server)",
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
           kindOption("Change the category (leave empty to keep it)"),
         ],
       },
-      {
-        type: 1,
-        name: "setup",
-        description: "Set the officer role and the content forums (Manage Server)",
-        options: [
-          { type: 8, name: "officer-role", description: "Role allowed to manage any content", required: false },
-          { type: 7, name: "pvp-forum", description: "Forum for PvP content", required: false, channel_types: [15] },
-          { type: 7, name: "pve-forum", description: "Forum for PvE content", required: false, channel_types: [15] },
-          {
-            type: 4, name: "daily-cap", description: "Contents one member may create per day (default 5)",
-            required: false, min_value: 1, max_value: 50,
-          },
-        ],
-      },
+      { type: 1, name: "setup", description: "Choose the admin roles that can manage content (Manage Server)" },
       {
         type: 2,
         name: "preset",
-        description: "Saved slot presets (save and delete: Manage Server or officer role)",
+        description: "Saved slot presets (save and delete: Manage Server or an admin role)",
         options: [
           {
             type: 1, name: "save", description: "Save this post's slots as a preset",
@@ -84,7 +71,7 @@ export const commands = [
       {
         type: 1,
         name: "duty",
-        description: `Give a player a ${DUTY_WORD.toLowerCase()} (creator, officers, Manage Server)`,
+        description: `Give a player a ${DUTY_WORD.toLowerCase()} (creator, admin roles, Manage Server)`,
         options: [
           {
             type: 4, name: "position", description: "Position number on the roster", required: true,
@@ -115,32 +102,38 @@ export const commands = [
           },
         ],
       },
-      { type: 1, name: "lock", description: "Close signups now (creator, officers, Manage Server)" },
-      { type: 1, name: "unlock", description: "Reopen signups after a lock, before the start (creator, officers, Manage Server)" },
+      { type: 1, name: "lock", description: "Close signups now (creator, admin roles, Manage Server)" },
+      { type: 1, name: "unlock", description: "Reopen signups after a lock, before the start (creator, admin roles, Manage Server)" },
       { type: 1, name: "list", description: "Upcoming content in this server, with links" },
-      { type: 1, name: "end", description: "End this content once it has started (creator, officers, Manage Server)" },
-      { type: 1, name: "attendance", description: "Open the attendance form privately (creator, officers, Manage Server)" },
+      { type: 1, name: "end", description: "End this content once it has started (creator, admin roles, Manage Server)" },
+      { type: 1, name: "attendance", description: "Open the attendance form privately (creator, admin roles, Manage Server)" },
       {
         type: 1,
         name: "history",
         description: "A member's attendance history",
         options: [{ type: 6, name: "member", description: "The member", required: true }],
       },
-      { type: 1, name: "cancel", description: "Cancel this post's content (creator, officers, Manage Server)" },
+      { type: 1, name: "cancel", description: "Cancel this post's content (creator, admin roles, Manage Server)" },
     ],
   },
 ] satisfies Command[] as [Command & { options: (CommandOption & { options?: CommandOption[] })[] }];
 
-export function buildRegisterRequest(a: { appId: string; guildId: string; token: string }): {
-  url: string;
-  init: { method: string; headers: Record<string, string>; body: string };
-} {
+type RegisterRequest = { url: string; init: { method: string; headers: Record<string, string>; body: string } };
+
+const headers = (token: string) => ({ Authorization: `Bot ${token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT });
+
+// Global registration (ADR 0020): the commands exist in every server the bot is in, so no server id is needed.
+export function buildRegisterRequest(a: { appId: string; token: string }): RegisterRequest {
+  return {
+    url: `https://discord.com/api/v10/applications/${a.appId}/commands`,
+    init: { method: "PUT", headers: headers(a.token), body: JSON.stringify(commands) },
+  };
+}
+
+// One-time cleanup: commands registered to a single server before ADR 0020 would show up twice next to the global ones.
+export function buildClearGuildRequest(a: { appId: string; guildId: string; token: string }): RegisterRequest {
   return {
     url: `https://discord.com/api/v10/applications/${a.appId}/guilds/${a.guildId}/commands`,
-    init: {
-      method: "PUT",
-      headers: { Authorization: `Bot ${a.token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
-      body: JSON.stringify(commands),
-    },
+    init: { method: "PUT", headers: headers(a.token), body: "[]" },
   };
 }

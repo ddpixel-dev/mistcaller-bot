@@ -25,6 +25,8 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0011 Weapon icons as emoji](decisions/0011-weapon-icons-as-application-emoji.md): superseded by 0013
 - [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
 - [0018 Roster as Components V2](decisions/0018-roster-as-components-v2.md): open-positions menu, one shared Leave button
+- [0019 External cron service](decisions/0019-external-cron-service.md): reminders and jobs on time; automatic reminder stays off until verified
+- [0020 Setup without forums; admin roles](decisions/0020-setup-without-forums-admin-roles.md): any channel, global commands, role picker
 - [0017 Weapon icons as application emoji](decisions/0017-weapon-icons-as-application-emoji-accepted.md): accepted, supersedes 0013 for the roster
 - [0016 Type chosen in the create panel](decisions/0016-type-chosen-in-create-panel.md): type is a choice, kinds are called categories
 - [0015 Weapon data as a generated file](decisions/0015-weapon-data-as-generated-file.md): no table, refreshed by a script
@@ -42,6 +44,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 - [FT-015 slot builder and presets design](plan/2026-10-07-ft-015-slot-builder-design.md)
 - [Roster joining, header lines and weapon icons: options](plan/2026-10-07-roster-ux-options.md): proposed, awaiting owner decisions
+- [Setup redesign: any server, any channel, admin roles](plan/2026-10-08-setup-redesign.md): approved 2026-10-08, built
 
 ## Working notes
 - [Open questions](open-questions.md)

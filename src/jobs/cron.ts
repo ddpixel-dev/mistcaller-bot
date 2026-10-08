@@ -218,11 +218,14 @@ export async function sendReminders(deps: Deps): Promise<number> {
   return sent;
 }
 
+// Automatic reminders are off by default (owner decision 2026-10-08): the scheduler ran only every few hours, so the
+// 30-minute reminder came late. The owner uses the Ping button on the roster instead. Set AUTO_REMINDERS=on to enable.
 export async function runJobs(
   deps: Deps,
+  opts: { autoReminders?: boolean } = {},
 ): Promise<{ locked: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
-  const remindersSent = await sendReminders(deps);
+  const remindersSent = opts.autoReminders ? await sendReminders(deps) : 0;
   const attendanceDms = await sendAttendanceDms(deps);
   const reportsPosted = await postPendingReports(deps);
   const locked = await lockStarted(deps);

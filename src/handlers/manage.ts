@@ -3,7 +3,7 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
-import { getGuildSettings } from "../db/settings.ts";
+import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import {
   cancelContent, editContent, getManageTarget, getManageTargetById, listUpcoming, lockContent, unlockContent, type ManageTarget,
@@ -18,7 +18,7 @@ import { kindDef } from "../domain/kinds.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
-const NOT_ALLOWED = "Only the creator, a member with Manage Server, or the officer role can do that.";
+const NOT_ALLOWED = "Only the creator, a member with Manage Server, or an admin role can do that.";
 const INVALID = "That action is not valid. Please run the command again.";
 
 type Checked = { ok: true; target: ManageTarget } | { ok: false; response: InteractionResponse };
@@ -28,11 +28,11 @@ async function authorize(deps: Deps, i: Interaction, target: ManageTarget | null
   if (!target || !i.guild_id || target.guildId !== i.guild_id || !userId) {
     return { ok: false, response: reply(NO_CONTENT) };
   }
-  const settings = await getGuildSettings(deps.sql, i.guild_id);
+  const adminRoles = await getAdminRoleIds(deps.sql, i.guild_id);
   const allowed = canManage(
     { userId, roles: i.member?.roles ?? [], permissions: i.member?.permissions },
     { createdBy: target.createdBy },
-    settings?.officerRoleId ?? null,
+    adminRoles,
   );
   return allowed ? { ok: true, target } : { ok: false, response: reply(NOT_ALLOWED) };
 }
@@ -230,7 +230,7 @@ const LIST_LIMIT = 15;
 export async function handleListCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (!i.guild_id) return reply("Use this command inside the server.");
   const items = await listUpcoming(deps.sql, i.guild_id, deps.now(), LIST_LIMIT + 1);
-  if (items.length === 0) return reply("No upcoming content. Start one with `/content create` in a forum post.");
+  if (items.length === 0) return reply("No upcoming content. Start one with `/content create` in a channel or post.");
   const lines = items.slice(0, LIST_LIMIT).map((c) => {
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
     const def = kindDef(c.type === "pve" ? "pve" : "pvp", c.kind);
