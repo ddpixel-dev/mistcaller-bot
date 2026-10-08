@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IS_COMPONENTS_V2, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
+import { IS_COMPONENTS_V2, SPACER, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
 import { fillBar, roleIcon } from "../../src/render/theme.ts";
 import type { RosterSlot, RosterView } from "../../src/domain/types.ts";
 import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
@@ -361,4 +361,38 @@ test("a live roster ends with small tips for the owner; finished or cancelled on
 test("the tips still fit when the roster text is at Discord's limit", () => {
   const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
   assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+// ---- Spacing (owner decision 2026-10-08, level A) ----
+
+test("small gaps sit after the title, after the header facts, and between role groups; not before the first group or at the end", () => {
+  const lines = raw(view({ slots: [
+    { id: "a", position: 1, role: "Tank", weapon: "Mace", userId: null },
+    { id: "b", position: 2, role: "Healer", weapon: "Holy", userId: null },
+    { id: "c", position: 3, role: "DPS", weapon: "Bow", userId: null },
+  ] })).split("\n");
+  const at = lines.map((l, n) => (l === SPACER ? n : -1)).filter((n) => n >= 0);
+  assert.equal(at.length, 4, "title, facts, and two between three groups");
+  assert.ok(lines[0]!.startsWith("# ") && lines[at[0]!] === SPACER && lines[at[0]! + 1]!.includes("**Type**"), "gap right after the title");
+  assert.ok(lines[at[1]! - 1]!.includes("**Your time**"), "gap right after the last header fact");
+  for (const n of at.slice(2)) {
+    assert.ok(/^\d+\. /.test(lines[n - 1]!) && lines[n + 1]!.startsWith("### "), "a gap between a group's last row and the next heading");
+  }
+  assert.ok(lines[lines.indexOf("### 🛡️ Tank · 0/1") - 1] !== SPACER, "no gap before the first group heading");
+  assert.notEqual(lines.at(-1), SPACER, "no gap at the very end");
+});
+
+test("the facts themselves stay tight: no gap between two header facts or two rows of a group", () => {
+  const lines = raw(view({ slots: slots(3, 0, "DPS", "Bow") })).split("\n");
+  const i = lines.findIndex((l) => l.includes("**Type**"));
+  for (let k = 0; k < 4; k++) assert.ok(lines[i + k]!.includes("**") && lines[i + k] !== SPACER, `fact ${k}`);
+  const h = lines.findIndex((l) => l.startsWith("### "));
+  assert.deepEqual(lines.slice(h + 1, h + 4).map((l) => /^\d\. /.test(l)), [true, true, true]);
+});
+
+test("the gaps are dropped first when the text is too long, and the message still fits", () => {
+  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
+  assert.deepEqual(discordProblems(msg(v)), []);
+  const small = raw(view());
+  assert.ok(small.includes(SPACER));
 });
