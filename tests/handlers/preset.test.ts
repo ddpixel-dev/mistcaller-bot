@@ -16,7 +16,7 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id, officer_role_id) values ('g1', 'fp', 'fe', 'officer')`;
+  await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
     tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss",
@@ -51,8 +51,8 @@ test("Manage Server also may save; the creator and others may not", async () => 
   const { deps } = await setup();
   assert.ok(text(await handlePresetCommand(deps, preset("save", { name: "A" }, who("x", [], "32")))).includes("saved"));
   for (const m of [who("boss"), who("nobody")]) {
-    assert.ok(text(await handlePresetCommand(deps, preset("save", { name: "B" }, m))).includes("Manage Server or the officer role"));
-    assert.ok(text(await handlePresetCommand(deps, preset("delete", { name: "A" }, m))).includes("Manage Server or the officer role"));
+    assert.ok(text(await handlePresetCommand(deps, preset("save", { name: "B" }, m))).includes("Manage Server or an admin role"));
+    assert.ok(text(await handlePresetCommand(deps, preset("delete", { name: "A" }, m))).includes("Manage Server or an admin role"));
   }
 });
 

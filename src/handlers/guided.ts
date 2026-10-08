@@ -12,12 +12,11 @@ import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
-import { createForm, inContentPost, postTakenReply } from "./create.ts";
+import { NOT_HERE, createForm, inContentPlace, postTakenReply } from "./create.ts";
 import { createPanel } from "./create-panel.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
-const NOT_FORUM = "Use this command inside a post in a content forum.";
 
 const update = (d: StoredDraft): InteractionResponse => ({ type: UPDATE_MESSAGE, data: renderGuidedStep(d) });
 const picked = (d: GuidedDraft) => ({ count: d.count, slots: d.slots, step: d.step, role: d.role, weapon: d.weapon, duty: d.duty });
@@ -101,7 +100,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     }
     case "done": {
       if (!isComplete(d)) return update(d);
-      if (!i.guild_id || !(await inContentPost(deps, i))) return reply(NOT_FORUM);
+      if (!i.guild_id || !inContentPlace(i)) return reply(NOT_HERE);
       const kind = resolveKind(d.type, d.kind);
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;

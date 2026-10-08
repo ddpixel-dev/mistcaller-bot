@@ -1,58 +1,23 @@
 import type { Sql } from "./client.ts";
 
-export type GuildSettings = {
-  guildId: string;
-  officerRoleId: string | null;
-  pvpForumId: string;
-  pveForumId: string;
-  dailyCap: number;
-};
+export const MAX_ADMIN_ROLES = 10;
 
-export async function getGuildSettings(sql: Sql, guildId: string): Promise<GuildSettings | null> {
-  const rows = await sql`
-    select guild_id, officer_role_id, pvp_forum_id, pve_forum_id, daily_cap
-    from guild_settings where guild_id = ${guildId}`;
-  const r = rows[0];
-  if (!r) return null;
-  return {
-    guildId: r.guild_id,
-    officerRoleId: r.officer_role_id,
-    pvpForumId: r.pvp_forum_id,
-    pveForumId: r.pve_forum_id,
-    dailyCap: r.daily_cap,
-  };
+// The roles whose members may manage any content and the presets (ADR 0020). Manage Server and Administrator
+// always count as well; that is decided in the permission code, not stored.
+export async function getAdminRoleIds(sql: Sql, guildId: string): Promise<string[]> {
+  const rows = await sql`select role_id from guild_admin_role where guild_id = ${guildId} order by created_at, role_id`;
+  return rows.map((r) => r.role_id as string);
 }
 
-export type SettingsPatch = {
-  officerRoleId?: string;
-  pvpForumId?: string;
-  pveForumId?: string;
-  dailyCap?: number;
-};
-
-// The first setup needs both forums. Later ones change only what is given.
-export async function applySettings(
-  sql: Sql,
-  guildId: string,
-  patch: SettingsPatch,
-): Promise<{ result: "ok"; settings: GuildSettings } | { result: "needs_forums" } | { result: "same_forum" }> {
-  return await sql.begin(async (tx) => {
-    const [cur] = await tx`select * from guild_settings where guild_id = ${guildId} for update`;
-    const pvp = patch.pvpForumId ?? cur?.pvp_forum_id;
-    const pve = patch.pveForumId ?? cur?.pve_forum_id;
-    if (!pvp || !pve) return { result: "needs_forums" as const };
-    if (pvp === pve) return { result: "same_forum" as const };
-    const officer = patch.officerRoleId ?? cur?.officer_role_id ?? null;
-    const cap = patch.dailyCap ?? cur?.daily_cap ?? 5;
-    await tx`
-      insert into guild_settings (guild_id, officer_role_id, pvp_forum_id, pve_forum_id, daily_cap)
-      values (${guildId}, ${officer}, ${pvp}, ${pve}, ${cap})
-      on conflict (guild_id) do update set
-        officer_role_id = excluded.officer_role_id, pvp_forum_id = excluded.pvp_forum_id,
-        pve_forum_id = excluded.pve_forum_id, daily_cap = excluded.daily_cap`;
-    return {
-      result: "ok" as const,
-      settings: { guildId, officerRoleId: officer, pvpForumId: pvp, pveForumId: pve, dailyCap: cap },
-    };
+// Replaces the whole set in one transaction, so two quick changes cannot interleave into a mixed set.
+export async function setAdminRoles(sql: Sql, guildId: string, roleIds: string[]): Promise<void> {
+  const ids = [...new Set(roleIds)];
+  if (ids.length > MAX_ADMIN_ROLES) throw new Error("too many admin roles");
+  await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtext(${"admin_roles:" + guildId}))`;
+    await tx`delete from guild_admin_role where guild_id = ${guildId} and not (role_id = any(${ids}))`;
+    for (const roleId of ids) {
+      await tx`insert into guild_admin_role (guild_id, role_id) values (${guildId}, ${roleId}) on conflict do nothing`;
+    }
   });
 }

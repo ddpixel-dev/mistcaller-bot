@@ -15,7 +15,6 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id) values ('g1', 'fp', 'fe')`;
   const deps: Deps = { sql, rest, now: () => NOW };
   return { sql, deps, d: createDispatch(deps) };
 }

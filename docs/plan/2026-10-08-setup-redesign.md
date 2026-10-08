@@ -1,7 +1,7 @@
 ---
 title: Setup redesign: any server, any channel, admin roles
 type: plan
-status: proposed
+status: accepted
 date: 2026-10-08
 satisfies: [FR-002, FR-009, FR-010, FR-025]
 ---

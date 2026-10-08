@@ -7,15 +7,15 @@ export type Actor = {
   permissions?: string;
 };
 
-// FR-009: the creator, a member with Manage Server (or Administrator), or a member with the officer role.
-export function canManage(
-  actor: Actor,
-  content: { createdBy: string | null },
-  officerRoleId: string | null,
-): boolean {
+// FR-009 (ADR 0020): a bot admin holds one of the server's admin roles, or has Manage Server or Administrator.
+export function isAdmin(actor: Actor, adminRoleIds: string[]): boolean {
+  return actor.roles.some((r) => adminRoleIds.includes(r)) || hasManageServer(actor.permissions);
+}
+
+// The content's creator or a bot admin may manage the content.
+export function canManage(actor: Actor, content: { createdBy: string | null }, adminRoleIds: string[]): boolean {
   if (content.createdBy !== null && content.createdBy === actor.userId) return true;
-  if (officerRoleId !== null && actor.roles.includes(officerRoleId)) return true;
-  return hasManageServer(actor.permissions);
+  return isAdmin(actor, adminRoleIds);
 }
 
 export function hasManageServer(permissions: string | undefined): boolean {
@@ -24,8 +24,7 @@ export function hasManageServer(permissions: string | undefined): boolean {
   return (bits & (ADMINISTRATOR | MANAGE_GUILD)) !== 0n;
 }
 
-// ADR 0012: presets are managed only by Manage Server (or Administrator) and the officer role.
-export function canManagePresets(actor: Actor, officerRoleId: string | null): boolean {
-  if (officerRoleId !== null && actor.roles.includes(officerRoleId)) return true;
-  return hasManageServer(actor.permissions);
+// Presets are managed only by bot admins (ADR 0012, widened to admin roles by ADR 0020).
+export function canManagePresets(actor: Actor, adminRoleIds: string[]): boolean {
+  return isAdmin(actor, adminRoleIds);
 }

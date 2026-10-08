@@ -6,7 +6,7 @@ import { applyMigrations } from "../../src/db/migrate.ts";
 
 let sql: Sql;
 const dir = new URL("../../supabase/migrations", import.meta.url).pathname;
-const tables = ["guild_settings", "content", "slot", "signup", "vote", "slot_preset", "slot_draft", "attendance"];
+const tables = ["guild_settings", "guild_admin_role", "content", "slot", "signup", "vote", "slot_preset", "slot_draft", "attendance"];
 
 before(async () => {
   sql = await testSql(); // runs the safety guard before anything destructive
@@ -64,4 +64,20 @@ test("schema_migrations has row level security enabled", async () => {
     select relrowsecurity from pg_class
     where relnamespace = 'public'::regnamespace and relname = 'schema_migrations'`;
   assert.equal(r!.relrowsecurity, true);
+});
+
+test("migration 0014 copies each server's officer role into the admin roles and lets forums be empty", async () => {
+  const file = await import("node:fs").then((fs) => fs.readFileSync(new URL("../../supabase/migrations/0014_admin_roles.sql", import.meta.url), "utf8"));
+  class Rollback extends Error {}
+  let seen: string[] = [];
+  await sql.begin(async (tx) => {
+    await tx.unsafe("drop table guild_admin_role");
+    await tx.unsafe("alter table guild_settings alter column pvp_forum_id set not null, alter column pve_forum_id set not null");
+    await tx`insert into guild_settings (guild_id, officer_role_id, pvp_forum_id, pve_forum_id) values ('ga', 'officer-a', 'f1', 'f2'), ('gb', null, 'f3', 'f4')`;
+    await tx.unsafe(file);
+    seen = (await tx`select guild_id || ':' || role_id as v from guild_admin_role order by 1`).map((r) => r.v as string);
+    await tx`insert into guild_settings (guild_id) values ('gc')`; // forum columns are optional now
+    throw new Rollback();
+  }).catch((e) => { if (!(e instanceof Rollback)) throw e; });
+  assert.deepEqual(seen, ["ga:officer-a"]);
 });

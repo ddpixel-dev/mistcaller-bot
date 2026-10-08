@@ -1,7 +1,7 @@
 ---
 title: Presets are managed only by Manage Server and the officer role
 type: decision
-status: accepted
+status: accepted (widened to admin roles by ADR 0020)
 date: 2026-10-07
 tags: [presets, permissions]
 satisfies: [FR-025]

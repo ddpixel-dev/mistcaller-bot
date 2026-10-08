@@ -5,7 +5,7 @@ import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
   type NewContent,
 } from "../../src/db/content.ts";
-import { getGuildSettings } from "../../src/db/settings.ts";
+import { getAdminRoleIds, setAdminRoles } from "../../src/db/settings.ts";
 
 const startsAt = new Date("2026-12-01T18:00:00Z");
 const base: NewContent = {
@@ -110,17 +110,18 @@ test("deleteContent removes content and slots", async () => {
   assert.equal(n, 0);
 });
 
-test("getGuildSettings returns null for unknown guild and the row after insert", async () => {
+test("admin roles: none by default, a set replaces the previous one, duplicates collapse, guilds are separate", async () => {
   const sql = await testSql();
-  assert.equal(await getGuildSettings(sql, "g1"), null);
-  await sql`insert into guild_settings (guild_id, officer_role_id, pvp_forum_id, pve_forum_id) values ('g1', 'r1', 'f1', 'f2')`;
-  assert.deepEqual(await getGuildSettings(sql, "g1"), {
-    guildId: "g1",
-    officerRoleId: "r1",
-    pvpForumId: "f1",
-    pveForumId: "f2",
-    dailyCap: 5,
-  });
+  assert.deepEqual(await getAdminRoleIds(sql, "g1"), []);
+  await setAdminRoles(sql, "g1", ["r1", "r2", "r1"]);
+  await setAdminRoles(sql, "g2", ["r9"]);
+  assert.deepEqual((await getAdminRoleIds(sql, "g1")).sort(), ["r1", "r2"]);
+  await setAdminRoles(sql, "g1", ["r2", "r3"]);
+  assert.deepEqual((await getAdminRoleIds(sql, "g1")).sort(), ["r2", "r3"]);
+  await setAdminRoles(sql, "g1", []);
+  assert.deepEqual(await getAdminRoleIds(sql, "g1"), []);
+  assert.deepEqual(await getAdminRoleIds(sql, "g2"), ["r9"]);
+  await assert.rejects(setAdminRoles(sql, "g1", Array.from({ length: 11 }, (_, n) => `r${n}`)));
 });
 
 test("createContent with 20 slots stores all in input order", async () => {
