@@ -362,9 +362,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.17.0 live (gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.17.1 live (small line gaps on the roster; 0.17.0: gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.17.0 (adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.17.1 (line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
