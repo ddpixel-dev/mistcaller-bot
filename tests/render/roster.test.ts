@@ -58,7 +58,7 @@ test("a roster is a Components V2 message: flag, one coloured container, no embe
 test("header lines: category, tier and loot vote each on their own line with an icon, then UTC and your time", () => {
   const lines = txt(view({ kind: "zvz" })).split("\n");
   assert.ok(lines.includes("⚔️ **PvP · ZvZ**"));
-  assert.ok(lines.includes("🛡️ **Tier:** T5.3–T7.0"));
+  assert.ok(lines.includes("⚙️ **Gear tier:** T5.3–T7.0"));
   assert.ok(lines.some((l) => l.startsWith("💰 **Loot vote:** On")));
   assert.ok(lines.includes("🕰️ **UTC** · Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** · <t:1791396000:f> · <t:1791396000:R>"));
@@ -69,7 +69,7 @@ test("header lines: category, tier and loot vote each on their own line with an 
 test("no loot and single tier", () => {
   const t = txt(view({ hasLoot: false, tier: { min: { tier: 5, enchant: 3 }, max: null } }));
   assert.ok(t.includes("💰 **Loot vote:** Off"));
-  assert.ok(t.includes("🛡️ **Tier:** T5.3\n"));
+  assert.ok(t.includes("⚙️ **Gear tier:** T5.3\n"));
   assert.ok(!t.includes("T5.3–"));
 });
 
@@ -102,7 +102,7 @@ test("a roster row reads: number, role icon, role - weapon - duty, then Sworn: p
   assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - 📯 Caller · Sworn: <@111>"));
   assert.ok(t.includes("2. 💚 Healer - Mystery Staff - 🏹 Scout · Open"));
   assert.ok(t.includes("3. ⚔️ DPS - Mystery Bow · Sworn: <@222>"));
-  assert.ok(t.includes("4. ✨ Support - Mystery Orb · Open"));
+  assert.ok(t.includes("4. 🤝 Support - Mystery Orb · Open"));
 });
 
 test("the weapon icon sits inline before the weapon name when its emoji exists, and not when it does not", () => {
@@ -150,7 +150,7 @@ test("fill bar and role icons", () => {
   assert.equal(fillBar(5, 5), "▰▰▰▰▰▰▰▰▰▰");
   assert.equal(roleIcon("Tank"), "🛡️");
   assert.equal(roleIcon("Healer"), "💚");
-  assert.equal(roleIcon("Support"), "✨");
+  assert.equal(roleIcon("Support"), "🤝");
   assert.equal(roleIcon("DPS"), "⚔️");
   assert.equal(roleIcon("Whatever"), "🔹");
   assert.ok(txt(view({ slots: slots(10, 5) })).includes("▰▰▰▰▰▱▱▱▱▱"));
@@ -209,7 +209,7 @@ test("all rows sit in one text block; Leave and the vote buttons share the last 
   assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
   const rows = comps(v).filter((c) => c.type === 1);
   const last = rows[rows.length - 1]!;
-  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear"]);
+  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1"]);
   assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
@@ -240,13 +240,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 11 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 10 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 9);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 9);
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 10);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 10);
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
