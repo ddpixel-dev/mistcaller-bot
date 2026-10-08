@@ -42,14 +42,17 @@ const press = (id: string, user: string, over: Partial<Interaction> = {}): Inter
 });
 const text = (r: any) => r.data.content as string;
 
-test("the owner's ping sends a private message to every signed-up player, not to the owner or the waitlist", async () => {
+test("the owner's ping sends a private message to every signed-up player and a copy to the owner, not to the waitlist", async () => {
   const { id, d, sent } = await setup();
   const r: any = await d(press(id, OWNER));
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
-  assert.ok(text(r).includes("Sent to 2 of 2 players."));
-  assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${A}`, `dm-${B}`]);
-  const body = sent[0]!.body;
+  assert.ok(text(r).includes("Sent to 2 of 2 players, and a copy to you."));
+  assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${OWNER}`, `dm-${A}`, `dm-${B}`]);
+  const copy = sent.find((s) => s.channel === `dm-${OWNER}`)!.body;
+  assert.ok(copy.content.includes("Your copy") && copy.content.includes("Raid \\*night\\*"));
+  assert.ok(!sent.find((s) => s.channel === `dm-${A}`)!.body.content.includes("Your copy"));
+  const body = sent.find((s) => s.channel === `dm-${A}`)!.body;
   assert.ok(body.content.includes("Raid \\*night\\*"));
   assert.ok(body.content.includes(`<t:${Math.floor(START.getTime() / 1000)}:R>`));
   assert.ok(body.content.includes("https://discord.com/channels/g1/t1/m1"));
@@ -60,9 +63,9 @@ test("the owner's ping sends a private message to every signed-up player, not to
 test("players who cannot be reached are named to the owner, and the others still get it", async () => {
   const { id, d, sent } = await setup([B]);
   const r: any = await d(press(id, OWNER));
-  assert.ok(text(r).includes("Sent to 1 of 2 players."));
+  assert.ok(text(r).includes("Sent to 1 of 2 players, and a copy to you."));
   assert.ok(text(r).includes(`<@${B}>`) && text(r).includes("closed"));
-  assert.deepEqual(sent.map((s) => s.channel), [`dm-${A}`]);
+  assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${OWNER}`, `dm-${A}`]);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
@@ -89,7 +92,7 @@ test("ping is refused for finished or cancelled content, an empty roster, old ro
   await sql`update content set status = 'open'`;
   await sql`delete from signup where user_id <> ${OWNER}`;
   assert.ok(text(await d(press(id, OWNER))).includes("Nobody else"));
-  assert.equal(sent.length, 0);
+  assert.deepEqual(sent.map((s) => s.channel), [`dm-${OWNER}`], "only the owner's copy");
 });
 
 test("the roster carries a Ping button next to Leave, dimmed until someone is signed up and when finished", async () => {
@@ -113,7 +116,7 @@ test("a 20-player ping answers well within the time limit", async () => {
   }
   const started = Date.now();
   const r: any = await handlePing(deps, press(id, OWNER));
-  assert.ok(text(r).includes("Sent to 19 of 19 players."));
+  assert.ok(text(r).includes("Sent to 19 of 19 players"));
   assert.ok(Date.now() - started < 1500);
 });
 
@@ -121,7 +124,7 @@ test("the ping can be used once: the button is dimmed, a second press is refused
   const { sql, id, d, sent } = await setup();
   const ping = async () => flatComponents(renderRosterMessage((await getRosterView(sql, id, NOW))!)).find((c) => c.custom_id === `ping:${id}`)!;
   assert.equal((await ping()).disabled, false);
-  assert.ok(text(await d(press(id, OWNER))).includes("Sent to 2 of 2 players."));
+  assert.ok(text(await d(press(id, OWNER))).includes("Sent to 2 of 2 players"));
   assert.equal((await ping()).disabled, true);
   const sentOnce = sent.length;
   const again: any = await d(press(id, OWNER));
@@ -150,5 +153,27 @@ test("when nobody can be reached the ping is not used up", async () => {
 test("two simultaneous presses send the messages only once", async () => {
   const { id, deps, sent } = await setup();
   await Promise.all([handlePing(deps, press(id, OWNER)), handlePing(deps, press(id, OWNER))]);
-  assert.equal(sent.length, 2);
+  assert.equal(sent.length, 3, "two players and the owner's copy, once");
+});
+
+test("with nobody else signed up, only the owner's copy is sent and the ping is not used up", async () => {
+  const { sql, id, d, sent } = await setup();
+  await sql`delete from signup where user_id <> ${OWNER}`;
+  const r: any = await d(press(id, OWNER));
+  assert.ok(text(r).includes("only a copy") && text(r).includes("not used"));
+  assert.deepEqual(sent.map((s) => s.channel), [`dm-${OWNER}`]);
+  const [row] = await sql`select pinged_at from content where id = ${id}`;
+  assert.equal(row!.pinged_at, null);
+  assert.equal(flatComponents(renderRosterMessage((await getRosterView(sql, id, NOW))!)).find((c) => c.custom_id === `ping:${id}`)!.disabled, false);
+  // later, with players signed up, the real ping still works once
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) select 'g1', ${id}, ${A}, id, 'signed' from slot where content_id = ${id} and position = 2`;
+  assert.ok(text(await d(press(id, OWNER))).includes("Sent to 1 of 1 players"));
+});
+
+test("when the owner's own private messages are closed the players still get the ping", async () => {
+  const { id, d, sent } = await setup([OWNER]);
+  const r: any = await d(press(id, OWNER));
+  assert.ok(text(r).includes("Sent to 2 of 2 players."));
+  assert.ok(!text(r).includes("copy to you"));
+  assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${A}`, `dm-${B}`]);
 });

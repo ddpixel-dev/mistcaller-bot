@@ -162,7 +162,7 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and one row per slot in the form `n. roleIcon Role - WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set. The header labels (Type, Gear tier, Loot vote, UTC, Your time) and the role, weapon and duty columns of the rows are padded with en spaces so the values line up (owner decision 2026-10-08). Discord draws text in a proportional font, so this is approximate: it is estimated, not exact, and the padding is dropped first when a very full roster would not fit Discord's text limit.
+The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and the slots grouped under a heading per role, such as `🛡️ Tank · 1/1` (owner decision 2026-10-08, layout E, ADR 0021). Each row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set; position numbers do not change. The header labels (Type, Gear tier, Loot vote, UTC, Your time) are followed by a measured number of en spaces so the values start in one column; Discord's font is proportional, so this is accurate to a few pixels, not exact.
 
 ### FR-005: Sign up, move, leave
 status: accepted
@@ -190,7 +190,7 @@ A member shall create at most 5 content posts in any rolling 24 hours, counting 
 
 ### FR-011: Reminders
 status: accepted
-The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it, and only **once per content**: the first use is recorded (`content.pinged_at`, migration 0013) and the button is dimmed on the roster so nobody spams the players; if nobody could be reached the use is given back. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, and tells the owner how many were reached and who could not be (closed private messages). The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
+The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it, and only **once per content**: the first use is recorded (`content.pinged_at`, migration 0013) and the button is dimmed on the roster so nobody spams the players; if nobody could be reached the use is given back. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, plus a labelled copy to the owner so they can see what players get (owner decision 2026-10-08), and tells the owner how many were reached and who could not be (closed private messages). With nobody else signed up, only the owner's copy is sent and the one use is kept. The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
 
 ### FR-012: Auto-lock
 status: accepted
@@ -358,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.14.0 live (single-use Ping, aligned text, any-channel creation, admin roles, global commands; migrations 0013 and 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.15.0 live (roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.14.0 (aligned text, single-use Ping, `/content setup` role picker, creation in other channels, cron-job.org timing). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.15.0 (layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
