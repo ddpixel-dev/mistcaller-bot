@@ -20,7 +20,7 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id, officer_role_id) values ('g1', 'fp', 'fe', 'officer')`;
+  await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, base);
   await setMessageId(sql, id, "m1");
   const edits: any[] = [];

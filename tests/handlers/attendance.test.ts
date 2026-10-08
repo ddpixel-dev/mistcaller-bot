@@ -20,7 +20,7 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup(opts: { dmFails?: boolean; postFails?: () => boolean } = {}) {
   const sql = await testSql();
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id, officer_role_id) values ('g1', 'fp', 'fe', 'officer')`;
+  await sql`insert into guild_admin_role (guild_id, role_id) values ('g1', 'officer')`;
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Raid *night*", notes: null, startsAt: START,
     tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss", now: BEFORE,

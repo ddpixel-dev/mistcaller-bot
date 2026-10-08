@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRest, DiscordApiError } from "../../src/discord/rest.ts";
-import { buildRegisterRequest, commands } from "../../src/discord/commands.ts";
+import { buildClearGuildRequest, buildRegisterRequest, commands } from "../../src/discord/commands.ts";
 
 const res = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -57,8 +57,8 @@ test("editMessage PATCHes the message", async () => {
 });
 
 test("buildRegisterRequest builds URL, headers and body", () => {
-  const r = buildRegisterRequest({ appId: "A1", guildId: "G1", token: "SECRET" });
-  assert.equal(r.url, "https://discord.com/api/v10/applications/A1/guilds/G1/commands");
+  const r = buildRegisterRequest({ appId: "A1", token: "SECRET" });
+  assert.equal(r.url, "https://discord.com/api/v10/applications/A1/commands");
   assert.equal(r.init.method, "PUT");
   const h = r.init.headers as Record<string, string>;
   assert.equal(h.Authorization, "Bot SECRET");
@@ -69,7 +69,16 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(commands[0]!.name, "content");
   assert.equal(create.name, "create");
   assert.equal(create.options, undefined);
+  assert.equal(commands[0]!.options.find((o) => o.name === "setup")!.options, undefined);
   assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "attendance", "history", "cancel"]);
+});
+
+test("the old server's command list is cleared with an empty PUT", () => {
+  const r = buildClearGuildRequest({ appId: "A1", guildId: "G1", token: "SECRET" });
+  assert.equal(r.url, "https://discord.com/api/v10/applications/A1/guilds/G1/commands");
+  assert.equal(r.init.method, "PUT");
+  assert.equal(r.init.body, "[]");
+  assert.equal((r.init.headers as Record<string, string>).Authorization, "Bot SECRET");
 });
 
 test("429 with retry_after 30 waits at most 2 seconds (injected sleep)", async () => {

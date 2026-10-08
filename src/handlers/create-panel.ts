@@ -5,13 +5,12 @@ import { KINDS, DEFAULT_KIND, kindDef, resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
-import { createForm, inContentPost, postTakenReply } from "./create.ts";
+import { NOT_HERE, createForm, inContentPlace, postTakenReply } from "./create.ts";
 import { deleteDraft, findDraft } from "../db/draft.ts";
 import { startGuided } from "./guided.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Run `/content create` again.";
-const NOT_FORUM = "Use this command inside a post in a content forum.";
 const NEED_TYPE = "Pick the type of content first.";
 
 // The draft lives in the custom ids of the panel's components, so nothing is kept in memory.
@@ -117,7 +116,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   const draft = decodeDraft(parts.slice(2));
   const values = Array.isArray(raw?.values) ? (raw!.values as unknown[]) : null;
   if (parts[0] !== "cp" || !draft || !values || !i.guild_id || values.length > 1) return reply(INVALID);
-  if (!(await inContentPost(deps, i))) return reply(NOT_FORUM);
+  if (!inContentPlace(i)) return reply(NOT_HERE);
   const value = values[0];
 
   if (field === "type") {
@@ -158,7 +157,7 @@ export async function checked(deps: Deps, i: Interaction, prefix: string): Promi
   const draft = parts[0] === prefix ? decodeDraft(parts.slice(1)) : null;
   if (!draft || !i.guild_id) return { ok: false, response: reply(INVALID) };
   if (!draft.type) return { ok: false, response: reply(NEED_TYPE) };
-  if (!(await inContentPost(deps, i))) return { ok: false, response: reply(NOT_FORUM) };
+  if (!inContentPlace(i)) return { ok: false, response: reply(NOT_HERE) };
   const kind = resolveKind(draft.type, draft.kind);
   if (!kind.ok) return { ok: false, response: reply(kind.error) };
   if (i.channel?.id) {

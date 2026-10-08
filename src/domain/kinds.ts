@@ -28,7 +28,7 @@ export function kindDef(type: ContentType, id: string): KindDef | null {
   return KINDS.find((k) => k.type === type && k.id === id) ?? null;
 }
 
-// Distinct choices for the slash command. "Other" is shared by both forums.
+// Distinct choices for the slash command. "Other" is shared by both types.
 export function kindChoices(): { name: string; value: string }[] {
   const seen = new Set<string>();
   const out: { name: string; value: string }[] = [];
@@ -43,7 +43,7 @@ export function kindChoices(): { name: string; value: string }[] {
   return out;
 }
 
-// A missing kind means Other. A kind from the other forum type is refused.
+// A missing kind means Other. A kind from the other type is refused.
 export function resolveKind(type: ContentType, id: string | null): Result<string> {
   if (id === null || id === "") return { ok: true, value: DEFAULT_KIND };
   if (kindDef(type, id)) return { ok: true, value: id };
@@ -51,7 +51,7 @@ export function resolveKind(type: ContentType, id: string | null): Result<string
   if (other) {
     const here = type === "pvp" ? "PvP" : "PvE";
     const there = other.type === "pvp" ? "PvP" : "PvE";
-    return { ok: false, error: `${other.label} is a ${there} category, but this post is in the ${here} forum.` };
+    return { ok: false, error: `${other.label} is a ${there} category, but this content is ${here}.` };
   }
   return { ok: false, error: "That category is not on the list." };
 }

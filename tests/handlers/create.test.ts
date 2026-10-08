@@ -17,7 +17,6 @@ const PVE = "forum-pve";
 async function setup(failPost = false, failDelete = false, failSetId = false) {
   const sql = await testSql();
   await resetDb(sql);
-  await sql`insert into guild_settings (guild_id, pvp_forum_id, pve_forum_id) values (${GUILD}, ${PVP}, ${PVE})`;
   const posts: { channelId: string; body: any }[] = [];
   const deletes: { channelId: string; messageId: string }[] = [];
   const rest: Rest = {
@@ -93,14 +92,14 @@ const component = (customId: string, values?: unknown[], over: Partial<Interacti
 const rowsOf = (r: any) => r.data.components.map((row: any) => row.components[0]);
 const selected = (select: any) => select.options.filter((o: any) => o.default).map((o: any) => o.value);
 
-test("command outside a configured forum or without guild is an ephemeral forum reply", async () => {
+test("command without a guild, or in a place that cannot hold a roster, is an ephemeral refusal", async () => {
   const { deps } = await setup();
-  const a = await handleCreateCommand(deps, command(true, { channel: { id: "t", type: 11, parent_id: "other" } }));
+  const a = await handleCreateCommand(deps, command(true, { channel: { id: "t", type: 2 } }));
   assert.equal(a.type, 4);
   assert.equal((a.data as any).flags, 64);
-  assert.match(content(a), /forum/);
+  assert.match(content(a), /server channel/);
   const b = await handleCreateCommand(deps, command(true, { guild_id: undefined }));
-  assert.match(content(b), /forum/);
+  assert.match(content(b), /server channel/);
 });
 
 const selects = (r: any) => r.data.components.filter((row: any) => row.components[0].type === 3).map((row: any) => row.components[0]);
@@ -124,7 +123,7 @@ test("command opens a private panel with nothing chosen: type, kind (waiting for
   assert.equal(r.data.components.length, 4);
 });
 
-test("it works in either configured forum and does not assume the type from the forum", async () => {
+test("it works in any forum and does not assume the type from the place", async () => {
   const { deps } = await setup();
   for (const parent of [PVP, PVE]) {
     const r: any = await handleCreateCommand(deps, command(undefined, { channel: { id: "thread-2", type: 11, parent_id: parent } }));
@@ -243,10 +242,10 @@ test("loot flag 0 stores has_loot false; missing notes ok", async () => {
   assert.equal(rows[0]!.notes, null);
 });
 
-test("modal submit from a non-forum channel creates nothing", async () => {
+test("modal submit from a place that cannot hold a roster creates nothing", async () => {
   const { deps, sql, posts } = await setup();
-  const r = await handleCreateModal(deps, modal(good, "1", { channel: { id: "t", type: 11, parent_id: "other" } }));
-  assert.match(content(r), /forum/);
+  const r = await handleCreateModal(deps, modal(good, "1", { channel: { id: "t", type: 2 } }));
+  assert.match(content(r), /server channel/);
   assert.equal((await sql`select 1 from content`).length, 0);
   assert.equal(posts.length, 0);
 });
@@ -308,17 +307,41 @@ test("setMessageId failure with failing deleteMessage still cleans the row, no s
   assert.equal(deletes.length, 1);
 });
 
-test("a channel that is not a thread (type != 11) is refused on command and modal", async () => {
-  const { deps, sql, posts } = await setup();
-  const ch = { id: "thread-1", type: 0, parent_id: PVP };
-  const a = await handleCreateCommand(deps, command(true, { channel: ch }));
-  assert.equal((a.data as any).flags, 64);
-  assert.match(content(a), /forum/);
-  const b = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
-  assert.equal((b.data as any).flags, 64);
-  assert.match(content(b), /forum/);
-  assert.equal((await sql`select 1 from content`).length, 0);
-  assert.equal(posts.length, 0);
+test("any text channel, announcement channel, thread or forum post can hold a roster; the forum list, voice, category and DMs cannot", async () => {
+  for (const type of [0, 5, 10, 11, 12]) {
+    const { deps, sql, posts } = await setup();
+    const ch = { id: `place-${type}`, type };
+    const a: any = await handleCreateCommand(deps, command(undefined, { channel: ch }));
+    assert.ok(a.data.components, `type ${type} gets the create panel`);
+    const b = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+    assert.ok(!content(b).includes("server channel"));
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0]!.channelId, `place-${type}`);
+    assert.equal((await sql`select thread_id from content`)[0]!.thread_id, `place-${type}`);
+  }
+  for (const type of [2, 4, 13, 15]) {
+    const { deps, sql, posts } = await setup();
+    const ch = { id: `place-${type}`, type };
+    const a = await handleCreateCommand(deps, command(true, { channel: ch }));
+    assert.equal((a.data as any).flags, 64);
+    assert.match(content(a), /server channel/);
+    const b = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+    assert.match(content(b), /server channel/);
+    assert.equal((await sql`select 1 from content`).length, 0);
+    assert.equal(posts.length, 0);
+  }
+});
+
+test("there is still only one live content per place, and a plain channel follows the same rule", async () => {
+  const { deps, sql } = await setup();
+  const ch = { id: "general", type: 0 };
+  await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+  const again = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+  assert.match(content(again), /already has content/);
+  assert.equal((await sql`select 1 from content`).length, 1);
+  await sql`update content set status = 'cancelled'`;
+  await handleCreateModal(deps, modal(good, "1", { channel: ch }));
+  assert.equal((await sql`select 1 from content where status = 'open'`).length, 1);
 });
 
 test("thread id comes from channel.id, not channel_id", async () => {
