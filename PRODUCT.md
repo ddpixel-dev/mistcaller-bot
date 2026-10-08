@@ -154,7 +154,7 @@ The bot shall expose the slash command `/content` with the subcommands `create`,
 
 ### FR-002: Creation location and content type
 status: accepted
-`/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019).
+`/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019). Before anything is saved, the bot checks the install type and its own permissions that Discord sends with the interaction, and explains the problem instead of a vague failure: it is not added to the server (only to an account), or it lacks View Channel and Send Messages (Send Messages in Threads for threads and forum posts) in that place.
 
 ### FR-003: Creation input
 status: accepted

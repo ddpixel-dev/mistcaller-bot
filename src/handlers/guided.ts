@@ -12,7 +12,7 @@ import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
-import { NOT_HERE, createForm, inContentPlace, postTakenReply } from "./create.ts";
+import { NOT_HERE, createForm, placeProblem, postTakenReply } from "./create.ts";
 import { createPanel } from "./create-panel.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -100,7 +100,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     }
     case "done": {
       if (!isComplete(d)) return update(d);
-      if (!i.guild_id || !inContentPlace(i)) return reply(NOT_HERE);
+      if (!i.guild_id) return reply(NOT_HERE);
+      const problem = placeProblem(i);
+      if (problem) return reply(problem);
       const kind = resolveKind(d.type, d.kind);
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;

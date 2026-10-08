@@ -22,6 +22,24 @@ export function inContentPlace(i: Interaction): boolean {
   return Boolean(i.guild_id && i.channel && CONTENT_PLACES.has(i.channel.type));
 }
 
+const NOT_INSTALLED = "The bot is not added to this server yet, only to an account. Someone with Manage Server must add it to the server with the invite link (choose the server, not \"Add to my apps\"), then try again.";
+const NO_ACCESS = "The bot cannot post here. Give the bot's role View Channel and Send Messages in this channel (and Send Messages in Threads for threads and forum posts), then try again.";
+const VIEW_CHANNEL = 1n << 10n, SEND_MESSAGES = 1n << 11n, SEND_IN_THREADS = 1n << 38n, ADMINISTRATOR = 8n;
+
+// What is wrong with creating content here, as a message for the user, or null when it looks fine. The bot's own
+// permissions come with the interaction, so this is checked before anything is saved or any post is tried.
+export function placeProblem(i: Interaction): string | null {
+  if (!inContentPlace(i)) return NOT_HERE;
+  if (i.authorizing_integration_owners && !("0" in i.authorizing_integration_owners)) return NOT_INSTALLED;
+  const raw = i.app_permissions;
+  if (!raw || !/^\d+$/.test(raw)) return null; // not told: try, and the generic failure message covers the rest
+  const have = BigInt(raw);
+  if (have & ADMINISTRATOR) return null;
+  const inThread = [10, 11, 12].includes(i.channel!.type);
+  const need = VIEW_CHANNEL | (inThread ? SEND_IN_THREADS : SEND_MESSAGES);
+  return (have & need) === need ? null : NO_ACCESS;
+}
+
 export async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
@@ -37,7 +55,9 @@ function takenMessage(status: string, link: string): string {
 
 // Step 1 of creation: a private panel to pick the type, kind, loot vote and preset. Step 2 is the form.
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  if (!i.guild_id || !inContentPlace(i)) return reply(NOT_HERE);
+  if (!i.guild_id) return reply(NOT_HERE);
+  const problem = placeProblem(i);
+  if (problem) return reply(problem);
   if (i.channel?.id) {
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
@@ -69,7 +89,9 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   const [, typeId, lootFlag, kindId] = customId.split(":");
   const creator = i.member?.user?.id;
   const threadId = i.channel?.id;
-  if (!i.guild_id || !creator || !threadId || !inContentPlace(i)) return reply(NOT_HERE);
+  if (!i.guild_id || !creator || !threadId) return reply(NOT_HERE);
+  const problem = placeProblem(i);
+  if (problem) return reply(problem);
   if (typeId !== "pvp" && typeId !== "pve") return reply("That form is out of date. Run `/content create` again.");
   const type: ContentType = typeId;
 
