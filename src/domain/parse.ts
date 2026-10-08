@@ -1,38 +1,18 @@
-import type { Result, SlotDef, Tier, TierRange } from "./types.ts";
+import type { Result, SlotDef } from "./types.ts";
 import { DUTIES } from "./duties.ts";
 
-const TIER_HELP = "Use a tier like T5.3 or a range like T5.3-T7.0 (tier 1-8, enchant 0-4).";
 const START_HELP = "Use the format YYYY-MM-DD HH:MM in UTC, in the future, for example 2026-10-07 18:00.";
 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-function parseOneTier(s: string): Tier | null {
-  const m = /^[Tt]([1-9])\.([0-9])$/.exec(s.trim());
-  if (!m) return null;
-  const tier = Number(m[1]);
-  const enchant = Number(m[2]);
-  if (tier < 1 || tier > 8 || enchant > 4) return null;
-  return { tier, enchant };
-}
+const GEAR_TIER_LIMIT = 80;
 
-export function parseTier(input: string): Result<TierRange> {
-  const parts = input.trim().split(/[-–]/);
-  if (parts.length > 2) return fail(`Invalid tier "${input}". ${TIER_HELP}`);
-  const min = parseOneTier(parts[0]!);
-  if (!min) return fail(`Invalid tier "${input}". ${TIER_HELP}`);
-  if (parts.length === 1) return { ok: true, value: { min, max: null } };
-  const max = parseOneTier(parts[1]!);
-  if (!max) return fail(`Invalid tier "${input}". ${TIER_HELP}`);
-  if (max.tier * 10 + max.enchant < min.tier * 10 + min.enchant) {
-    return fail(`The range "${input}" runs backwards, put the lower tier first. ${TIER_HELP}`);
-  }
-  return { ok: true, value: { min, max } };
-}
-
-const fmt = (t: Tier): string => `T${t.tier}.${t.enchant}`;
-
-export function formatTier(r: TierRange): string {
-  return r.max ? `${fmt(r.min)}–${fmt(r.max)}` : fmt(r.min);
+// Gear tier is free text (owner decision 2026-10-08), for example "Weapon T7.1 - Gear T4.3". It is shown as typed.
+export function parseGearTier(input: string): Result<string> {
+  const text = input.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  if (text === "") return fail("Add the gear tier as free text, for example Weapon T7.1 - Gear T4.3.");
+  if (Array.from(text).length > GEAR_TIER_LIMIT) return fail(`The gear tier is too long (${GEAR_TIER_LIMIT} characters at most).`);
+  return { ok: true, value: text };
 }
 
 export function parseSlots(input: string): Result<SlotDef[]> {

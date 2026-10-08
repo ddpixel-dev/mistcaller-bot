@@ -8,6 +8,8 @@ export const DEFAULT_KIND = "other";
 export const KINDS: KindDef[] = [
   { id: "zvz", label: "ZvZ", type: "pvp", color: 0x1c3a8a },
   { id: "small-scale", label: "Small-scale", type: "pvp", color: 0x2b4db0 },
+  { id: "gank-squad", label: "Gank Squad", type: "pvp", color: 0x8a2f4f },
+  { id: "bomb-squad", label: "Bomb Squad", type: "pvp", color: 0xa0522d },
   { id: "hellgate", label: "Hellgate", type: "pvp", color: 0x7a1f2b },
   { id: "faction-warfare", label: "Faction Warfare", type: "pvp", color: 0x3b6fd1 },
   { id: "crystal-league", label: "Crystal League", type: "pvp", color: 0x5b8ee6 },

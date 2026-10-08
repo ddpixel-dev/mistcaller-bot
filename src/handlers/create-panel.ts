@@ -99,7 +99,7 @@ export async function createPanel(
     ],
   });
   const data = {
-    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, tier and slots.",
+    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.",
     components: rows,
     allowed_mentions: { parse: [] },
   };

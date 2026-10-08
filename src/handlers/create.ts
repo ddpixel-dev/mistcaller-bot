@@ -6,7 +6,7 @@ import { resolveKind } from "../domain/kinds.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
 } from "../db/content.ts";
-import { parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
+import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { renderRosterMessage } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
@@ -74,7 +74,7 @@ export function createForm(draft: { type: ContentType; loot: boolean; kind: stri
       components: [
         textInput("title", "Title", 100),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
-        textInput("tier", "Tier", 30, { placeholder: "T5.3 or T5.3-T7.0" }),
+        textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3" }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
           style: 2, placeholder: "Tank - Axe", ...(presetLines ? { value: presetLines } : {}),
         }),
@@ -100,7 +100,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   if (!title.ok) return reply(title.error);
   const start = parseUtcStart(v.start ?? "", deps.now());
   if (!start.ok) return reply(start.error);
-  const tier = parseTier(v.tier ?? "");
+  const tier = parseGearTier(v.tier ?? "");
   if (!tier.ok) return reply(tier.error);
   const slots = parseSlots(v.slots ?? "");
   if (!slots.ok) return reply(slots.error);

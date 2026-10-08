@@ -1,6 +1,4 @@
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-export type Tier = { tier: number; enchant: number };
-export type TierRange = { min: Tier; max: Tier | null };
 export type SlotDef = { role: string; weapon: string; duty?: string | null };
 export type ContentType = "pvp" | "pve";
 export type ContentStatus = "open" | "locked" | "cancelled" | "done";
@@ -22,7 +20,7 @@ export type RosterView = {
   title: string;
   notes: string | null;
   startsAt: Date;
-  tier: TierRange;
+  tier: string; // free text, shown as typed
   hasLoot: boolean;
   status: ContentStatus;
   slots: RosterSlot[];

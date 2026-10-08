@@ -13,7 +13,7 @@ const base: NewContent = {
   title: "Ganking",
   notes: null,
   startsAt: new Date("2026-12-01T18:00:00Z"),
-  tier: { min: { tier: 8, enchant: 0 }, max: null },
+  tier: "T8.0",
   hasLoot: false,
   createdBy: "u1",
   slots: [

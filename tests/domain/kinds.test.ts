@@ -2,11 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindChoices, kindDef, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010: 9 PvP and 7 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 9);
+test("the lists match ADR 0010: 11 PvP and 7 PvE kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 11);
   assert.equal(KINDS.filter((k) => k.type === "pve").length, 7);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
+  assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
+  assert.ok(!kindDef("pve", "gank-squad") && !kindDef("pve", "bomb-squad"));
 });
 
 test("ids are unique within a type", () => {
@@ -18,10 +20,11 @@ test("ids are unique within a type", () => {
 
 test("command choices are distinct, within Discord's 25 limit, and name the type", () => {
   const c = kindChoices();
-  assert.equal(c.length, 15);
+  assert.equal(c.length, 17);
   assert.ok(c.length <= 25);
   assert.equal(new Set(c.map((x) => x.value)).size, c.length);
   assert.ok(c.every((x) => x.name.length <= 100));
+  assert.ok(c.some((x) => x.name === "Gank Squad (PvP)") && c.some((x) => x.name === "Bomb Squad (PvP)"));
   assert.ok(c.some((x) => x.name === "ZvZ (PvP)") && c.some((x) => x.name === "World boss (PvE)"));
 });
 

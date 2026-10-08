@@ -13,7 +13,7 @@ const NOW = new Date("2026-10-06T12:00:00Z");
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null,
   startsAt: new Date("2026-12-01T18:00:00Z"),
-  tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "u1",
+  tier: "T8.0", hasLoot: false, createdBy: "u1",
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],
 };
 const rest: Rest = { async createMessage() { return { id: "m" }; }, async editMessage() {}, async deleteMessage() {} };

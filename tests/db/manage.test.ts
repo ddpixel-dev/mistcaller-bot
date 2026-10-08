@@ -8,7 +8,7 @@ const NOW = new Date("2026-10-06T12:00:00Z");
 const starts = new Date("2026-12-01T18:00:00Z");
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null, startsAt: starts,
-  tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "u1",
+  tier: "T8.0", hasLoot: false, createdBy: "u1",
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],
 };
 const edit = (over: Partial<EditInput> = {}): EditInput => ({
@@ -41,13 +41,13 @@ test("getManageTarget finds the active content by thread and ignores cancelled",
 test("edit changes the fields and keeps the loot flag when null", async () => {
   const { sql, id } = await setup();
   const r = await editContent(sql, id, edit({
-    title: "New", notes: "bring food", tier: { min: { tier: 6, enchant: 1 }, max: { tier: 8, enchant: 0 } },
+    title: "New", notes: "bring food", tier: "T6.1–T8.0",
   }), NOW);
   assert.deepEqual(r, { result: "ok", startChanged: false, notify: [], promoted: [] });
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.title, "New");
   assert.equal(v.notes, "bring food");
-  assert.deepEqual(v.tier, { min: { tier: 6, enchant: 1 }, max: { tier: 8, enchant: 0 } });
+  assert.deepEqual(v.tier, "T6.1–T8.0");
   assert.equal(v.hasLoot, false);
   await editContent(sql, id, edit({ hasLoot: true }), NOW);
   assert.equal((await getRosterView(sql, id, NOW))!.hasLoot, true);

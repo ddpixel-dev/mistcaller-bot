@@ -139,8 +139,8 @@ test("choosing the type loads that type's categories, shown as plain values", as
   let p = panelOf(pvp);
   assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false]);
   assert.equal(p.kind.disabled, false);
-  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
-  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "gank-squad", "bomb-squad", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Gank Squad", "Bomb Squad", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
   assert.ok(p.kind.options.every((o: any) => !o.default));
   assert.equal(p.go.disabled, false);
   assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-");
@@ -194,7 +194,7 @@ test("with a preset, Continue opens the form directly with its slots, carrying t
   assert.equal(inputs[3].style, 2);
   assert.equal(inputs[3].value, "Tank - Mace (Caller)\nDPS - Bow");
   assert.equal(inputs[4].required, false);
-  assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 30, 1500, 500]);
+  assert.deepEqual(inputs.map((x: any) => x.max_length), [100, 20, 80, 1500, 500]);
 });
 
 test("panel and Continue refuse tampered values, a wrong-type kind and a taken post", async () => {
@@ -253,7 +253,8 @@ test("modal submit from a place that cannot hold a roster creates nothing", asyn
 test("invalid inputs respond ephemeral with the parser message and create nothing", async () => {
   const { deps, sql, posts } = await setup();
   const cases: Record<string, Record<string, string>> = {
-    "tier": { ...good, tier: "T9.9" },
+    "gear tier": { ...good, tier: "   " },
+    "80 characters": { ...good, tier: "x".repeat(81) },
     "not a real": { ...good, start: "2026-02-30 18:00" },
     "not in the future": { ...good, start: "2026-10-01 18:00" },
     "Too many slots": { ...good, slots: Array.from({ length: 21 }, () => "Tank - Axe").join("\n") },
