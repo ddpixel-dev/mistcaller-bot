@@ -358,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.14.0 live (single-use Ping, aligned text, any-channel creation, admin roles, global commands; migrations 0013 and 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.15.0 live (roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.14.0 (aligned text, single-use Ping, `/content setup` role picker, creation in other channels, cron-job.org timing). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.15.0 (layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
