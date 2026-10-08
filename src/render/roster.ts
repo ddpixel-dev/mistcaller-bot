@@ -62,7 +62,11 @@ function lootValue(view: RosterView): string {
 // Groups follow the order in which each role first appears; rows keep their position numbers.
 type Line = { text: string; heading: boolean };
 
-function rowLines(slots: RosterSlot[], withEmoji: boolean): Line[] {
+// A small gap between blocks of lines (owner decision 2026-10-08, level A): a subtext line holding only an invisible
+// character, about three-quarters of a normal line. Dropped first when a very full roster needs the room.
+export const SPACER = "-# \u200B";
+
+function rowLines(slots: RosterSlot[], withEmoji: boolean, spaced: boolean): Line[] {
   const groups = new Map<string, RosterSlot[]>();
   for (const s of slots) {
     const key = s.role.trim().toLowerCase();
@@ -72,7 +76,9 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean): Line[] {
   for (const group of groups.values()) {
     const first = group[0]!;
     const taken = group.filter((s) => s.userId !== null).length;
-    lines.push({ text: `### ${roleIcon(first.role)} ${escapeText(first.role)} · ${taken}/${group.length}`, heading: true });
+    // The gap belongs to the heading, so a cut never leaves a gap or a heading on its own.
+    const gap = spaced && lines.length > 0 ? `${SPACER}\n` : "";
+    lines.push({ text: `${gap}### ${roleIcon(first.role)} ${escapeText(first.role)} · ${taken}/${group.length}`, heading: true });
     for (const s of group) {
       const emoji = withEmoji ? weaponEmojiTag(s.weapon) : "";
       const duty = dutyDef(s.duty);
@@ -93,7 +99,7 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean): Line[] {
 const EN = "\u2002";
 const HEADER_PAD: Record<string, number> = { Type: 6, "Gear tier": 3, "Loot vote": 2, UTC: 7, "Your time": 2 };
 
-function headerText(view: RosterView, filled: number, notes: boolean): string {
+function headerText(view: RosterView, filled: number, notes: boolean, spaced: boolean): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
   const typeLabel = view.type === "pvp" ? "PvP" : "PvE";
   const def = kindDef(view.type, view.kind);
@@ -102,14 +108,17 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     ? `${CANCELLED_TAG} ${escapeText(view.title)}`
     : `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
   const fact = (icon: string, label: string, value: string) => `${icon} **${label}**${EN.repeat(HEADER_PAD[label] ?? 2)}${value}`;
+  const gap = spaced ? [SPACER] : [];
   const lines = [
     // A level-1 heading: Discord draws it at about 24 px, the largest text a message can have (owner request 2026-10-08).
     `# ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
+    ...gap,
     fact("⚔️", "Type", `**${kind}**`),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     fact(VOTE_ICON, "Loot vote", lootValue(view)),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),
+    ...gap,
   ];
   const banner = statusBanner(view.status, view.started);
   if (banner) lines.push(banner);
@@ -135,10 +144,12 @@ export function renderRosterMessage(view: RosterView): {
   const live = view.status === "open" || view.status === "locked";
 
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
+  let spaced = true;
   let withEmoji = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30));
-  const fits = () => headerText(view, filled, notes).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, filled, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
+  if (!fits()) spaced = false;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
@@ -146,14 +157,14 @@ export function renderRosterMessage(view: RosterView): {
   const waitText = waiting.length
     ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
     : "";
-  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2 - OWNER_TIPS.length;
+  const budget = TEXT_LIMIT - headerText(view, filled, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
-  const kept = rowLines(view.slots, withEmoji).filter((l) => (used += l.text.length + 1) <= budget);
+  const kept = rowLines(view.slots, withEmoji, spaced).filter((l) => (used += l.text.length + 1) <= budget);
   while (kept.length > 0 && kept[kept.length - 1]!.heading) kept.pop(); // never end on a heading with no row
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, filled, notes, spaced)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   if (view.status === "open" && !view.started && open.length > 0) {
