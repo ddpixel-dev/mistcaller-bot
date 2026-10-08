@@ -10,7 +10,7 @@ import { handleWeaponCommand } from "./weapon.ts";
 import { handleMeCommand } from "./me.ts";
 import { handleDutyCommand } from "./duty.ts";
 import { handleSlotCommand } from "./guided.ts";
-import { handleListCommand, handleLockCommand } from "./manage.ts";
+import { handleListCommand, handleLockCommand, handleUnlockCommand } from "./manage.ts";
 import { handleAttendanceCommand, handleEndCommand, handleHistoryCommand } from "./attendance.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
@@ -26,6 +26,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "slot": return await handleSlotCommand(deps, i);
     case "end": return await handleEndCommand(deps, i);
     case "lock": return await handleLockCommand(deps, i);
+    case "unlock": return await handleUnlockCommand(deps, i);
     case "list": return await handleListCommand(deps, i);
     case "attendance": return await handleAttendanceCommand(deps, i);
     case "history": return await handleHistoryCommand(deps, i);

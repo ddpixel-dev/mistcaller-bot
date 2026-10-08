@@ -6,13 +6,14 @@ import { resolveKind } from "../domain/kinds.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import {
-  cancelContent, editContent, getManageTarget, getManageTargetById, listUpcoming, lockContent, type ManageTarget,
+  cancelContent, editContent, getManageTarget, getManageTargetById, listUpcoming, lockContent, unlockContent, type ManageTarget,
 } from "../db/manage.ts";
 import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { formatTier, parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 import { announcePromotions } from "./waitlist.ts";
+import type { Promotion } from "../db/signup.ts";
 import { kindDef } from "../domain/kinds.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -207,6 +208,20 @@ export async function handleLockCommand(deps: Deps, i: Interaction): Promise<Int
   }
   const refreshed = await refreshRoster(deps, checked.target.id);
   return reply(`Roster locked: signups and moves are closed, and players can still leave.${refreshed ? "" : " The roster message will update on the next change."}`);
+}
+
+// "/content unlock": reopen a roster that was locked early. Not possible once the content has started.
+export async function handleUnlockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const checked = await authorize(deps, i, target);
+  if (!checked.ok) return checked.response;
+  const result = await unlockContent(deps.sql, checked.target.id, deps.now());
+  if (result.result === "started") return reply("The content has already started, so signups stay closed.");
+  if (result.result === "unavailable") return reply(checked.target.status === "open" ? "This roster is not locked." : "Only a locked roster can be unlocked.");
+  const refreshed = await refreshRoster(deps, checked.target.id);
+  const view = await getRosterView(deps.sql, checked.target.id, deps.now());
+  await announcePromotions(deps, checked.target.threadId, view?.title ?? "", result.promoted);
+  return reply(`Roster unlocked: signups and moves are open again.${refreshed ? "" : " The roster message will update on the next change."}`);
 }
 
 const LIST_LIMIT = 15;

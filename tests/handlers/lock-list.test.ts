@@ -138,3 +138,47 @@ test("the list shows the next 15 and says there is more; long titles keep it und
   assert.ok(t.includes("T".repeat(60)) && !t.includes("T".repeat(61)));
   assert.ok(t.split("https://discord.com").length - 1 <= 15);
 });
+
+test("/content unlock reopens signups before the start, with the same permissions and the roster refreshed", async () => {
+  const { sql, id, d, edits } = await setup();
+  const slots = (await getRosterView(sql, id, NOW))!.slots.map((s) => s.id);
+  isEphemeral(await d(cmd("unlock")), "not locked");
+  await d(cmd("lock"));
+  isEphemeral(await d(cmd("unlock", "stranger")), "Only the creator");
+  assert.equal(await status(sql), "locked");
+  const r = await d(cmd("unlock"));
+  assert.ok(text(r).includes("Roster unlocked"));
+  assert.equal(await status(sql), "open");
+  assert.ok(flatComponents(edits[edits.length - 1].body).some((c) => c.type === 3 && c.custom_id === `join:${id}`));
+  assert.ok(!textOf(edits[edits.length - 1].body).includes("The roll is closed."));
+  assert.equal(await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: "bob", guildId: "g1", now: NOW }), "claimed");
+  assert.ok(text(await d(cmd("unlock", "o", { member: member("o", ["officer"]) }))).includes("not locked"));
+});
+
+test("unlock refuses after the start, for cancelled or done content, or with no content", async () => {
+  const { sql, d, setNow } = await setup();
+  await d(cmd("lock"));
+  setNow(new Date(START.getTime() + 1000));
+  isEphemeral(await d(cmd("unlock")), "already started");
+  assert.equal(await status(sql), "locked");
+  setNow(NOW);
+  for (const s of ["cancelled", "done"]) {
+    await sql`update content set status = ${s}`;
+    isEphemeral(await d(cmd("unlock")), s === "cancelled" ? "no active content" : "Only a locked roster");
+  }
+  isEphemeral(await d(cmd("unlock", "boss", { channel: { id: "other", type: 11, parent_id: "fp" } })), "no active content");
+});
+
+test("unlock seats the waitlist in positions that were freed while locked, and announces it", async () => {
+  const { sql, id, d, posts } = await setup();
+  const slots = (await getRosterView(sql, id, NOW))!.slots.map((s) => s.id);
+  await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: "tank1", guildId: "g1", now: NOW });
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role) values ('g1', ${id}, 'tankwait', null, 'waitlist', 'Tank')`;
+  await d(cmd("lock"));
+  await leaveContent(sql, { contentId: id, userId: "tank1", guildId: "g1", now: NOW });
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.userId, null);
+  await d(cmd("unlock"));
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.userId, "tankwait");
+  assert.equal(posts.length, 1);
+  assert.ok(posts[0].body.content.includes("<@tankwait> a position opened for you"));
+});
