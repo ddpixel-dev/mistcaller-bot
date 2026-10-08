@@ -46,6 +46,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 - [FT-015 slot builder and presets design](plan/2026-10-07-ft-015-slot-builder-design.md)
 - [Roster joining, header lines and weapon icons: options](plan/2026-10-07-roster-ux-options.md): proposed, awaiting owner decisions
+- [Optional weapon, build channel, PvX and Fill](plan/2026-10-08-optional-weapon-build-channel-pvx-fill.md): proposed, awaiting owner approval
 - [Setup redesign: any server, any channel, admin roles](plan/2026-10-08-setup-redesign.md): approved 2026-10-08, built
 
 ## Working notes
