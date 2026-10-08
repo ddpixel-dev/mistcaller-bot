@@ -64,7 +64,7 @@ test("header lines: category, tier and loot vote each on their own line with an 
   assert.ok(lines.includes("🕰️ **UTC** Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** <t:1791396000:f> · <t:1791396000:R>"));
   assert.ok(lines.some((l) => l.startsWith("**The Company (1/2)**")));
-  assert.ok(lines[0]!.startsWith("**📜 ⚜ Ava roam ⚜"));
+  assert.ok(lines[0]!.startsWith("# 📜 ⚜ Ava roam ⚜"), "the title is a level-1 heading");
 });
 
 test("no loot and single tier", () => {
@@ -138,7 +138,7 @@ test("user text is escaped in the title, notes, role and weapon, and nothing can
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
   // a role like "# big" cannot break out of its heading into another one
   const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
-  assert.ok(h.split("\n").filter((l) => l.startsWith("# ")).length === 0);
+  assert.equal(h.split("\n").filter((l) => l.startsWith("# ")).length, 1, "only the title is a level-1 heading");
 });
 
 test("notes get a Notes: label and a different icon than the title", () => {
@@ -157,7 +157,7 @@ test("colour comes from the category, grey when cancelled or done", () => {
 });
 
 test("status shows in the text: cancelled title and banner, closed roll, concluded", () => {
-  assert.ok(txt(view({ status: "cancelled" })).startsWith("**✖ CANCELLED — Ava roam**"));
+  assert.ok(txt(view({ status: "cancelled" })).startsWith("# ✖ CANCELLED — Ava roam"));
   assert.ok(txt(view({ status: "cancelled" })).includes("Cancelled."));
   assert.ok(txt(view({ status: "done" })).includes("Concluded."));
   assert.ok(txt(view({ status: "locked" })).includes("The roll is closed."));

@@ -104,7 +104,8 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     : `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
   const fact = (icon: string, label: string, value: string) => `${icon} **${label}**${EN.repeat(HEADER_PAD[label] ?? 2)}${value}`;
   const lines = [
-    `**${Array.from(title).slice(0, TITLE_LIMIT).join("")}**`,
+    // A level-1 heading: Discord draws it at about 24 px, the largest text a message can have (owner request 2026-10-08).
+    `# ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
     fact("⚔️", "Type", `**${kind}**`),
     fact("⚙️", "Gear tier", formatTier(view.tier)),
     fact(VOTE_ICON, "Loot vote", lootValue(view)),

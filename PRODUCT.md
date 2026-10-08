@@ -162,7 +162,7 @@ Creation shall collect a title, a start time in UTC, a gear tier, a list of slot
 
 ### FR-004: Roster message
 status: accepted
-The roster message shall show the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and the slots grouped under a heading per role, such as `🛡️ Tank · 1/1` (owner decision 2026-10-08, layout E, ADR 0021). Each row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set; position numbers do not change. The header labels (Type, Gear tier, Loot vote, UTC, Your time) are followed by a measured number of en spaces so the values start in one column; Discord's font is proportional, so this is accurate to a few pixels, not exact.
+The roster message shall show its title as a level-1 heading, the largest text Discord allows (owner request 2026-10-08), and the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and the slots grouped under a heading per role, such as `🛡️ Tank · 1/1` (owner decision 2026-10-08, layout E, ADR 0021). Each row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set; position numbers do not change. The header labels (Type, Gear tier, Loot vote, UTC, Your time) are followed by a measured number of en spaces so the values start in one column; Discord's font is proportional, so this is accurate to a few pixels, not exact.
 
 ### FR-005: Sign up, move, leave
 status: accepted
@@ -358,9 +358,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.15.0 live (roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.15.1 live (roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.15.0 (layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.15.1 (bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
