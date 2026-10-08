@@ -12,7 +12,7 @@ function view(over: Partial<RosterView> = {}): RosterView {
     id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other",
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
-    tier: { min: { tier: 5, enchant: 3 }, max: { tier: 7, enchant: 0 } },
+    tier: "T5.3–T7.0",
     hasLoot: true, status: "open",
     slots: [
       { id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: "111" },
@@ -68,7 +68,7 @@ test("header lines: category, tier and loot vote each on their own line with an 
 });
 
 test("no loot and single tier", () => {
-  const t = txt(view({ hasLoot: false, tier: { min: { tier: 5, enchant: 3 }, max: null } }));
+  const t = txt(view({ hasLoot: false, tier: "T5.3" }));
   assert.ok(t.includes("💰 **Loot vote** Off"));
   assert.ok(t.includes("⚙️ **Gear tier** T5.3\n"));
   assert.ok(!t.includes("T5.3–"));
@@ -259,13 +259,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 10 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 11 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 10);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 10);
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 11);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 11, "full roster: the waitlist menu replaces the open-positions menu");
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -341,4 +341,24 @@ test("all 20 slots show, grouped, when the roles repeat", () => {
   const lines = raw(v).split("\n");
   assert.equal(lines.filter((l) => /^\d+\. /.test(l)).length, 20);
   assert.deepEqual(lines.filter((l) => l.startsWith("### ")), ["### 🛡️ Tank · 3/8", "### ⚔️ DPS · 7/7", "### 💚 Healer · 0/5"]);
+});
+
+test("a live roster ends with small tips for the owner; finished or cancelled ones do not", () => {
+  const last = (v: RosterView) => {
+    const body = (msg(v) as any).components[0].components;
+    return body[body.length - 1];
+  };
+  for (const status of ["open", "locked"] as const) {
+    const tail = last(view({ status }));
+    assert.equal(tail.type, 10, `${status}: the tips are the last block, below the buttons`);
+    assert.ok(tail.content.includes("/content edit") && tail.content.includes("/content end") && tail.content.includes("/content help"));
+    assert.ok(tail.content.split("\n").every((l: string) => l.startsWith("-# ")), "small grey subtext");
+  }
+  for (const status of ["done", "cancelled"] as const) assert.equal(last(view({ status })).type, 1, `${status}: ends with the buttons`);
+  assert.deepEqual(discordProblems(msg(view())), []);
+});
+
+test("the tips still fit when the roster text is at Discord's limit", () => {
+  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
+  assert.deepEqual(discordProblems(msg(v)), []);
 });

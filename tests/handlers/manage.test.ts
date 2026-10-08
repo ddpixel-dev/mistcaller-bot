@@ -11,7 +11,7 @@ const NOW = new Date("2026-10-06T12:00:00Z");
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Ganking", notes: null,
   startsAt: new Date("2026-12-01T18:00:00Z"),
-  tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: "boss",
+  tier: "T8.0", hasLoot: false, createdBy: "boss",
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
 };
 
@@ -117,7 +117,7 @@ test("an edit that keeps the start time pings nobody", async () => {
 
 test("invalid input and removing a held slot are refused with nothing saved", async () => {
   const { deps, sql, id, slots } = await setup();
-  assert.ok(text(await handleEditModal(deps, modal(id, "k", { ...good, tier: "bad" }))).includes("Invalid tier"));
+  assert.ok(text(await handleEditModal(deps, modal(id, "k", { ...good, tier: "  " }))).includes("gear tier"));
   assert.ok(text(await handleEditModal(deps, modal(id, "k", { ...good, start: "2020-01-01 10:00" }))).includes("future"));
   await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'bob', ${slots[1]}, 'signed')`;
   const r = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace" }));

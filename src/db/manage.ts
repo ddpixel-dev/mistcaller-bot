@@ -2,7 +2,7 @@ import type { Sql } from "./client.ts";
 import { planSlotEdit } from "../domain/slots.ts";
 import { promoteWaitlist, type Promotion } from "./signup.ts";
 import { needsReminder } from "../domain/vote.ts";
-import type { ContentStatus, RosterSlot, SlotDef, TierRange } from "../domain/types.ts";
+import type { ContentStatus, RosterSlot, SlotDef } from "../domain/types.ts";
 
 export type ManageTarget = {
   id: string;
@@ -39,7 +39,7 @@ export type EditInput = {
   title: string;
   notes: string | null;
   startsAt: Date;
-  tier: TierRange;
+  tier: string;
   hasLoot: boolean | null; // null keeps the current value
   kind: string | null; // null keeps the current value
   slots: SlotDef[];
@@ -84,12 +84,10 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
     }
 
-    const { min, max } = input.tier;
     await tx`
       update content set
         title = ${input.title}, notes = ${input.notes}, starts_at = ${input.startsAt},
-        min_tier = ${min.tier}, min_enchant = ${min.enchant},
-        max_tier = ${max ? max.tier : null}, max_enchant = ${max ? max.enchant : null},
+        gear_tier = ${input.tier},
         has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind}
       where id = ${id}`;
 

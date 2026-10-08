@@ -10,7 +10,7 @@ import {
 } from "../db/manage.ts";
 import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
-import { formatTier, parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
+import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 import { announcePromotions } from "./waitlist.ts";
 import type { Promotion } from "../db/signup.ts";
@@ -85,7 +85,7 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
       components: [
         textInput("title", "Title", 100, { value: view.title }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { value: utcInput(view.startsAt) }),
-        textInput("tier", "Tier", 30, { value: formatTier(view.tier).replace("–", "-") }),
+        textInput("tier", "Gear Tier", 80, { value: view.tier }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) }),
         textInput("notes", "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
       ],
@@ -114,7 +114,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   if (!title.ok) return reply(title.error);
   const start = parseUtcStart(v.start ?? "", deps.now());
   if (!start.ok) return reply(start.error);
-  const tier = parseTier(v.tier ?? "");
+  const tier = parseGearTier(v.tier ?? "");
   if (!tier.ok) return reply(tier.error);
   const slots = parseSlots(v.slots ?? "");
   if (!slots.ok) return reply(slots.error);

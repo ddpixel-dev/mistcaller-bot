@@ -15,7 +15,7 @@ const base: NewContent = {
   title: "Ganking",
   notes: null,
   startsAt,
-  tier: { min: { tier: 8, enchant: 0 }, max: null },
+  tier: "T8.0",
   hasLoot: false,
   createdBy: "u1",
   slots: [
@@ -47,7 +47,7 @@ test("createContent stores slots in input order and getRosterView reads them", a
   assert.equal(v.notes, null);
   assert.equal(v.startsAt.getTime(), startsAt.getTime());
   assert.ok(v.startsAt instanceof Date);
-  assert.deepEqual(v.tier, { min: { tier: 8, enchant: 0 }, max: null });
+  assert.deepEqual(v.tier, "T8.0");
   assert.deepEqual(v.slots.map((s) => [s.position, s.role, s.weapon, s.userId]), [
     [1, "Tank", "Mace", null],
     [2, "Healer", "Holy", null],
@@ -64,10 +64,10 @@ test("tier range with max maps back", async () => {
     ...base,
     notes: "bring food",
     hasLoot: true,
-    tier: { min: { tier: 6, enchant: 1 }, max: { tier: 8, enchant: 3 } },
+    tier: "T6.1–T8.3",
   });
   const v = await getRosterView(sql, id, new Date());
-  assert.deepEqual(v?.tier, { min: { tier: 6, enchant: 1 }, max: { tier: 8, enchant: 3 } });
+  assert.deepEqual(v?.tier, "T6.1–T8.3");
   assert.equal(v?.notes, "bring food");
   assert.equal(v?.hasLoot, true);
 });

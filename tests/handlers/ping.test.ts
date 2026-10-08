@@ -20,7 +20,7 @@ async function setup(closedDms: string[] = []) {
   const sql = await testSql();
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "Raid *night*", notes: null, startsAt: START,
-    tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: false, createdBy: OWNER, now: NOW,
+    tier: "T8.0", hasLoot: false, createdBy: OWNER, now: NOW,
     slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }, { role: "DPS", weapon: "Axe" }],
   });
   await setMessageId(sql, id, "m1");

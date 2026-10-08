@@ -1,6 +1,6 @@
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
-import type { ContentStatus, ContentType, RosterView, SlotDef, TierRange } from "../domain/types.ts";
+import type { ContentStatus, ContentType, RosterView, SlotDef } from "../domain/types.ts";
 
 export type NewContent = {
   guildId: string;
@@ -10,7 +10,7 @@ export type NewContent = {
   title: string;
   notes: string | null;
   startsAt: Date;
-  tier: TierRange;
+  tier: string;
   hasLoot: boolean;
   createdBy: string;
   slots: SlotDef[];
@@ -51,14 +51,12 @@ export async function findContentInThread(
 
 async function insertContent(sql: Sql, input: NewContent): Promise<string> {
   return await sql.begin(async (tx) => {
-    const { min, max } = input.tier;
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        min_tier, min_enchant, max_tier, max_enchant, has_loot, created_by, reminder_sent_at)
+        gear_tier, has_loot, created_by, reminder_sent_at)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
-        ${input.startsAt}, ${min.tier}, ${min.enchant}, ${max ? max.tier : null},
-        ${max ? max.enchant : null}, ${input.hasLoot}, ${input.createdBy},
+        ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
         ${needsReminder(input.startsAt, now) ? null : now})
       returning id`;
     const id: string = row!.id;
@@ -110,10 +108,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     title: c.title,
     notes: c.notes,
     startsAt: c.starts_at,
-    tier: {
-      min: { tier: c.min_tier, enchant: c.min_enchant },
-      max: c.max_tier === null ? null : { tier: c.max_tier, enchant: c.max_enchant },
-    },
+    tier: c.gear_tier ?? "",
     hasLoot: c.has_loot,
     status: c.status as ContentStatus,
     slots: slots.map((s) => ({

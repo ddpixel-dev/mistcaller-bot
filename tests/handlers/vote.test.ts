@@ -14,7 +14,7 @@ const OPEN = new Date("2026-10-06T12:00:00Z");
 const CUTOFF = new Date(startsAt.getTime() - 300000);
 const base: NewContent = {
   guildId: "g1", threadId: "t1", type: "pvp", title: "Loot run", notes: null, startsAt,
-  tier: { min: { tier: 8, enchant: 0 }, max: null }, hasLoot: true, createdBy: "u1",
+  tier: "T8.0", hasLoot: true, createdBy: "u1",
   slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }, { role: "DPS", weapon: "Bow" }],
 };
 const rest: Rest = { async createMessage() { return { id: "m" }; }, async editMessage() {}, async deleteMessage() {} };
