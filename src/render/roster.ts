@@ -1,6 +1,6 @@
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
-import { DEFAULT_KIND, kindDef } from "../domain/kinds.ts";
+import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { CANCELLED_TAG, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
 import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
@@ -34,6 +34,10 @@ function voteButtons(view: RosterView) {
 // The roster is a Components V2 message (ADR 0018): a coloured container with the header and the rows as text,
 // a menu of the open positions, and one row of buttons (Leave and the vote). Discord allows no embeds in it.
 export const IS_COMPONENTS_V2 = 1 << 15;
+
+// Values of the join and waitlist menus for Fill (FR-032). `~` cannot start a slot id, and no role is typed that way.
+export const FILL_VALUE = "fill";
+export const WAIT_FILL_VALUE = "~fill";
 
 export function voteResultText(view: RosterView): string {
   const { split, regear } = view.votes;
@@ -80,10 +84,12 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, spaced: boolean): Lin
     const gap = spaced && lines.length > 0 ? `${SPACER}\n` : "";
     lines.push({ text: `${gap}### ${roleIcon(first.role)} ${escapeText(first.role)} · ${taken}/${group.length}`, heading: true });
     for (const s of group) {
-      const emoji = withEmoji ? weaponEmojiTag(s.weapon) : "";
+      // A role-only slot shows the holder's own weapon once chosen, and "Player's choice" until then (FR-030).
+      const weaponName = s.weapon || s.chosenWeapon || "";
+      const emoji = withEmoji && weaponName ? weaponEmojiTag(weaponName) : "";
       const duty = dutyDef(s.duty);
       lines.push({
-        text: `${s.position}. ${emoji ? `${emoji} ` : ""}${escapeText(s.weapon)}${duty ? ` - ${duty.icon} ${duty.label}` : ""} · ${
+        text: `${s.position}. ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice}${duty ? ` - ${duty.icon} ${duty.label}` : ""} · ${
           s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
         }`,
         heading: false,
@@ -97,11 +103,11 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, spaced: boolean): Lin
 // measured on a screenshot of Discord's desktop text (a label's width, plus 6.7 px per en space, plus about 4 px),
 // so the columns agree to within a few pixels. Discord's font is proportional, so this cannot be exact.
 const EN = "\u2002";
-const HEADER_PAD: Record<string, number> = { Type: 6, "Gear tier": 3, "Loot vote": 2, UTC: 7, "Your time": 2 };
+const HEADER_PAD: Record<string, number> = { Type: 6, "Gear tier": 3, Build: 6, "Loot vote": 2, UTC: 7, "Your time": 2 };
 
 function headerText(view: RosterView, filled: number, notes: boolean, spaced: boolean): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
-  const typeLabel = view.type === "pvp" ? "PvP" : "PvE";
+  const typeLabel = TYPE_LABEL[view.type];
   const def = kindDef(view.type, view.kind);
   const kind = def && def.id !== DEFAULT_KIND ? `${typeLabel} · ${def.label}` : typeLabel;
   const title = view.status === "cancelled"
@@ -115,6 +121,7 @@ function headerText(view: RosterView, filled: number, notes: boolean, spaced: bo
     ...gap,
     fact("⚔️", "Type", `**${kind}**`),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
+    ...(view.buildChannelId ? [fact("🧰", "Build", `<#${view.buildChannelId}>`)] : []),
     fact(VOTE_ICON, "Loot vote", lootValue(view)),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),
@@ -147,16 +154,21 @@ export function renderRosterMessage(view: RosterView): {
   let spaced = true;
   let withEmoji = true;
   let notes = true;
-  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30));
+  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 30 + 20);
   const fits = () => headerText(view, filled, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) spaced = false;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
   const waiting = view.waitlist ?? [];
-  const waitText = waiting.length
-    ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
-    : "";
+  const fills = view.fills ?? [];
+  const fillText = fills.length ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}>`).join(" · ")}`.slice(0, 600) : "";
+  const waitText = [
+    fillText,
+    waiting.length
+      ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
+      : "",
+  ].filter(Boolean).join("\n");
   const budget = TEXT_LIMIT - headerText(view, filled, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
   const kept = rowLines(view.slots, withEmoji, spaced).filter((l) => (used += l.text.length + 1) <= budget);
@@ -172,11 +184,14 @@ export function renderRosterMessage(view: RosterView): {
       type: 1,
       components: [{
         type: 3, custom_id: `join:${view.id}`, placeholder: `Pick an open position (${open.length})`,
-        options: open.slice(0, 25).map((s) => ({
-          label: Array.from(`${s.position}. ${s.role} - ${s.weapon}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
-          value: s.id,
-          emoji: weaponEmojiByName(s.weapon) ?? { name: roleIcon(s.role) },
-        })),
+        options: [
+          { label: "Fill (play any position)", value: FILL_VALUE, emoji: { name: "🔁" } },
+          ...open.slice(0, 24).map((s) => ({
+            label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+            value: s.id,
+            emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(s.role) },
+          })),
+        ],
       }],
     });
   }
@@ -189,25 +204,30 @@ export function renderRosterMessage(view: RosterView): {
       type: 1,
       components: [{
         type: 3, custom_id: `wait:${view.id}`, placeholder: "Join the waitlist for a full role",
-        options: fullRoles.slice(0, 25).map((role) => ({
-          label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
-          description: `${waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
-        })),
+        options: [
+          { label: "Fill (play any position)", value: WAIT_FILL_VALUE, emoji: { name: "🔁" } },
+          ...fullRoles.slice(0, 24).map((role) => ({
+            label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
+            description: `${waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
+          })),
+        ],
       }],
     });
   }
   const buttons: unknown[] = [
     {
       type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
-      disabled: !(live && (filled > 0 || waiting.length > 0)),
+      disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0)),
     },
   ];
   if (view.hasLoot) buttons.push(...voteButtons(view));
   // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
   buttons.push({
     type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
-    disabled: !(live && filled > 0) || view.pinged === true,
+    disabled: !(live && (filled > 0 || fills.length > 0)) || view.pinged === true,
   });
+  // The owner places a fill in a position (FR-032); the button shows only while someone is waiting as a fill.
+  if (live && fills.length > 0) buttons.push({ type: 2, style: 1, label: "Assign fill", emoji: { name: "🔁" }, custom_id: `fa:${view.id}` });
   body.push({ type: 1, components: buttons });
   if (live) body.push(text(OWNER_TIPS));
 

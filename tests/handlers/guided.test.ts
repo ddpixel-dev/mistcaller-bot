@@ -75,7 +75,7 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   assert.equal(weapon.disabled, true);
   assert.deepEqual(weapon.options.map((o: any) => o.label), ["Pick a weapon class first"]);
   const cls = find(card, "gs:class");
-  assert.equal(cls.placeholder, "Weapon class (pick one)");
+  assert.equal(cls.placeholder, "Weapon class (optional)");
   assert.deepEqual(cls.options.map((o: any) => o.label), ["Sword", "Axe", "Hammer", "Mace", "Spear", "Dagger", "Quarterstaff", "Bow", "Crossbow", "Gloves", "Fire Staff", "Frost Staff", "Holy Staff", "Arcane Staff", "Cursed Staff", "Nature Staff", "Shapeshifter", "Off-hand"]);
   assert.ok(cls.options.every((o: any) => !o.default));
   assert.equal(card.data.components.length, 5);
@@ -104,7 +104,7 @@ test("picking role, weapon and duty on the card enables Next; Next saves the slo
   const { id } = await begin(d, "3");
   let r: any = await d(press(`gs:role:${id}`, ["Tank"]));
   assert.deepEqual(find(r, "gs:role").options.filter((o: any) => o.default).map((o: any) => o.value), ["Tank"]);
-  assert.equal(find(r, "gs:next").disabled, true);
+  assert.equal(find(r, "gs:next").disabled, false, "a role alone is enough: the weapon is optional");
   r = await d(press(`gs:class:${id}`, ["Axe"]));
   const weaponBase = find(r, "gs:weapon").options[1].value;
   assert.equal(find(r, "gs:weapon").disabled, false);
@@ -141,7 +141,7 @@ test("picking a weapon class fills the Weapon list with just that class, sorted,
   assert.deepEqual(find(r, "gs:class").options.filter((o: any) => o.default).map((o: any) => o.value), ["Holy Staff"]);
   const weapon = find(r, "gs:weapon");
   assert.equal(weapon.disabled, false);
-  assert.equal(weapon.placeholder, "Weapon (pick one)");
+  assert.equal(weapon.placeholder, "Weapon (optional)");
   const labels = weapon.options.map((o: any) => o.label);
   assert.ok(labels.length > 1 && labels.length <= 25);
   assert.deepEqual(labels, [...labels].sort((a: string, b: string) => a.localeCompare(b)));
@@ -198,7 +198,7 @@ test("Back on the first card returns to the create panel with the choices kept",
   assert.equal(r.type, 7);
   assert.ok(r.data.content.includes("Create content"));
   const go = r.data.components[r.data.components.length - 1].components[0];
-  assert.equal(go.custom_id, "cpgo:pve:1:world-boss:-");
+  assert.equal(go.custom_id, "cpgo:pve:1:world-boss:-:-");
   assert.equal(r.data.components[r.data.components.length - 1].components[1].custom_id, "cpx");
 });
 
@@ -245,9 +245,9 @@ test("/content slot fills the card in one command, needs a draft and the count, 
   const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon" }));
   assert.ok(embed(typed).description.includes("2. DPS - Some New Weapon"));
   assert.ok((await d(slotCmd({ role: "Wizard", weapon: "Mace" })) as any).data.content.includes("Pick a role"));
-  assert.ok((await d(slotCmd({ role: "DPS", weapon: "   " })) as any).data.content.includes("Type part"));
   assert.ok((await d(slotCmd({ role: "DPS", weapon: "x".repeat(41) })) as any).data.content.includes("too long"));
-  await d(slotCmd({ role: "DPS", weapon: "Bow" }));
+  const roleOnly: any = await d(slotCmd({ role: "DPS", weapon: "   " }));
+  assert.ok(embed(roleOnly).description.includes("3. DPS"), "no weapon: a role alone");
   assert.ok((await d(slotCmd({ role: "DPS", weapon: "Bow" })) as any).data.content.includes("All slots are chosen"));
   assert.equal((await getDraft(sql, id, NOW))!.slots.length, 3);
   assert.ok((await d(slotCmd({ role: "DPS", weapon: "Bow" }, { member: { user: { id: "u2" }, roles: [] } })) as any).data.content.includes("Start the guided steps first"));

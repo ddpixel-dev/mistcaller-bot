@@ -4,6 +4,7 @@ import type { ContentType, Result } from "./types.ts";
 export type KindDef = { id: string; label: string; type: ContentType; color: number };
 
 export const DEFAULT_KIND = "other";
+export const TYPE_LABEL: Record<ContentType, string> = { pvp: "PvP", pve: "PvE", pvx: "PvX" };
 
 export const KINDS: KindDef[] = [
   { id: "zvz", label: "ZvZ", type: "pvp", color: 0x1c3a8a },
@@ -26,8 +27,17 @@ export const KINDS: KindDef[] = [
   { id: DEFAULT_KIND, label: "Other", type: "pve", color: 0xc9a227 },
 ];
 
+// PvX holds every PvP and PvE category (owner decision 2026-10-08): the PvP ones first, then the PvE ones, Other once.
+const PVX_COLOR = 0x6f4fb0;
+export function kindsOf(type: ContentType): KindDef[] {
+  if (type !== "pvx") return KINDS.filter((k) => k.type === type);
+  const seen = new Set<string>();
+  const all = KINDS.filter((k) => !seen.has(k.id) && !!seen.add(k.id));
+  return [...all.filter((k) => k.id !== DEFAULT_KIND), ...all.filter((k) => k.id === DEFAULT_KIND).map((k) => ({ ...k, color: PVX_COLOR }))];
+}
+
 export function kindDef(type: ContentType, id: string): KindDef | null {
-  return KINDS.find((k) => k.type === type && k.id === id) ?? null;
+  return kindsOf(type).find((k) => k.id === id) ?? null;
 }
 
 // Distinct choices for the slash command. "Other" is shared by both types.
@@ -51,7 +61,7 @@ export function resolveKind(type: ContentType, id: string | null): Result<string
   if (kindDef(type, id)) return { ok: true, value: id };
   const other = KINDS.find((k) => k.id === id);
   if (other) {
-    const here = type === "pvp" ? "PvP" : "PvE";
+    const here = TYPE_LABEL[type];
     const there = other.type === "pvp" ? "PvP" : "PvE";
     return { ok: false, error: `${other.label} is a ${there} category, but this content is ${here}.` };
   }

@@ -6,6 +6,8 @@ import { handleCreateModal } from "../handlers/create.ts";
 import { handleCreateCancel, handleCreateContinue, handleCreatePanel } from "../handlers/create-panel.ts";
 import { handleMeComponent } from "../handlers/me.ts";
 import { handleSetupComponent } from "../handlers/setup.ts";
+import { handleAssignComponent } from "../handlers/fill.ts";
+import { handleWeaponPick } from "../handlers/weapon-pick.ts";
 import { handleAttendanceComponent } from "../handlers/attendance.ts";
 import { handlePing } from "../handlers/ping.ts";
 import { handleGuidedComponent, handleGuidedModal } from "../handlers/guided.ts";
@@ -23,7 +25,7 @@ const commandHandlers: Record<string, Handler> = { content: handleContentCommand
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, leaveslot: handleLeaveSlot, leave: handleLeave, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent,
+  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");

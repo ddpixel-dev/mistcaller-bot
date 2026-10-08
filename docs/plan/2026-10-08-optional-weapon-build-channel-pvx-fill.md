@@ -1,7 +1,7 @@
 ---
 title: Optional weapon, build channel, PvX and Fill: design
 type: plan
-status: proposed
+status: accepted
 date: 2026-10-08
 satisfies: [FR-003, FR-005, FR-023, FR-030, FR-031, FR-032, FR-033]
 ---
@@ -66,7 +66,9 @@ Four changes, four releases, in this order: **1** optional weapon, **2** build c
 
 **Tests.** The joins above, one entry per member, atomic assignment (two owners at once, a taken position, a player who left meanwhile), refusal for non-owners, the command and the button path, the audit list, render with and without fills, and the limits checker.
 
-## Release plan
+## Release plan (changed by the owner on 2026-10-08: one release, 0.18.0, with migration 0016 and all four changes)
+
+The table below was the original plan.
 | Release | Contains | Migration | Commands |
 |---|---|---|---|
 | next | 1 optional weapon | 0016 `signup.chosen_weapon` | `slot` option optional (re-register) |

@@ -36,8 +36,19 @@ test("parseSlots happy path", () => {
   assert.deepEqual(ok(parseSlots("Tank - Great Axe")), [{ role: "Tank", weapon: "Great Axe" }]);
 });
 
+test("parseSlots accepts a role alone, with or without a duty (the weapon is the player's choice)", () => {
+  assert.deepEqual(ok(parseSlots("Tank")), [{ role: "Tank", weapon: "" }]);
+  assert.deepEqual(ok(parseSlots("Healer (Scout)\nDPS - Bow\nSupport -")), [
+    { role: "Healer", weapon: "", duty: "scout" },
+    { role: "DPS", weapon: "Bow" },
+    { role: "Support", weapon: "" },
+  ]);
+  assert.ok(err(parseSlots("Tank (Captain)")).includes("Unknown duty"));
+  assert.ok(err(parseSlots("a".repeat(31))).includes("too long"));
+});
+
 test("parseSlots errors", () => {
-  assert.ok(err(parseSlots("Tank - Axe\nDPS Longbow")).includes("line 2"));
+  assert.ok(err(parseSlots("Tank - Axe\n - Axe")).includes("line 2"));
   const many = Array.from({ length: 21 }, (_, i) => `R${i} - W`).join("\n");
   assert.ok(err(parseSlots(many)).length > 0);
   assert.ok(err(parseSlots("")).length > 0);
@@ -78,9 +89,7 @@ test("parseSlots hyphenated roles and weapons", () => {
   assert.deepEqual(ok(parseSlots("DPS-Longbow")), [{ role: "DPS", weapon: "Longbow" }]);
   assert.deepEqual(ok(parseSlots("Tank - Great-Axe")), [{ role: "Tank", weapon: "Great-Axe" }]);
   assert.deepEqual(ok(parseSlots("Tank-Great Axe")), [{ role: "Tank", weapon: "Great Axe" }]);
-  assert.ok(err(parseSlots("Tank -")).length > 0);
-  assert.ok(err(parseSlots("- Axe")).length > 0);
-  assert.ok(err(parseSlots("Tank Axe")).includes("line 1"));
+  assert.ok(err(parseSlots("- Axe")).includes("needs a role"));
 });
 
 test("parseSlots CRLF and original line numbers", () => {
@@ -88,7 +97,7 @@ test("parseSlots CRLF and original line numbers", () => {
     { role: "Tank", weapon: "Axe" },
     { role: "Healer", weapon: "Holy" },
   ]);
-  assert.ok(err(parseSlots("Tank - Axe\n\n\nBroken")).includes("line 4"));
+  assert.ok(err(parseSlots("Tank - Axe\n\n\n- Broken")).includes("line 4"));
 });
 
 test("parseUtcStart edge cases", () => {
@@ -118,5 +127,5 @@ test("parseSlots reads an optional duty in brackets at the end of a line", () =>
   const bad = parseSlots("Tank - Axe (Captain)");
   assert.equal(bad.ok, false);
   assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat\./);
-  assert.equal(parseSlots("Tank - (Caller)").ok, false);
+  assert.deepEqual(ok(parseSlots("Tank - (Caller)")), [{ role: "Tank", weapon: "", duty: "caller" }]);
 });

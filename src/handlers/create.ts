@@ -1,7 +1,7 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
@@ -18,6 +18,21 @@ const FAILED = "Could not create the content right now. Nothing was saved, pleas
 // FR-002 (changed 2026-10-08, ADR 0020): content may be created in any text channel, announcement channel, thread or
 // forum post of a server. The type (PvP or PvE) is chosen in the create panel, so no forum setup is needed.
 const CONTENT_PLACES = new Set([0, 5, 10, 11, 12]);
+const BUILD_CHANNEL_TYPES = new Set([0, 5, 10, 11, 12, 15]); // text, announcement, threads, forum
+const SNOWFLAKE = /^\d{5,25}$/;
+
+// The build channel option of a command (FR-031): a channel of this server that can be mentioned. `undefined` means
+// the option was not given. The channel must be among those Discord resolved for this command.
+export function readBuildChannel(i: Interaction, sub: string): { ok: true; id: string | undefined } | { ok: false; error: string } {
+  const value = subOption(i, sub, "build-channel");
+  if (value === undefined) return { ok: true, id: undefined };
+  const resolved = (i.data as { resolved?: { channels?: Record<string, { type?: number }> } } | undefined)?.resolved?.channels?.[String(value)];
+  if (typeof value !== "string" || !SNOWFLAKE.test(value) || !resolved || !BUILD_CHANNEL_TYPES.has(resolved.type ?? -1)) {
+    return { ok: false, error: "That channel cannot be linked. Pick a text, announcement, forum or thread channel of this server." };
+  }
+  return { ok: true, id: value };
+}
+
 export function inContentPlace(i: Interaction): boolean {
   return Boolean(i.guild_id && i.channel && CONTENT_PLACES.has(i.channel.type));
 }
@@ -62,21 +77,23 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
   }
-  return await createPanel(deps, i.guild_id, DEFAULT_DRAFT, "new");
+  const build = readBuildChannel(i, "create");
+  if (!build.ok) return reply(build.error);
+  return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildChannelId: build.id ?? null }, "new");
 }
 
-export function createForm(draft: { type: ContentType; loot: boolean; kind: string }, presetLines: string | null): InteractionResponse {
+export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildChannelId?: string | null }, presetLines: string | null): InteractionResponse {
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}`,
+      custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}${draft.buildChannelId ? `:${draft.buildChannelId}` : ""}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
         textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3" }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
-          style: 2, placeholder: "Tank - Axe", ...(presetLines ? { value: presetLines } : {}),
+          style: 2, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(presetLines ? { value: presetLines } : {}),
         }),
         textInput("notes", "Notes (optional)", 500, { required: false }),
       ],
@@ -86,13 +103,14 @@ export function createForm(draft: { type: ContentType; loot: boolean; kind: stri
 
 export async function handleCreateModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const customId = (i.data as { custom_id?: string } | undefined)?.custom_id ?? "";
-  const [, typeId, lootFlag, kindId] = customId.split(":");
+  const [, typeId, lootFlag, kindId, buildId] = customId.split(":");
   const creator = i.member?.user?.id;
   const threadId = i.channel?.id;
   if (!i.guild_id || !creator || !threadId) return reply(NOT_HERE);
   const problem = placeProblem(i);
   if (problem) return reply(problem);
-  if (typeId !== "pvp" && typeId !== "pve") return reply("That form is out of date. Run `/content create` again.");
+  if (typeId !== "pvp" && typeId !== "pve" && typeId !== "pvx") return reply("That form is out of date. Run `/content create` again.");
+  if (buildId !== undefined && !SNOWFLAKE.test(buildId)) return reply("That form is out of date. Run `/content create` again.");
   const type: ContentType = typeId;
 
   const v = modalValues(i);
@@ -122,6 +140,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
       notes: notes.value,
       startsAt: start.value,
       tier: tier.value,
+      buildChannelId: buildId ?? null,
       hasLoot,
       createdBy: creator,
       slots: slots.value,

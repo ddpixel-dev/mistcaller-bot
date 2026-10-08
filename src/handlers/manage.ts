@@ -2,6 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, subOption, textInput } from "../discord/modal.ts";
+import { readBuildChannel } from "./create.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
@@ -14,7 +15,8 @@ import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 import { announcePromotions } from "./waitlist.ts";
 import type { Promotion } from "../db/signup.ts";
-import { kindDef } from "../domain/kinds.ts";
+import { TYPE_LABEL, kindDef } from "../domain/kinds.ts";
+import type { ContentType } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -23,7 +25,7 @@ const INVALID = "That action is not valid. Please run the command again.";
 
 type Checked = { ok: true; target: ManageTarget } | { ok: false; response: InteractionResponse };
 
-async function authorize(deps: Deps, i: Interaction, target: ManageTarget | null): Promise<Checked> {
+export async function authorize(deps: Deps, i: Interaction, target: ManageTarget | null): Promise<Checked> {
   const userId = i.member?.user?.id;
   if (!target || !i.guild_id || target.guildId !== i.guild_id || !userId) {
     return { ok: false, response: reply(NO_CONTENT) };
@@ -37,7 +39,7 @@ async function authorize(deps: Deps, i: Interaction, target: ManageTarget | null
   return allowed ? { ok: true, target } : { ok: false, response: reply(NOT_ALLOWED) };
 }
 
-async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
+export async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view?.messageId) return false;
@@ -49,7 +51,7 @@ async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   }
 }
 
-async function announce(deps: Deps, threadId: string, text: string, users: string[]): Promise<void> {
+export async function announce(deps: Deps, threadId: string, text: string, users: string[]): Promise<void> {
   try {
     await deps.rest.createMessage(threadId, { content: text, allowed_mentions: { users } });
   } catch (err) {
@@ -77,10 +79,16 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
   const kindOpt = subOption(i, "edit", "category");
   const kind = typeof kindOpt === "string" ? resolveKind(view.type, kindOpt) : null;
   if (kind && !kind.ok) return reply(kind.error);
+  // The build channel (FR-031): a channel sets it, clear-build removes it, neither keeps it. The choice travels in the form's id.
+  const build = readBuildChannel(i, "edit");
+  if (!build.ok) return reply(build.error);
+  const clear = subOption(i, "edit", "clear-build") === true;
+  if (clear && build.id) return reply("Pick a build channel or clear it, not both.");
+  const marker = clear ? "bx" : build.id ? `b${build.id}` : null;
   return {
     type: MODAL,
     data: {
-      custom_id: `edit:${view.id}:${lootOption(i)}${kind ? `:${kind.value}` : ""}`,
+      custom_id: `edit:${view.id}:${lootOption(i)}${kind || marker ? `:${kind ? kind.value : "-"}` : ""}${marker ? `:${marker}` : ""}`,
       title: "Edit content",
       components: [
         textInput("title", "Title", 100, { value: view.title }),
@@ -96,18 +104,22 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
 export async function handleEditModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const customId = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof customId === "string" ? customId.split(":") : [];
-  if (parts.length < 3 || parts.length > 4 || !UUID.test(parts[1]!) || !["1", "0", "k"].includes(parts[2]!)) {
+  if (parts.length < 3 || parts.length > 5 || !UUID.test(parts[1]!) || !["1", "0", "k"].includes(parts[2]!)) {
     return reply(INVALID);
   }
   const checked = await authorize(deps, i, await getManageTargetById(deps.sql, parts[1]!));
   if (!checked.ok) return checked.response;
   let kindId: string | null = null;
-  if (parts[3] !== undefined) {
+  if (parts[3] !== undefined && parts[3] !== "-") {
     const typeRow = await getRosterView(deps.sql, checked.target.id, deps.now());
     const kind = resolveKind(typeRow?.type ?? "pvp", parts[3]);
     if (!kind.ok) return reply(kind.error);
     kindId = kind.value;
   }
+
+  const marker = parts[4];
+  if (marker !== undefined && marker !== "bx" && !/^b\d{5,25}$/.test(marker)) return reply(INVALID);
+  const buildChannelId: string | null | undefined = marker === undefined ? undefined : marker === "bx" ? null : marker.slice(1);
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
@@ -124,6 +136,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const result = await editContent(deps.sql, checked.target.id, {
     title: title.value, notes: notes.value, startsAt: start.value, tier: tier.value,
     hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, slots: slots.value,
+    ...(buildChannelId !== undefined ? { buildChannelId } : {}),
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have started, been locked or been cancelled.");
   if (result.result === "slots_held") return reply(result.error);
@@ -233,8 +246,8 @@ export async function handleListCommand(deps: Deps, i: Interaction): Promise<Int
   if (items.length === 0) return reply("No upcoming content. Start one with `/content create` in a channel or post.");
   const lines = items.slice(0, LIST_LIMIT).map((c) => {
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
-    const def = kindDef(c.type === "pve" ? "pve" : "pvp", c.kind);
-    const kind = `${c.type === "pve" ? "PvE" : "PvP"}${def && def.id !== "other" ? ` · ${def.label}` : ""}`;
+    const def = kindDef(c.type as ContentType, c.kind);
+    const kind = `${TYPE_LABEL[c.type as ContentType]}${def && def.id !== "other" ? ` · ${def.label}` : ""}`;
     const link = c.messageId ? `https://discord.com/channels/${i.guild_id}/${c.threadId}/${c.messageId}` : `https://discord.com/channels/${i.guild_id}/${c.threadId}`;
     const title = escapeText(Array.from(c.title).slice(0, 60).join(""));
     return `<t:${epoch}:R> · **${title}** · ${kind} · ${c.filled}/${c.total}${c.status === "locked" ? " 🔒" : ""}\n${link}`;

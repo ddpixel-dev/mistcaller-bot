@@ -12,6 +12,7 @@ import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
+import type { ContentType } from "../domain/types.ts";
 import { NOT_HERE, createForm, placeProblem, postTakenReply } from "./create.ts";
 import { createPanel } from "./create-panel.ts";
 
@@ -40,12 +41,12 @@ const countForm = (d: StoredDraft): InteractionResponse => ({
 export async function startGuided(
   deps: Deps,
   i: Interaction,
-  draft: { type: "pvp" | "pve"; loot: boolean; kind: string },
+  draft: { type: ContentType; loot: boolean; kind: string; buildChannelId?: string | null },
 ): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   const threadId = i.channel?.id;
   if (!i.guild_id || !userId || !threadId) return reply(EXPIRED);
-  const id = await startDraft(deps.sql, { guildId: i.guild_id, userId, threadId, type: draft.type, loot: draft.loot, kind: draft.kind });
+  const id = await startDraft(deps.sql, { guildId: i.guild_id, userId, threadId, type: draft.type, loot: draft.loot, kind: draft.kind, buildChannelId: draft.buildChannelId ?? null });
   const d = await getDraft(deps.sql, id, deps.now());
   return d ? countForm(d) : reply(EXPIRED);
 }
@@ -74,6 +75,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       return update(await store(deps, d, typeof value === "string" ? setDuty(d, value) : d));
     }
     case "weapon": {
+      // The weapon is optional: deselecting sends no value, which clears it.
+      const picks = Array.isArray(data?.values) ? data!.values : null;
+      if (picks && picks.length === 0) return update(await store(deps, d, { ...d, weapon: null }));
       if (value === TYPED_WEAPON) return update(d);
       const w = typeof value === "string" ? WEAPONS.find((x) => x.base === value) : undefined;
       if (!w) return reply(EXPIRED);
@@ -83,6 +87,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     case "same": return update(await store(deps, d, sameAsPrevious(d), null));
     case "rest": return update(await store(deps, d, fillRest(d), null));
     case "class": {
+      // Deselecting the class (it is optional) clears the weapon with it.
+      const picks = Array.isArray(data?.values) ? data!.values : null;
+      if (picks && picks.length === 0) return update(await store(deps, d, { ...d, weapon: null }, null));
       const cls = typeof value === "string" ? value : "";
       if (!isWeaponClass(cls)) return reply(EXPIRED);
       return update(await store(deps, d, d, cls));
@@ -92,7 +99,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
       // On the first card, Back returns to the create panel with the choices kept.
       if (!i.guild_id) return reply(EXPIRED);
-      return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null }, "update");
+      return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null, buildChannelId: d.buildChannelId }, "update");
     }
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
@@ -107,7 +114,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value }, formatSlotLines(d.slots));
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildChannelId: d.buildChannelId }, formatSlotLines(d.slots));
     }
     default: return reply(EXPIRED);
   }
@@ -142,11 +149,11 @@ export async function handleSlotCommand(deps: Deps, i: Interaction): Promise<Int
   const duty = leafOption(i, "duty");
   if (typeof role !== "string" || !(GUIDED_ROLES as readonly string[]).includes(role)) return reply("Pick a role from the list.");
   const typed = typeof rawWeapon === "string" ? rawWeapon.trim() : "";
-  if (!typed) return reply("Type part of a weapon name and pick one from the list.");
   if (typed.length > 40) return reply("That weapon name is too long (max 40 characters).");
   const known = WEAPONS.find((w) => w.name.toLowerCase() === typed.toLowerCase());
 
-  let draft: GuidedDraft = setWeapon(setRole(picked(d), role), known ? known.name : typed);
+  // The weapon is optional: without one the slot is a role alone.
+  let draft: GuidedDraft = typed ? setWeapon(setRole(picked(d), role), known ? known.name : typed) : { ...setRole(picked(d), role), weapon: null };
   if (typeof duty === "string") draft = setDuty(draft, duty);
   const saved = await store(deps, d, next(draft), null);
   return { type: CHANNEL_MESSAGE, data: { ...renderGuidedStep(saved), flags: EPHEMERAL } };

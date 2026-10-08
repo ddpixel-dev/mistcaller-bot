@@ -179,10 +179,10 @@ test("the menu lists only the open positions, so a taken one is gone from it", (
   const menu = byId(view({ slots: slots(6, 2) }), "join:")[0]!;
   assert.equal(menu.custom_id, "join:c1");
   assert.equal(menu.placeholder, "Pick an open position (4)");
-  assert.deepEqual(menu.options.map((o: any) => o.value), ["s3", "s4", "s5", "s6"]);
-  assert.ok(menu.options[0].label.startsWith("3. DPS - Bow"));
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["fill", "s3", "s4", "s5", "s6"]);
+  assert.ok(menu.options[1].label.startsWith("3. DPS - Bow"));
   const after = byId(view({ slots: slots(6, 3) }), "join:")[0]!;
-  assert.deepEqual(after.options.map((o: any) => o.value), ["s4", "s5", "s6"]);
+  assert.deepEqual(after.options.map((o: any) => o.value), ["fill", "s4", "s5", "s6"]);
 });
 
 test("the menu uses the weapon's emoji when it exists, and the role icon otherwise", () => {
@@ -191,8 +191,8 @@ test("the menu uses the weapon's emoji when it exists, and the role icon otherwi
     { id: "s1", position: 1, role: "DPS", weapon: "Longbow", userId: null },
     { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null },
   ] }), "join:")[0]!;
-  assert.deepEqual(menu.options[0].emoji, { id: WEAPON_EMOJI[known.base], name: `w_${known.base}` });
-  assert.deepEqual(menu.options[1].emoji, { name: "🛡️" });
+  assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w_${known.base}` });
+  assert.deepEqual(menu.options[2].emoji, { name: "🛡️" });
 });
 
 test("no menu when the roster is full, closed, started, cancelled or done", () => {
@@ -295,9 +295,9 @@ test("a menu to join the waitlist lists only the roles with no open position", (
   ], waitlist: [{ userId: "9", role: "DPS" }] });
   const menu = byId(mixed, "wait:")[0]!;
   assert.equal(menu.custom_id, "wait:c1");
-  assert.deepEqual(menu.options.map((o: any) => o.value), ["Tank", "DPS"]);
-  assert.deepEqual(menu.options.map((o: any) => o.description), ["0 waiting", "1 waiting"]);
-  assert.ok(menu.options[0].label.startsWith("Tank (all taken)"));
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"]);
+  assert.deepEqual(menu.options.map((o: any) => o.description), [undefined, "0 waiting", "1 waiting"]);
+  assert.ok(menu.options[1].label.startsWith("Tank (all taken)"));
   assert.equal(byId(view({ slots: slots(4, 2) }), "wait:").length, 0);
   for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }, { started: true }] as const) {
     assert.equal(byId(view({ ...over, slots: slots(4, 4) }), "wait:").length, 0, JSON.stringify(over));
@@ -395,4 +395,68 @@ test("the gaps are dropped first when the text is too long, and the message stil
   assert.deepEqual(discordProblems(msg(v)), []);
   const small = raw(view());
   assert.ok(small.includes(SPACER));
+});
+
+// ---- Fill, role-only slots and the build line ----
+
+test("fills are listed under the rows; Assign fill shows only while a fill exists; Leave and Ping count a fill", () => {
+  const none = view({ slots: slots(3, 0) });
+  assert.ok(!raw(none).includes("🔁"));
+  assert.ok(!byId(none, "fa:").length);
+  const v = view({ slots: slots(3, 0), fills: ["111111111111111111", "222222222222222222"] });
+  assert.ok(raw(v).includes("🔁 **Fill (2):** <@111111111111111111> · <@222222222222222222>"));
+  assert.equal(byId(v, "fa:").length, 1);
+  assert.equal(byId(v, "fa:")[0]!.label, "Assign fill");
+  assert.equal(byId(v, "leave:")[0]!.disabled, false, "Leave is enabled by a fill alone");
+  assert.equal(byId(v, "ping:")[0]!.disabled, false, "Ping is enabled by a fill alone");
+  assert.equal(byId(view({ slots: slots(3, 0) }), "leave:")[0]!.disabled, true);
+  assert.equal(byId(view({ ...v, status: "done" }), "fa:").length, 0, "finished content has no Assign fill");
+  // the waitlist line follows the fill line
+  const both = raw(view({ slots: slots(2, 0), fills: ["111111111111111111"], waitlist: [{ userId: "333333333333333333", role: "DPS" }] }));
+  assert.ok(both.indexOf("🔁") < both.indexOf("🕒"));
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("the buttons row never holds more than five buttons, even with the loot vote and a fill", () => {
+  const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"] });
+  const row = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1).at(-1);
+  assert.deepEqual(row.components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("a role-only slot reads Player's choice, then the holder's own weapon with its icon; its menu entry is the role", () => {
+  const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
+  const v = view({ slots: [
+    { id: "a", position: 1, role: "Tank", weapon: "", userId: null },
+    { id: "b", position: 2, role: "Tank", weapon: "", userId: "111111111111111111", chosenWeapon: "Broadsword" },
+    { id: "c", position: 3, role: "Healer", weapon: "", userId: "222222222222222222" },
+    { id: "d", position: 4, role: "DPS", weapon: "", duty: "caller", userId: null },
+  ] });
+  const t = raw(v);
+  assert.ok(t.includes("1. Player's choice · Open"));
+  assert.ok(t.includes(`2. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword · Sworn: <@111111111111111111>`));
+  assert.ok(t.includes("3. Player's choice · Sworn: <@222222222222222222>"));
+  assert.ok(t.includes("4. Player's choice - 📯 Caller · Open"));
+  const menu = byId(v, "join:")[0]!;
+  assert.deepEqual(menu.options.map((o: any) => o.label), ["Fill (play any position)", "1. Tank", "4. DPS - Caller"]);
+  assert.deepEqual(menu.options[1].emoji, { name: "🛡️" });
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("with 20 open positions the join menu has 21 entries, and a full roster of fills still fits Discord's limits", () => {
+  const menu = byId(view({ slots: slots(20, 0) }), "join:")[0]!;
+  assert.equal(menu.options.length, 21);
+  const fills = Array.from({ length: 30 }, (_, i) => String(100000000000000000n + BigInt(i)));
+  const v = view({ slots: slots(20, 20), fills, waitlist: fills.slice(0, 10).map((u) => ({ userId: u, role: "DPS" })) });
+  assert.deepEqual(discordProblems(msg(v)), []);
+  assert.ok(raw(v).includes("🔁 **Fill (30):**"));
+});
+
+test("the build channel is a header line with a mention, right after the gear tier, and absent when not set", () => {
+  const lines = raw(view({ buildChannelId: "123456789012345678" })).split("\n");
+  const i = lines.findIndex((l) => l.includes("**Gear tier**"));
+  assert.ok(plain(lines[i + 1]!).includes("🧰 **Build** <#123456789012345678>"), plain(lines[i + 1]!));
+  assert.ok(!raw(view()).includes("🧰"));
+  const pad = lines[i + 1]!.split("**Build**")[1]!.match(/^ */)![0].length;
+  assert.ok(pad >= 1);
 });

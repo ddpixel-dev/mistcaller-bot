@@ -1,7 +1,7 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { KINDS, DEFAULT_KIND, kindDef, resolveKind } from "../domain/kinds.ts";
+import { DEFAULT_KIND, kindsOf, kindDef, resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
@@ -15,23 +15,25 @@ const NEED_TYPE = "Pick the type of content first.";
 
 // The draft lives in the custom ids of the panel's components, so nothing is kept in memory.
 // Every field starts unset (shown as "-" in the ids) so the boxes show what they are for.
-export type CreateDraft = { type: ContentType | null; loot: boolean | null; kind: string | null; presetId: string | null };
-export const DEFAULT_DRAFT: CreateDraft = { type: null, loot: null, kind: null, presetId: null };
+export type CreateDraft = { type: ContentType | null; loot: boolean | null; kind: string | null; presetId: string | null; buildChannelId: string | null };
+export const DEFAULT_DRAFT: CreateDraft = { type: null, loot: null, kind: null, presetId: null, buildChannelId: null };
 
 export const encode = (d: CreateDraft) =>
-  `${d.type ?? "-"}:${d.loot === null ? "-" : d.loot ? 1 : 0}:${d.kind ?? "-"}:${d.presetId ?? "-"}`;
+  `${d.type ?? "-"}:${d.loot === null ? "-" : d.loot ? 1 : 0}:${d.kind ?? "-"}:${d.presetId ?? "-"}:${d.buildChannelId ?? "-"}`;
 
 export function decodeDraft(parts: string[]): CreateDraft | null {
-  const [type, loot, kind, preset] = parts;
-  if (type !== "-" && type !== "pvp" && type !== "pve") return null;
+  const [type, loot, kind, preset, build] = parts;
+  if (type !== "-" && type !== "pvp" && type !== "pve" && type !== "pvx") return null;
   if (loot !== "-" && loot !== "0" && loot !== "1") return null;
   if (kind !== "-" && !(kind && /^[a-z-]{1,30}$/.test(kind))) return null;
   if (preset !== "-" && !(preset && UUID.test(preset))) return null;
+  if (build !== undefined && build !== "-" && !/^\d{5,25}$/.test(build)) return null; // a panel made before 0.18 has no build part
   return {
     type: type === "-" ? null : type,
     loot: loot === "-" ? null : loot === "1",
     kind: kind === "-" ? null : kind!,
     presetId: preset === "-" ? null : preset!,
+    buildChannelId: build === undefined || build === "-" ? null : build,
   };
 }
 
@@ -45,7 +47,7 @@ export async function createPanel(
   const presets = await listPresets(deps.sql, guildId);
   const suffix = encode(draft);
   const kindOptions = draft.type
-    ? KINDS.filter((k) => k.type === draft.type).map((k) => ({
+    ? kindsOf(draft.type).map((k) => ({
         label: k.label, value: k.id, default: k.id === draft.kind,
       }))
     : [{ label: "Pick the type first", value: "-" }];
@@ -57,6 +59,7 @@ export async function createPanel(
         options: [
           { label: "PvP", value: "pvp", default: draft.type === "pvp" },
           { label: "PvE", value: "pve", default: draft.type === "pve" },
+          { label: "PvX (both)", value: "pvx", default: draft.type === "pvx" },
         ],
       }],
     },
@@ -99,7 +102,7 @@ export async function createPanel(
     ],
   });
   const data = {
-    content: "**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.",
+    content: `**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.${draft.buildChannelId ? `\nBuild channel: <#${draft.buildChannelId}>` : ""}`,
     components: rows,
     allowed_mentions: { parse: [] },
   };
@@ -121,7 +124,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   const value = values[0];
 
   if (field === "type") {
-    if (value !== "pvp" && value !== "pve") return reply(INVALID);
+    if (value !== "pvp" && value !== "pve" && value !== "pvx") return reply(INVALID);
     draft.type = value;
     // A kind of the other type no longer fits; Other fits both.
     if (draft.kind && !kindDef(value, draft.kind)) draft.kind = null;
@@ -148,7 +151,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   return await createPanel(deps, i.guild_id, draft, "update");
 }
 
-export type ReadyDraft = { type: ContentType; loot: boolean; kind: string; presetId: string | null };
+export type ReadyDraft = { type: ContentType; loot: boolean; kind: string; presetId: string | null; buildChannelId: string | null };
 type Checked = { ok: true; draft: ReadyDraft } | { ok: false; response: InteractionResponse };
 
 // Shared checks for the buttons after Continue: the draft in the id, the post, the kind and a free post.
@@ -166,7 +169,7 @@ export async function checked(deps: Deps, i: Interaction, prefix: string): Promi
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return { ok: false, response: taken };
   }
-  return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId } };
+  return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId, buildChannelId: draft.buildChannelId } };
 }
 
 // Continue: with a preset, open the form with its slots. Otherwise start the guided steps (how many players).
