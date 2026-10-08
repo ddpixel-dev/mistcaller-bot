@@ -1,6 +1,7 @@
 import type { Sql } from "./client.ts";
 
-export type Player = { userId: string; position: number; role: string; weapon: string };
+// A member without a position (a Fill) has no position, role or weapon.
+export type Player = { userId: string; position: number | null; role: string; weapon: string; fill: boolean };
 export type Attendance = {
   contentId: string;
   guildId: string;
@@ -21,15 +22,16 @@ export async function getAttendance(sql: Sql, contentId: string): Promise<Attend
     from content where id = ${contentId}`;
   if (!c) return null;
   const [players, marks] = await Promise.all([
-    sql`select su.user_id, s.position, s.role, s.weapon
-        from signup su join slot s on s.id = su.slot_id
-        where su.content_id = ${contentId} and su.status = 'signed' order by s.position`,
+    sql`select su.user_id, su.status, s.position, s.role, s.weapon, su.chosen_weapon
+        from signup su left join slot s on s.id = su.slot_id
+        where su.content_id = ${contentId} and su.status in ('signed', 'fill')
+        order by s.position nulls last, su.joined_at, su.user_id`,
     sql`select user_id, status from attendance where content_id = ${contentId}`,
   ]);
   return {
     contentId: c.id, guildId: c.guild_id, threadId: c.thread_id, title: c.title, createdBy: c.created_by,
     status: c.status, startsAt: c.starts_at, submittedAt: c.attendance_submitted_at, reportPostedAt: c.report_posted_at,
-    players: players.map((p) => ({ userId: p.user_id, position: p.position, role: p.role, weapon: p.weapon })),
+    players: players.map((p) => ({ userId: p.user_id, position: p.position ?? null, role: p.role ?? "", weapon: p.weapon ?? p.chosen_weapon ?? "", fill: p.status === "fill" })),
     marks: Object.fromEntries(marks.map((m) => [m.user_id, m.status])) as Attendance["marks"],
   };
 }
@@ -45,7 +47,7 @@ export async function setAttended(
     const [c] = await tx`select guild_id, report_posted_at from content where id = ${a.contentId} for update`;
     if (!c) return "not_found";
     if (c.report_posted_at) return "closed";
-    const signed = (await tx`select user_id from signup where content_id = ${a.contentId} and status = 'signed'`).map((r) => r.user_id as string);
+    const signed = (await tx`select user_id from signup where content_id = ${a.contentId} and status in ('signed', 'fill')`).map((r) => r.user_id as string);
     if (a.userIds.some((u) => !signed.includes(u))) return "invalid";
     await tx`delete from attendance where content_id = ${a.contentId} and status = 'attended' and not (user_id = any(${a.userIds}::text[]))`;
     for (const u of a.userIds) {
@@ -67,7 +69,7 @@ export async function submitAttendance(sql: Sql, a: { contentId: string; markedB
     await tx`
       insert into attendance (guild_id, content_id, user_id, status, marked_by, marked_at)
       select ${c.guild_id}, ${a.contentId}, su.user_id, 'no_show', ${a.markedBy}, ${a.now}
-      from signup su where su.content_id = ${a.contentId} and su.status = 'signed'
+      from signup su where su.content_id = ${a.contentId} and su.status in ('signed', 'fill')
       on conflict (content_id, user_id) do nothing`;
     await tx`update content set attendance_submitted_at = ${a.now} where id = ${a.contentId}`;
     return "ok";
@@ -98,7 +100,7 @@ export async function memberHistory(sql: Sql, guildId: string, userId: string): 
     from attendance where guild_id = ${guildId} and user_id = ${userId}`;
   const [n] = await sql`
     select count(*)::int as n from content c
-    join signup su on su.content_id = c.id and su.user_id = ${userId} and su.status = 'signed'
+    join signup su on su.content_id = c.id and su.user_id = ${userId} and su.status in ('signed', 'fill')
     where c.guild_id = ${guildId} and c.status = 'done'
       and not exists (select 1 from attendance a where a.content_id = c.id and a.user_id = ${userId})`;
   return { attended: h!.attended, noShow: h!.no_show, notRecorded: n!.n };

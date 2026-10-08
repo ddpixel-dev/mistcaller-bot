@@ -15,11 +15,13 @@ const INVALID = "That panel is out of date. Run `/content me` again.";
 // A private panel only for the member who opened it, so its Leave button is theirs alone.
 export function renderMePanel(view: RosterView, userId: string) {
   const mine = view.slots.find((s) => s.userId === userId) ?? null;
+  const isFill = (view.fills ?? []).includes(userId);
   const open = view.status === "open" && !view.started;
   const lines = [`**${escapeText(view.title)}**`];
   lines.push(
     mine
-      ? `You are signed up as ${mine.position}. ${escapeText(mine.role)} - ${escapeText(mine.weapon)}.`
+      ? `You are signed up as ${mine.position}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
+      : isFill ? "You are signed up as a fill: the owner places you in a position."
       : "You are not signed up.",
   );
   if (!open) lines.push("Signups and moves are closed.");
@@ -30,7 +32,7 @@ export function renderMePanel(view: RosterView, userId: string) {
       components: [{
         type: 3, custom_id: `me:pick:${view.id}`, placeholder: mine ? "Move to another position" : "Sign up for a position",
         options: view.slots.map((s) => ({
-          label: Array.from(`${s.position}. ${s.role} - ${s.weapon}`).slice(0, 100).join(""),
+          label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
           value: s.id,
           description: s.userId === userId ? "You are here" : s.userId ? "Taken" : "Open",
         })),
@@ -38,13 +40,13 @@ export function renderMePanel(view: RosterView, userId: string) {
     });
   }
   const live = view.status === "open" || view.status === "locked";
-  rows.push({
-    type: 1,
-    components: [{
-      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `me:leave:${view.id}`,
-      disabled: !(live && mine),
-    }],
-  });
+  const buttons: unknown[] = [{
+    type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `me:leave:${view.id}`,
+    disabled: !(live && (mine || isFill)),
+  }];
+  // A position without a weapon: the holder can pick or change their own (FR-030).
+  if (live && mine && !mine.weapon) buttons.push({ type: 2, style: 2, label: "Change weapon", emoji: { name: "⚔️" }, custom_id: `wp:open:${view.id}` });
+  rows.push({ type: 1, components: buttons });
   return { content: lines.join("\n"), components: rows, allowed_mentions: { parse: [] as [] } };
 }
 

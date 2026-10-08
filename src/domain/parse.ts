@@ -21,22 +21,24 @@ export function parseSlots(input: string): Result<SlotDef[]> {
   if (lines.length > 20) return fail(`Too many slots (${lines.length}). The maximum is 20.`);
   const slots: SlotDef[] = [];
   for (const { text, n } of lines) {
-    // Prefer the first spaced separator so roles like "Off-Tank" survive; else the first bare dash.
+    // Prefer the first spaced separator so roles like "Off-Tank" survive; else the first bare dash. A role alone is
+    // allowed: the player then brings the weapon of their choice (FR-030).
     const spaced = /\s[-–]\s/.exec(text);
     const idx = spaced ? spaced.index + 1 : text.search(/[-–]/);
-    if (idx < 0) return fail(`Slot on line ${n} needs a role and a weapon separated by a dash, like: Tank - Great Axe`);
-    const role = text.slice(0, idx).trim();
-    let weapon = text.slice(idx + 1).trim();
-    // An optional duty in brackets at the end: "Tank - Great Axe (Caller)".
+    let role = idx < 0 ? text.trim() : text.slice(0, idx).trim();
+    let weapon = idx < 0 ? "" : text.slice(idx + 1).trim();
+    // An optional duty in brackets at the end: "Tank - Great Axe (Caller)" or "Tank (Caller)".
     let duty: string | null = null;
-    const bracket = /\s*\(([^()]*)\)\s*$/.exec(weapon);
+    const tail = idx < 0 ? role : weapon;
+    const bracket = /\s*\(([^()]*)\)\s*$/.exec(tail);
     if (bracket) {
       const found = DUTIES.find((d) => d.label.toLowerCase() === bracket[1]!.trim().toLowerCase());
       if (!found) return fail(`Unknown duty "${bracket[1]!.trim()}" on line ${n}. Use ${DUTIES.map((d) => d.label).join(", ")}.`);
       duty = found.id;
-      weapon = weapon.slice(0, bracket.index).trim();
+      if (idx < 0) role = tail.slice(0, bracket.index).trim();
+      else weapon = tail.slice(0, bracket.index).trim();
     }
-    if (!role || !weapon) return fail(`Slot on line ${n} needs both a role and a weapon, like: Tank - Great Axe`);
+    if (!role) return fail(`Slot on line ${n} needs a role, like: Tank - Great Axe, or just Tank`);
     if (role.length > 30) return fail(`Role on line ${n} is too long (max 30 characters).`);
     if (weapon.length > 40) return fail(`Weapon on line ${n} is too long (max 40 characters).`);
     slots.push(duty ? { role, weapon, duty } : { role, weapon });

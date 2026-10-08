@@ -1,6 +1,7 @@
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+// An empty weapon means the slot is a role alone: the player brings the weapon (FR-030).
 export type SlotDef = { role: string; weapon: string; duty?: string | null };
-export type ContentType = "pvp" | "pve";
+export type ContentType = "pvp" | "pve" | "pvx";
 export type ContentStatus = "open" | "locked" | "cancelled" | "done";
 export type RosterSlot = {
   id: string;
@@ -9,6 +10,7 @@ export type RosterSlot = {
   weapon: string;
   userId: string | null;
   duty?: string | null;
+  chosenWeapon?: string | null; // the holder's own weapon, for a slot without one
 };
 export type RosterView = {
   id: string;
@@ -25,6 +27,8 @@ export type RosterView = {
   status: ContentStatus;
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string }[];
+  fills?: string[]; // members signed up as Fill (any position), oldest first
+  buildChannelId?: string | null;
   pinged?: boolean;
   votes: { split: number; regear: number };
   voteClosed: boolean;

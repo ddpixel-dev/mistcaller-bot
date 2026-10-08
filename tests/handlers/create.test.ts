@@ -111,14 +111,14 @@ test("command opens a private panel with nothing chosen: type, kind (waiting for
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
   const p = panelOf(r);
-  assert.equal(p.type.custom_id, "cp:type:-:-:-:-");
+  assert.equal(p.type.custom_id, "cp:type:-:-:-:-:-");
   assert.equal(p.type.placeholder, "Type of content");
-  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["PvP", "pvp", false], ["PvE", "pve", false]]);
+  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["PvP", "pvp", false], ["PvE", "pve", false], ["PvX (both)", "pvx", false]]);
   assert.equal(p.kind.disabled, true);
   assert.match(p.kind.placeholder, /pick the type first/);
   assert.equal(p.loot.placeholder, "Loot vote (optional, default Off)");
   assert.deepEqual(p.loot.options.map((o: any) => [o.label, !!o.default]), [["Off", false], ["On (split or regear)", false]]);
-  assert.equal(p.go.custom_id, "cpgo:-:-:-:-");
+  assert.equal(p.go.custom_id, "cpgo:-:-:-:-:-");
   assert.equal(p.go.disabled, true);
   assert.equal(r.data.components.length, 4);
 });
@@ -137,13 +137,14 @@ test("choosing the type loads that type's categories, shown as plain values", as
   const pvp: any = await d(component("cp:type:-:-:-:-", ["pvp"]));
   assert.equal(pvp.type, 7);
   let p = panelOf(pvp);
-  assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false]);
+  assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false, false]);
+  assert.deepEqual(p.type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
   assert.equal(p.kind.disabled, false);
   assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "gank-squad", "bomb-squad", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
   assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Gank Squad", "Bomb Squad", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
   assert.ok(p.kind.options.every((o: any) => !o.default));
   assert.equal(p.go.disabled, false);
-  assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-");
+  assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-:-");
   const pve: any = await d(component("cp:type:-:-:-:-", ["pve"]));
   p = panelOf(pve);
   assert.ok(p.kind.options.some((o: any) => o.value === "world-boss") && !p.kind.options.some((o: any) => o.value === "zvz"));
@@ -154,14 +155,14 @@ test("choosing kind and loot vote updates the ids; changing the type drops a kin
   const d = createDispatch(deps);
   const k: any = await d(component("cp:kind:pvp:-:-:-", ["zvz"]));
   assert.deepEqual(panelOf(k).kind.options.filter((o: any) => o.default).map((o: any) => o.value), ["zvz"]);
-  assert.equal(panelOf(k).go.custom_id, "cpgo:pvp:-:zvz:-");
+  assert.equal(panelOf(k).go.custom_id, "cpgo:pvp:-:zvz:-:-");
   const l: any = await d(component("cp:loot:pvp:-:zvz:-", ["1"]));
-  assert.equal(panelOf(l).go.custom_id, "cpgo:pvp:1:zvz:-");
+  assert.equal(panelOf(l).go.custom_id, "cpgo:pvp:1:zvz:-:-");
   assert.deepEqual(panelOf(l).loot.options.map((o: any) => !!o.default), [false, true]);
   const swapped: any = await d(component("cp:type:pvp:1:zvz:-", ["pve"]));
-  assert.equal(panelOf(swapped).go.custom_id, "cpgo:pve:1:-:-");
+  assert.equal(panelOf(swapped).go.custom_id, "cpgo:pve:1:-:-:-");
   const keepsOther: any = await d(component("cp:type:pvp:0:other:-", ["pve"]));
-  assert.equal(panelOf(keepsOther).go.custom_id, "cpgo:pve:0:other:-");
+  assert.equal(panelOf(keepsOther).go.custom_id, "cpgo:pve:0:other:-:-");
 });
 
 test("Continue needs a type, then asks how many players; Cancel is on the panel", async () => {
@@ -471,7 +472,7 @@ test("a roster with every role posts a message Discord accepts: V2 flag, valid e
   assert.equal(body.flags & (1 << 15), 1 << 15);
   assert.deepEqual(discordProblems(body), []);
   const menu = flatComponents(body).find((c) => c.type === 3)!;
-  assert.equal(menu.options.length, 4);
+  assert.equal(menu.options.length, 5, "four positions and Fill");
   assert.ok(menu.options.every((o: any) => o.emoji));
   assert.ok(textOf(body).includes("💚 Healer"));
   assert.ok(textOf(body).includes("📯 Caller"));

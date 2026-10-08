@@ -14,6 +14,7 @@ export type NewContent = {
   hasLoot: boolean;
   createdBy: string;
   slots: SlotDef[];
+  buildChannelId?: string | null;
   now?: Date;
 };
 
@@ -54,10 +55,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildChannelId ?? null})
       returning id`;
     const id: string = row!.id;
     const rows = input.slots.map((s, i) => ({
@@ -65,7 +66,7 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
       content_id: id,
       position: i + 1,
       role: s.role,
-      weapon: s.weapon,
+      weapon: s.weapon || null,
       duty: s.duty ?? null,
     }));
     await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
@@ -85,15 +86,16 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const [slots, voteRows, waiting] = await Promise.all([
+  const [slots, voteRows, waiting, fills] = await Promise.all([
     sql`
-      select s.id, s.position, s.role, s.weapon, s.duty, su.user_id
+      select s.id, s.position, s.role, s.weapon, s.duty, su.user_id, su.chosen_weapon
       from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${contentId}
       order by s.position`,
     sql`select choice from vote where content_id = ${contentId}`,
     sql`select user_id, wait_role from signup where content_id = ${contentId} and status = 'waitlist' order by joined_at, user_id`,
+    sql`select user_id from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const started = c.starts_at <= now;
@@ -115,10 +117,13 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       id: s.id,
       position: s.position,
       role: s.role,
-      weapon: s.weapon,
+      weapon: s.weapon ?? "",
       duty: s.duty ?? null,
       userId: s.user_id ?? null,
+      chosenWeapon: s.chosen_weapon ?? null,
     })),
+    fills: fills.map((f) => f.user_id as string),
+    buildChannelId: c.build_channel_id ?? null,
     pinged: c.pinged_at !== null && c.pinged_at !== undefined,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },

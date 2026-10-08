@@ -177,3 +177,12 @@ test("when the owner's own private messages are closed the players still get the
   assert.ok(!text(r).includes("copy to you"));
   assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${A}`, `dm-${B}`]);
 });
+
+test("a fill gets the ping like any signed-up player", async () => {
+  const { sql, id, d, sent } = await setup();
+  await sql`delete from signup where user_id <> ${OWNER}`;
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, ${A}, null, 'fill')`;
+  const r: any = await d(press(id, OWNER));
+  assert.ok(text(r).includes("Sent to 1 of 1 players"));
+  assert.deepEqual(sent.map((s) => s.channel).sort(), [`dm-${OWNER}`, `dm-${A}`]);
+});

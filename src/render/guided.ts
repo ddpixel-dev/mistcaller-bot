@@ -30,7 +30,7 @@ export function weaponChoices(d: StoredDraft): Weapon[] {
 }
 
 const slotLine = (s: { role: string; weapon: string; duty?: string | null }, n: number) =>
-  `${n}. ${escapeText(s.role)} - ${escapeText(s.weapon)}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
+  `${n}. ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
 
 // One screen of the guided steps, rebuilt from the stored draft after every click.
 export function renderGuidedStep(d: StoredDraft) {
@@ -88,15 +88,15 @@ export function renderGuidedStep(d: StoredDraft) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:class:${id}`, placeholder: "Weapon class (pick one)",
+        type: 3, custom_id: `gs:class:${id}`, placeholder: "Weapon class (optional)", min_values: 0, max_values: 1,
         options: WEAPON_CLASSES.filter((c) => c !== "Other" || cls === "Other").map((c) => ({ label: c, value: c, default: c === cls })),
       }],
     });
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:weapon:${id}`,
-        placeholder: weaponOptions.length ? "Weapon (pick one)" : "Weapon (pick a class first)",
+        type: 3, custom_id: `gs:weapon:${id}`, min_values: 0, max_values: 1,
+        placeholder: weaponOptions.length ? "Weapon (optional)" : "Weapon (pick a class first)",
         disabled: weaponOptions.length === 0,
         options: weaponOptions.length ? weaponOptions : [{ label: "Pick a weapon class first", value: TYPED_WEAPON }],
       }],

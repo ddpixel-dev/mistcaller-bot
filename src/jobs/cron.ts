@@ -147,7 +147,7 @@ export async function sendAttendanceDms(deps: Deps): Promise<number> {
         select id from content
         where status in ('open', 'locked', 'done') and starts_at <= ${due}
           and attendance_dm_sent_at is null and attendance_submitted_at is null
-          and exists (select 1 from signup where content_id = content.id and status = 'signed')
+          and exists (select 1 from signup where content_id = content.id and status in ('signed', 'fill'))
           and id <> all(${[...failed]}::uuid[])
         order by starts_at, id
         limit 1
@@ -216,7 +216,7 @@ export async function sendReminders(deps: Deps): Promise<number> {
     if (!c) break;
     try {
       const rows = await deps.sql`
-        select user_id from signup where content_id = ${c.id} and status = 'signed' order by joined_at`;
+        select user_id from signup where content_id = ${c.id} and status in ('signed', 'fill') order by joined_at`;
       const users = rows.map((r) => r.user_id as string);
       if (users.length > 0) {
         const epoch = Math.floor(c.starts_at.getTime() / 1000);

@@ -26,6 +26,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
 - [0018 Roster as Components V2](decisions/0018-roster-as-components-v2.md): open-positions menu, one shared Leave button
 - [0019 External cron service](decisions/0019-external-cron-service.md): reminders and jobs on time; automatic reminder stays off until verified
+- [0023 Optional weapon, build channel, PvX and Fill](decisions/0023-optional-weapon-build-channel-pvx-fill.md): roster and signup changes
 - [0022 Server-only commands](decisions/0022-server-only-commands.md): works in any server it is added to
 - [0021 Roster rows grouped by role](decisions/0021-roster-rows-grouped-by-role.md): layout E, measured header columns
 - [0020 Setup without forums; admin roles](decisions/0020-setup-without-forums-admin-roles.md): any channel, global commands, role picker
@@ -46,6 +47,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [M0 to M3 implementation plan](plan/2026-10-06-m0-m3-implementation.md)
 - [FT-015 slot builder and presets design](plan/2026-10-07-ft-015-slot-builder-design.md)
 - [Roster joining, header lines and weapon icons: options](plan/2026-10-07-roster-ux-options.md): proposed, awaiting owner decisions
+- [Optional weapon, build channel, PvX and Fill](plan/2026-10-08-optional-weapon-build-channel-pvx-fill.md): approved 2026-10-08, built
 - [Setup redesign: any server, any channel, admin roles](plan/2026-10-08-setup-redesign.md): approved 2026-10-08, built
 
 ## Working notes

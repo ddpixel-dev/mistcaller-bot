@@ -42,6 +42,7 @@ export type EditInput = {
   tier: string;
   hasLoot: boolean | null; // null keeps the current value
   kind: string | null; // null keeps the current value
+  buildChannelId?: string | null; // undefined keeps the current value, null removes it
   slots: SlotDef[];
 };
 
@@ -52,7 +53,7 @@ export type EditResult =
 
 export async function editContent(sql: Sql, id: string, input: EditInput, now: Date): Promise<EditResult> {
   return await sql.begin(async (tx): Promise<EditResult> => {
-    const [c] = await tx`select status, starts_at, has_loot, kind from content where id = ${id} for update`;
+    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id from content where id = ${id} for update`;
     if (!c || c.status !== "open" || c.starts_at <= now) return { result: "unavailable" };
 
     const slotRows = await tx`
@@ -60,13 +61,13 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       from slot s left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${id} order by s.position`;
     const current: RosterSlot[] = slotRows.map((s) => ({
-      id: s.id, position: s.position, role: s.role, weapon: s.weapon, duty: s.duty ?? null, userId: s.user_id ?? null,
+      id: s.id, position: s.position, role: s.role, weapon: s.weapon ?? "", duty: s.duty ?? null, userId: s.user_id ?? null,
     }));
     const plan = planSlotEdit(current, input.slots);
     if (!plan.ok) return { result: "slots_held", error: plan.error };
 
     for (const r of plan.value.rename) {
-      await tx`update slot set role = ${r.role}, weapon = ${r.weapon}, duty = ${r.duty} where id = ${r.id}`;
+      await tx`update slot set role = ${r.role}, weapon = ${r.weapon || null}, duty = ${r.duty} where id = ${r.id}`;
     }
     for (const sid of plan.value.remove) {
       await tx`delete from slot where id = ${sid}`;
@@ -78,7 +79,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         content_id: id,
         position: current.length + i + 1,
         role: s.role,
-        weapon: s.weapon,
+        weapon: s.weapon || null,
         duty: s.duty ?? null,
       }));
       await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
@@ -88,7 +89,8 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       update content set
         title = ${input.title}, notes = ${input.notes}, starts_at = ${input.startsAt},
         gear_tier = ${input.tier},
-        has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind}
+        has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind},
+        build_channel_id = ${input.buildChannelId === undefined ? c.build_channel_id : input.buildChannelId}
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== input.startsAt.getTime();
@@ -97,7 +99,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       await tx`update content set reminder_sent_at = ${needsReminder(input.startsAt, now) ? null : now} where id = ${id}`;
     }
     const notify = startChanged
-      ? (await tx`select user_id from signup where content_id = ${id} and status = 'signed' order by joined_at`).map(
+      ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill') order by joined_at`).map(
           (r) => r.user_id as string,
         )
       : [];
@@ -114,7 +116,7 @@ export async function cancelContent(sql: Sql, id: string): Promise<CancelResult>
     const [c] = await tx`select status from content where id = ${id} for update`;
     if (!c || (c.status !== "open" && c.status !== "locked")) return { result: "unavailable" };
     await tx`update content set status = 'cancelled' where id = ${id}`;
-    const rows = await tx`select user_id from signup where content_id = ${id} and status = 'signed' order by joined_at`;
+    const rows = await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill') order by joined_at`;
     return { result: "ok", notify: rows.map((r) => r.user_id as string) };
   });
 }

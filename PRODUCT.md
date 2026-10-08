@@ -158,7 +158,7 @@ status: accepted
 
 ### FR-003: Creation input
 status: accepted
-Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
+Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, or a role alone (FR-030), optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
 status: accepted
@@ -211,6 +211,22 @@ The creator, a member with Manage Server, or an admin role shall be able to end 
 ### FR-029: Help and owner tips
 status: accepted
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
+
+### FR-030: Optional weapon
+status: accepted (ADR 0023)
+A slot may be a role alone: typed as `Tank` or `Tank (Caller)`, or chosen in the guided steps with the weapon class and weapon left empty (they are optional), or with `/content slot` without a weapon. The roster shows "Player's choice". A player who joins such a slot gets a private picker (weapon class, then weapon) and the roster then shows the weapon with its icon; `/content me` offers **Change weapon**. The choice is kept when moving between such slots and cleared when moving to a slot that has a weapon or leaving. Relaxes FR-003.
+
+### FR-031: Build channel
+status: accepted (ADR 0023)
+An event may carry one build channel of the server, chosen with the optional `build-channel` option of `/content create` or `/content edit` (a searchable list; `clear-build` removes it on edit). Only text, announcement, forum and thread channels that Discord resolved for the command are accepted. The roster header shows a `🧰 Build` line with a clickable mention that pings nobody.
+
+### FR-032: Fill
+status: accepted (ADR 0023)
+A member may choose **Fill** in the join menu (and in the waitlist menu when the roster is full) to say they can play any position. A fill is signed up without a position, listed on the roster as `🔁 Fill (n)`, and counts for leaving, voting, Ping players, the reminder, attendance, history and the edit and cancel notices. The creator and admins place a fill in an **open** position with the **Assign fill** button (a private panel: the fill, then the position) or `/content assign position member`; the thread gets a line naming the position and only that member is mentioned. Fills are never seated automatically and nobody is swapped out.
+
+### FR-033: PvX content type
+status: accepted (ADR 0023)
+A third content type, **PvX**, chosen in the create panel next to PvP and PvE, with every PvP category followed by every PvE category and Other once, last. Its roster shows `PvX · Category` and a purple colour (or the category's colour).
 
 ### FR-015: Upcoming list
 status: accepted
@@ -362,9 +378,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.17.1 live (small line gaps on the roster; 0.17.0: gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.18.0 live (optional weapon, build channel, PvX, Fill; migration 0016); before it, 0.17.1 (small line gaps on the roster; 0.17.0: gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-08
-Next step: owner tests 0.17.1 (line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.18.0 (role-only slots and the weapon picker, build channel, PvX, Fill and Assign fill, then line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
