@@ -152,6 +152,20 @@ export async function lockContent(sql: Sql, contentId: string, now: Date): Promi
   });
 }
 
+export type UnlockResult = { result: "ok"; promoted: Promotion[] } | { result: "started" } | { result: "unavailable" };
+
+// A manager reopens a roster that was locked early (before the start). Positions freed while it was locked
+// had no promotion then, so the waitlist is served now.
+export async function unlockContent(sql: Sql, contentId: string, now: Date): Promise<UnlockResult> {
+  return await sql.begin(async (tx): Promise<UnlockResult> => {
+    const [c] = await tx`select status, starts_at from content where id = ${contentId} for update`;
+    if (!c || c.status !== "locked") return { result: "unavailable" };
+    if (c.starts_at <= now) return { result: "started" };
+    await tx`update content set status = 'open' where id = ${contentId}`;
+    return { result: "ok", promoted: await promoteWaitlist(tx, contentId, now) };
+  });
+}
+
 export type UpcomingItem = {
   id: string; threadId: string; messageId: string | null; title: string; type: string; kind: string;
   startsAt: Date; status: string; filled: number; total: number;

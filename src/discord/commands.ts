@@ -64,7 +64,7 @@ export const commands = [
             type: 1, name: "save", description: "Save this post's slots as a preset",
             options: [{ type: 3, name: "name", description: "Preset name", required: true, max_length: 50 }],
           },
-          { type: 1, name: "list", description: "Show the saved presets" },
+      { type: 1, name: "list", description: "Show the saved presets" },
           {
             type: 1, name: "delete", description: "Delete a preset",
             options: [{ type: 3, name: "name", description: "Preset name", required: true, autocomplete: true }],
@@ -116,6 +116,7 @@ export const commands = [
         ],
       },
       { type: 1, name: "lock", description: "Close signups now (creator, officers, Manage Server)" },
+      { type: 1, name: "unlock", description: "Reopen signups after a lock, before the start (creator, officers, Manage Server)" },
       { type: 1, name: "list", description: "Upcoming content in this server, with links" },
       { type: 1, name: "end", description: "End this content once it has started (creator, officers, Manage Server)" },
       { type: 1, name: "attendance", description: "Open the attendance form privately (creator, officers, Manage Server)" },
