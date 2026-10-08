@@ -7,6 +7,11 @@ const kindOption = (description: string): CommandOption => ({
   type: 3, name: "category", description, required: false, choices: kindChoices(),
 });
 
+const buildChannelOption = (): CommandOption => ({
+  type: 7, name: "build-channel", description: "The channel that holds the build for this content (optional)",
+  required: false, channel_types: [0, 5, 10, 11, 12, 15],
+});
+
 export type CommandOption = {
   type: number;
   name: string;
@@ -35,6 +40,7 @@ export const commands = [
         type: 1,
         name: "create",
         description: "Create a content signup in this channel or post",
+        options: [buildChannelOption()],
       },
       {
         type: 1,
@@ -43,6 +49,8 @@ export const commands = [
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
           kindOption("Change the category (leave empty to keep it)"),
+          buildChannelOption(),
+          { type: 5, name: "clear-build", description: "Remove the build channel", required: false },
         ],
       },
       { type: 1, name: "setup", description: "Choose the admin roles that can manage content (Manage Server)" },
@@ -97,7 +105,7 @@ export const commands = [
             choices: GUIDED_ROLES.map((r) => ({ name: r, value: r })),
           },
           {
-            type: 3, name: "weapon", description: "Type part of the weapon name and pick it", required: true,
+            type: 3, name: "weapon", description: "Type part of the weapon name and pick it (optional: leave it to the player)", required: false,
             autocomplete: true, max_length: 50,
           },
           {
@@ -116,6 +124,15 @@ export const commands = [
         name: "history",
         description: "A member's attendance history",
         options: [{ type: 6, name: "member", description: "The member", required: true }],
+      },
+      {
+        type: 1,
+        name: "assign",
+        description: "Place a fill player in an open position (creator, admin roles, Manage Server)",
+        options: [
+          { type: 4, name: "position", description: "The open position number", required: true, min_value: 1, max_value: 20 },
+          { type: 6, name: "member", description: "The member who is waiting as a fill", required: true },
+        ],
       },
       { type: 1, name: "help", description: "What the bot does and every command" },
       { type: 1, name: "cancel", description: "Cancel this post's content (creator, admin roles, Manage Server)" },

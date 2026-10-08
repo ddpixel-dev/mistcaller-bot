@@ -47,7 +47,7 @@ const isEphemeral = (r: any, text?: string) => {
   assert.equal(r.data.flags, 64);
   if (text) assert.ok(r.data.content.includes(text), r.data.content);
 };
-const menuValues = (r: any) => flatComponents(r.data).find((c) => c.type === 3)?.options.map((o: any) => o.value) ?? [];
+const menuValues = (r: any) => (flatComponents(r.data).find((c) => c.type === 3)?.options.map((o: any) => o.value) ?? []).filter((v: string) => v !== "fill");
 
 test("picking an open position signs up, updates the shared roster, and the position leaves the menu", async () => {
   const { sql, deps, contentId, slots } = await setup();

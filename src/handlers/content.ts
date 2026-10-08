@@ -4,6 +4,7 @@ import { reply } from "../discord/response.ts";
 import { subcommandName } from "../discord/modal.ts";
 import { handleCreateCommand } from "./create.ts";
 import { handleCancelCommand, handleEditCommand } from "./manage.ts";
+import { handleAssignCommand } from "./fill.ts";
 import { handleHelpCommand } from "./help.ts";
 import { handleSetupCommand } from "./setup.ts";
 import { handlePresetCommand } from "./preset.ts";
@@ -30,6 +31,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "unlock": return await handleUnlockCommand(deps, i);
     case "list": return await handleListCommand(deps, i);
     case "attendance": return await handleAttendanceCommand(deps, i);
+    case "assign": return await handleAssignCommand(deps, i);
     case "help": return await handleHelpCommand(deps, i);
     case "history": return await handleHistoryCommand(deps, i);
     default: return reply("Not implemented yet");

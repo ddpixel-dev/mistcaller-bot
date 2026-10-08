@@ -35,14 +35,15 @@ test("nothing can be chosen before the count is set", () => {
   assert.equal(setCount(d, 21).count, null);
 });
 
-test("a card needs a role and a weapon; the duty is optional; Next saves it and moves on", () => {
+test("a card needs a role; the weapon and the duty are optional; Next saves it and moves on", () => {
   let d = five();
   assert.equal(canSave(d), false);
   d = setRole(d, "Tank");
-  assert.equal(canSave(d), false);
+  assert.equal(canSave(d), true, "a role alone is enough");
+  assert.deepEqual(next(d).slots, [{ role: "Tank", weapon: "" }]);
   d = setWeapon(d, " Great Axe ");
   assert.equal(canSave(d), true);
-  assert.deepEqual(next(setRole(emptyDraft(), "Tank")), setRole(emptyDraft(), "Tank"));
+  assert.deepEqual(next(emptyDraft()), emptyDraft());
   const saved = next(d);
   assert.deepEqual(saved.slots, [{ role: "Tank", weapon: "Great Axe" }]);
   assert.equal(saved.step, 1);
