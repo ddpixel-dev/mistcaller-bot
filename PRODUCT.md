@@ -212,6 +212,22 @@ The creator, a member with Manage Server, or an admin role shall be able to end 
 status: accepted
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
 
+### FR-030: Optional weapon
+status: proposed (design in docs/plan/2026-10-08-optional-weapon-build-channel-pvx-fill.md)
+A slot may be a role alone. A player who joins such a slot may choose a weapon in a private picker, and the roster then shows it. Relaxes FR-003.
+
+### FR-031: Build channel
+status: proposed
+An event may carry one build channel of the server (text, announcement, forum or thread), set when creating or editing, shown as a clickable mention in the header.
+
+### FR-032: Fill
+status: proposed
+A member may sign up as **Fill** (any position). A fill counts as signed up and is listed on the roster. The creator and admins assign a fill to any open position with an **Assign fill** button or `/content assign`.
+
+### FR-033: PvX content type
+status: proposed
+A third content type, PvX, has every PvP and PvE category.
+
 ### FR-015: Upcoming list
 status: accepted
 `/content list` shall show the server's upcoming content (open, or locked early and not yet started; not cancelled, ended or already started), soonest first, up to 15, each with its start (relative), title, type and category, how many positions are filled, a lock mark when locked, and a link to its roster message. The reply is private.
