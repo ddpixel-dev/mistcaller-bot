@@ -6,7 +6,7 @@ import { createContent, setMessageId, getRosterView, type NewContent } from "../
 import { claimSlot } from "../../src/db/signup.ts";
 import { castVote } from "../../src/db/vote.ts";
 import { editContent } from "../../src/db/manage.ts";
-import { isAuthorized, lockStarted, postVoteResults, runJobs, sendReminders } from "../../src/jobs/cron.ts";
+import { AUTO_END_MS, endStale, isAuthorized, lockStarted, postVoteResults, runJobs, sendReminders } from "../../src/jobs/cron.ts";
 import * as cronRoute from "../../api/cron.ts";
 import { handleCron } from "../../src/jobs/cron-handler.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
@@ -245,10 +245,10 @@ test("runJobs posts results before locking, even when both are due", async () =>
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { locked: 1, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(out, { locked: 1, ended: 0, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
   assert.deepEqual(order, ["edit:open", "post", "edit:locked"]);
   assert.equal(await status(sql, id), "locked");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, ended: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
 });
 
 // cron handler
@@ -501,4 +501,54 @@ test("a roster locked early still gets its reminder", async () => {
   const { rest, calls } = fakeRest();
   assert.equal(await sendReminders({ sql, rest, now: () => twentyFiveBefore }), 1);
   assert.ok(calls.posts[0]!.body.content.includes("<@alice>"));
+});
+
+test("endStale ends open and locked content 4 hours after its start, edits the roster once, and leaves the rest", async () => {
+  const { sql, id } = await make({ startsAt }); // open
+  const { id: locked } = await make({ threadId: "t2", startsAt }, "m2");
+  await sql`update content set status = 'locked' where id = ${locked}`;
+  const { id: young } = await make({ threadId: "t3", startsAt: new Date(startsAt.getTime() + 60 * 60000) }, "m3");
+  const { id: future } = await make({ threadId: "t4", startsAt: new Date(startsAt.getTime() + 24 * 3600000) }, "m4");
+  const { id: cancelled } = await make({ threadId: "t5", startsAt }, "m5");
+  await sql`update content set status = 'cancelled' where id = ${cancelled}`;
+  const { rest, calls } = fakeRest();
+  const early = () => new Date(startsAt.getTime() + AUTO_END_MS - 1000);
+  assert.equal(await endStale({ sql, rest, now: early }), 0, "not before 4 hours");
+  const due = () => new Date(startsAt.getTime() + AUTO_END_MS);
+  const deps: Deps = { sql, rest, now: due };
+  assert.equal(await endStale(deps), 2, "the two that started at 18:00; the one that started an hour later is not due yet");
+  assert.equal(await status(sql, id), "done");
+  assert.equal(await status(sql, locked), "done");
+  assert.equal(await status(sql, cancelled), "cancelled");
+  assert.equal(await status(sql, future), "open");
+  assert.equal(calls.edits.length, 2);
+  assert.ok(calls.edits.every((e) => JSON.stringify(e.body).includes("Concluded")), "the roster now shows it as concluded");
+  assert.equal(await endStale(deps), 0, "second run does nothing");
+  assert.equal(calls.edits.length, 2);
+  const later = () => new Date(startsAt.getTime() + AUTO_END_MS + 61 * 60000);
+  assert.equal(await endStale({ sql, rest, now: later }), 1, "the later one is ended an hour after");
+  assert.equal(await status(sql, young), "done");
+  const [row] = await sql`select ended_at from content where id = ${id}`;
+  assert.equal(new Date(row!.ended_at).getTime(), due().getTime());
+});
+
+test("submitting the attendance form does not end the content; the attendance DM and report still work either way", async () => {
+  const { sql, id } = await make({ startsAt });
+  await sql`update content set attendance_submitted_at = ${startsAt} where id = ${id}`;
+  const { rest } = fakeRest();
+  assert.equal(await endStale({ sql, rest, now: () => new Date(startsAt.getTime() + AUTO_END_MS - 1000) }), 0);
+  assert.equal(await status(sql, id), "open", "still not ended by the submission");
+});
+
+test("endStale survives a Discord failure and keeps the content ended; runJobs reports how many ended", async () => {
+  const { sql, id } = await make({ startsAt });
+  const f = fakeRest({ edit: () => new DiscordApiError(500, "boom") });
+  const now = () => new Date(startsAt.getTime() + AUTO_END_MS + 1000);
+  assert.equal(await endStale({ sql, rest: f.rest, now }), 1);
+  assert.equal(await status(sql, id), "done");
+  const b = await make({ threadId: "t9", startsAt }, "m9");
+  const g = fakeRest();
+  const out = await runJobs({ sql, rest: g.rest, now });
+  assert.equal(out.ended, 1);
+  assert.equal(await status(sql, b.id), "done");
 });
