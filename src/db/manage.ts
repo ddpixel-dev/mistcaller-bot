@@ -138,3 +138,50 @@ export async function setSlotDuty(
     return "ok";
   });
 }
+
+export type LockResult = "ok" | "started" | "unavailable";
+
+// A manager closes signups before the start. Players can still leave; the start locks it anyway.
+export async function lockContent(sql: Sql, contentId: string, now: Date): Promise<LockResult> {
+  return await sql.begin(async (tx): Promise<LockResult> => {
+    const [c] = await tx`select status, starts_at from content where id = ${contentId} for update`;
+    if (!c || c.status !== "open") return "unavailable";
+    if (c.starts_at <= now) return "started";
+    await tx`update content set status = 'locked' where id = ${contentId}`;
+    return "ok";
+  });
+}
+
+export type UnlockResult = { result: "ok"; promoted: Promotion[] } | { result: "started" } | { result: "unavailable" };
+
+// A manager reopens a roster that was locked early (before the start). Positions freed while it was locked
+// had no promotion then, so the waitlist is served now.
+export async function unlockContent(sql: Sql, contentId: string, now: Date): Promise<UnlockResult> {
+  return await sql.begin(async (tx): Promise<UnlockResult> => {
+    const [c] = await tx`select status, starts_at from content where id = ${contentId} for update`;
+    if (!c || c.status !== "locked") return { result: "unavailable" };
+    if (c.starts_at <= now) return { result: "started" };
+    await tx`update content set status = 'open' where id = ${contentId}`;
+    return { result: "ok", promoted: await promoteWaitlist(tx, contentId, now) };
+  });
+}
+
+export type UpcomingItem = {
+  id: string; threadId: string; messageId: string | null; title: string; type: string; kind: string;
+  startsAt: Date; status: string; filled: number; total: number;
+};
+
+// FR-015: upcoming content of the guild (open, or locked early and not yet started), soonest first.
+export async function listUpcoming(sql: Sql, guildId: string, now: Date, limit: number): Promise<UpcomingItem[]> {
+  const rows = await sql`
+    select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status,
+      (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed') as filled,
+      (select count(*)::int from slot s where s.content_id = c.id) as total
+    from content c
+    where c.guild_id = ${guildId} and c.status in ('open', 'locked') and c.starts_at > ${now}
+    order by c.starts_at, c.id limit ${limit}`;
+  return rows.map((r) => ({
+    id: r.id, threadId: r.thread_id, messageId: r.message_id, title: r.title, type: r.type, kind: r.kind,
+    startsAt: r.starts_at, status: r.status, filled: r.filled, total: r.total,
+  }));
+}

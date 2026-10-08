@@ -184,7 +184,7 @@ test("dispatch routes the edit and cancel subcommands, buttons and modal", async
   assert.equal((await d(command("cancel"))).type, 4);
   assert.equal((await d(button(`cancelno:${id}`))).type, 7);
   assert.equal((await d(modal(id, "k", good))).type, 4);
-  assert.equal(text(await d(command("list"))), "Not implemented yet");
+  assert.equal(text(await d(command("zzz"))), "Not implemented yet");
 });
 
 test("edit with a kind option carries it through and saves it; a wrong-type kind is refused", async () => {

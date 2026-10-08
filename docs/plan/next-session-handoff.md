@@ -11,7 +11,7 @@ Read `PRODUCT.md` and [INDEX.md](../INDEX.md) first. Then this note.
 
 ## Where things stand
 - Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions pinned to `dub1`, Supabase eu-west-1. Repo `ddpixel-dev/mistcaller-bot`.
-- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to **v0.12.0** (migrations through 0012). `mvp-approved` tag = the owner-approved MVP build (0.10.0). `develop` equals that release plus docs.
+- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to **v0.13.0** (migrations through 0012). `mvp-approved` tag = the owner-approved MVP build (0.10.0). `develop` equals that release plus docs.
 - Tests: `docker compose run --rm node npm test` and `... npm run typecheck`. Everything runs through Docker.
 - Release steps (the owner has asked the agent to run them): `npm run migrate`, merge to `main`, tag, push, merge back into `develop`, wait for Vercel (poll the commit status on GitHub), `npm run register` when commands changed.
 - The roster is a Components V2 message since 0.10.0 (ADR 0018): open-positions menu, one shared Leave button, weapon emoji. Rosters posted before 0.10.0 are read-only (their controls explain this).

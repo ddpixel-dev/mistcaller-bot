@@ -69,7 +69,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(commands[0]!.name, "content");
   assert.equal(create.name, "create");
   assert.equal(create.options, undefined);
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "end", "attendance", "history", "cancel"]);
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "attendance", "history", "cancel"]);
 });
 
 test("429 with retry_after 30 waits at most 2 seconds (injected sleep)", async () => {

@@ -51,7 +51,7 @@ satisfies: FR-008, FR-012, FR-013
 Signed-up players vote split or regear. The vote closes 5 minutes before the start and the result is shown.
 
 ### FT-005: Manage content and permissions
-status: edit and cancel built (FR-020, FR-021); lock and creation cap not started
+status: edit, cancel, lock and unlock built (FR-020, FR-021, FR-009); creation cap not started
 phase: MVP
 priority: must
 satisfies: FR-009, FR-010
@@ -75,7 +75,7 @@ satisfies: FR-011
 Signed-up players are pinged about 30 minutes before the start.
 
 ### FT-008: Upcoming content list
-status: not started
+status: built
 phase: MVP
 priority: should
 satisfies: FR-015
@@ -150,7 +150,7 @@ Guided steps and saved presets next to typed lines, with weapon search from game
 
 ### FR-001: Command namespace
 status: accepted
-The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `cancel`, `list`, `attendance`, `history` and `setup`.
+The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `unlock`, `cancel`, `end`, `list`, `attendance`, `history`, `setup`, `preset`, `weapon`, `slot`, `duty` and `me`.
 
 ### FR-002: Creation location and content type
 status: accepted
@@ -182,7 +182,7 @@ For content with loot, signed-up members (not waitlisted) shall vote split or re
 
 ### FR-009: Management rights
 status: accepted
-The creator, any member with Manage Server, and any member with the guild's officer role shall be able to edit, lock and cancel content and mark attendance. Others are refused. Changing the start time pings signed-up members and resets the reminder.
+The creator, any member with Manage Server, and any member with the guild's officer role shall be able to edit, lock and cancel content and mark attendance. Others are refused. `/content lock` closes signups and moves before the start (players can still leave, and the reminder is still sent); the start locks it anyway. `/content unlock` reopens a roster locked early, before the start, and seats the waitlist in positions freed while it was locked (owner request 2026-10-08). Changing the start time pings signed-up members and resets the reminder.
 
 ### FR-010: Creation cap
 status: accepted
@@ -210,7 +210,7 @@ The creator, a member with Manage Server, or the officer role shall be able to e
 
 ### FR-015: Upcoming list
 status: accepted
-`/content list` shall list upcoming open content of the guild with links.
+`/content list` shall show the server's upcoming content (open, or locked early and not yet started; not cancelled, ended or already started), soonest first, up to 15, each with its start (relative), title, type and category, how many positions are filled, a lock mark when locked, and a link to its roster message. The reply is private.
 
 ### FR-016: Guild setup
 status: accepted
@@ -358,7 +358,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.12.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.13.0 live (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-07
 Next step: owner tests 0.10.0 (new roster layout, shared Leave, weapon emoji), then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks. Then waitlist, lock and cap, reminders, `/content list`, attendance, and the remaining checks.
 

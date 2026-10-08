@@ -6,13 +6,15 @@ import { resolveKind } from "../domain/kinds.ts";
 import { getGuildSettings } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import {
-  cancelContent, editContent, getManageTarget, getManageTargetById, type ManageTarget,
+  cancelContent, editContent, getManageTarget, getManageTargetById, listUpcoming, lockContent, unlockContent, type ManageTarget,
 } from "../db/manage.ts";
 import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { formatTier, parseNotes, parseSlots, parseTier, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 import { announcePromotions } from "./waitlist.ts";
+import type { Promotion } from "../db/signup.ts";
+import { kindDef } from "../domain/kinds.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -192,4 +194,51 @@ export async function handleCancelButton(deps: Deps, i: Interaction): Promise<In
     );
   }
   return done("Content cancelled.");
+}
+
+// "/content lock": close signups now instead of at the start (FR-009). Players can still leave.
+export async function handleLockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const checked = await authorize(deps, i, target);
+  if (!checked.ok) return checked.response;
+  const result = await lockContent(deps.sql, checked.target.id, deps.now());
+  if (result === "started") return reply("The content has already started, so signups are closed.");
+  if (result === "unavailable") {
+    return reply(checked.target.status === "locked" ? "This roster is already locked." : "Only open content can be locked.");
+  }
+  const refreshed = await refreshRoster(deps, checked.target.id);
+  return reply(`Roster locked: signups and moves are closed, and players can still leave.${refreshed ? "" : " The roster message will update on the next change."}`);
+}
+
+// "/content unlock": reopen a roster that was locked early. Not possible once the content has started.
+export async function handleUnlockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const checked = await authorize(deps, i, target);
+  if (!checked.ok) return checked.response;
+  const result = await unlockContent(deps.sql, checked.target.id, deps.now());
+  if (result.result === "started") return reply("The content has already started, so signups stay closed.");
+  if (result.result === "unavailable") return reply(checked.target.status === "open" ? "This roster is not locked." : "Only a locked roster can be unlocked.");
+  const refreshed = await refreshRoster(deps, checked.target.id);
+  const view = await getRosterView(deps.sql, checked.target.id, deps.now());
+  await announcePromotions(deps, checked.target.threadId, view?.title ?? "", result.promoted);
+  return reply(`Roster unlocked: signups and moves are open again.${refreshed ? "" : " The roster message will update on the next change."}`);
+}
+
+const LIST_LIMIT = 15;
+
+// "/content list": upcoming content of this server with links (FR-015).
+export async function handleListCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  if (!i.guild_id) return reply("Use this command inside the server.");
+  const items = await listUpcoming(deps.sql, i.guild_id, deps.now(), LIST_LIMIT + 1);
+  if (items.length === 0) return reply("No upcoming content. Start one with `/content create` in a forum post.");
+  const lines = items.slice(0, LIST_LIMIT).map((c) => {
+    const epoch = Math.floor(c.startsAt.getTime() / 1000);
+    const def = kindDef(c.type === "pve" ? "pve" : "pvp", c.kind);
+    const kind = `${c.type === "pve" ? "PvE" : "PvP"}${def && def.id !== "other" ? ` · ${def.label}` : ""}`;
+    const link = c.messageId ? `https://discord.com/channels/${i.guild_id}/${c.threadId}/${c.messageId}` : `https://discord.com/channels/${i.guild_id}/${c.threadId}`;
+    const title = escapeText(Array.from(c.title).slice(0, 60).join(""));
+    return `<t:${epoch}:R> · **${title}** · ${kind} · ${c.filled}/${c.total}${c.status === "locked" ? " 🔒" : ""}\n${link}`;
+  });
+  const more = items.length > LIST_LIMIT ? `\n…and more. Showing the next ${LIST_LIMIT}.` : "";
+  return reply(`📅 **Upcoming content**\n${lines.join("\n")}${more}`.slice(0, 2000));
 }
