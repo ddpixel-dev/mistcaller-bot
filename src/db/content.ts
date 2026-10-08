@@ -124,6 +124,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       duty: s.duty ?? null,
       userId: s.user_id ?? null,
     })),
+    pinged: c.pinged_at !== null && c.pinged_at !== undefined,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
     voteClosed,
