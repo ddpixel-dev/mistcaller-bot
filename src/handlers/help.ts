@@ -19,7 +19,7 @@ export const HELP_TEXT = [
   "### The owner and admins",
   "• `/content edit` changes the event. `/content cancel` cancels it.",
   "• `/content lock` closes signups early, `/content unlock` reopens them.",
-  "• `/content duty` gives a player a duty (Caller, Scout, Rat). `/content assign` (or the **Assign fill** button) places a fill player in an open position.",
+  "• `/content duty` gives a player a duty (Caller, Scout, Rat, Looter). `/content assign` (or the **Assign fill** button) places a fill player in an open position.",
   "• `/content end` ends the content once it has started (it ends by itself 4 hours after the start). Don't forget it. `/content reopen` brings ended content back.",
   "• `/content attendance` opens the attendance form. **Ping players** on the roster sends a private reminder, once.",
   "• `/content preset` saves and loads slot presets. `/content slot` fills a guided slot.",

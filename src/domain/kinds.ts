@@ -24,6 +24,7 @@ export const KINDS: KindDef[] = [
   { id: "corrupted-dungeon", label: "Corrupted dungeon", type: "pve", color: 0x9c5a1a },
   { id: "world-boss", label: "World boss", type: "pve", color: 0xd4a017 },
   { id: "fame-farming", label: "Fame farming", type: "pve", color: 0xe0b84a },
+  { id: "avalonian-gold-chest", label: "Avalonian gold chest", type: "pve", color: 0xdaa520 },
   { id: DEFAULT_KIND, label: "Other", type: "pve", color: 0xc9a227 },
 ];
 
