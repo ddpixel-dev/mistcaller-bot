@@ -154,7 +154,7 @@ export function renderRosterMessage(view: RosterView): {
   let spaced = true;
   let withEmoji = true;
   let notes = true;
-  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 30 + 20);
+  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 30 + 20) + 2 * (SPACER.length + 1);
   const fits = () => headerText(view, filled, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) spaced = false;
   if (!fits()) withEmoji = false;
@@ -163,12 +163,13 @@ export function renderRosterMessage(view: RosterView): {
   const waiting = view.waitlist ?? [];
   const fills = view.fills ?? [];
   const fillText = fills.length ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}>`).join(" · ")}`.slice(0, 600) : "";
+  // The Fill and Waitlist lines sit apart from the last role and from each other (owner request 2026-10-09).
   const waitText = [
     fillText,
     waiting.length
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).map((l) => (spaced ? `${SPACER}\n${l}` : l)).join("\n");
   const budget = TEXT_LIMIT - headerText(view, filled, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
   const kept = rowLines(view.slots, withEmoji, spaced).filter((l) => (used += l.text.length + 1) <= budget);
