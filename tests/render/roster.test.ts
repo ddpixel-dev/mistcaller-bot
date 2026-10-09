@@ -401,6 +401,33 @@ test("the gaps are dropped first when the text is too long, and the message stil
   assert.ok(small.includes(SPACER));
 });
 
+test("a gap separates the Fill and Waitlist lines from the last role and from each other; none at the end or when both are empty", () => {
+  const both = raw(view({ slots: slots(3, 1), fills: ["111111111111111111"], waitlist: [{ userId: "901", role: "DPS" }] })).split("\n");
+  const f = both.findIndex((l) => l.startsWith("🔁 **Fill"));
+  const w = both.findIndex((l) => l.startsWith("🕒 **Waitlist"));
+  assert.ok(/^\d+\. /.test(both[f - 2]!) && both[f - 1] === SPACER, "gap between the last row and Fill");
+  assert.equal(both[w - 1], SPACER, "gap between Fill and Waitlist");
+  assert.equal(w, f + 2);
+  assert.notEqual(both.at(-1), SPACER);
+  const onlyWait = raw(view({ slots: slots(3, 1), waitlist: [{ userId: "901", role: "DPS" }] })).split("\n");
+  const ow = onlyWait.findIndex((l) => l.startsWith("🕒 **Waitlist"));
+  assert.ok(/^\d+\. /.test(onlyWait[ow - 2]!) && onlyWait[ow - 1] === SPACER, "gap before a lone Waitlist");
+  const onlyFill = raw(view({ slots: slots(3, 1), fills: ["111111111111111111"] })).split("\n");
+  const of = onlyFill.findIndex((l) => l.startsWith("🔁 **Fill"));
+  assert.ok(/^\d+\. /.test(onlyFill[of - 2]!) && onlyFill[of - 1] === SPACER, "gap before a lone Fill");
+  const gaps = (t: string) => t.split("\n").filter((l) => l === SPACER).length;
+  assert.equal(gaps(raw(view({ slots: slots(3, 1) }))), gaps(onlyFill.join("\n")) - 1, "no extra gap when there is no Fill or Waitlist");
+});
+
+test("the Fill and Waitlist gaps are dropped with the other gaps when the text is too long, and the message still fits", () => {
+  const v = view({
+    slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })),
+    notes: "x".repeat(900), fills: ["111111111111111111", "222222222222222222"], waitlist: [{ userId: "901", role: "Role 1 with a long name" }],
+  });
+  assert.deepEqual(discordProblems(msg(v)), []);
+  if (!raw(v).includes(SPACER)) assert.ok(raw(v).includes("🔁 **Fill"));
+});
+
 // ---- Fill, role-only slots and the build line ----
 
 test("fills are listed under the rows; Assign fill shows only while a fill exists; Leave and Ping count a fill", () => {
