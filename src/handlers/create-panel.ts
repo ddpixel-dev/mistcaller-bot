@@ -59,7 +59,7 @@ export async function createPanel(
         options: [
           { label: "PvP", value: "pvp", default: draft.type === "pvp" },
           { label: "PvE", value: "pve", default: draft.type === "pve" },
-          { label: "PvX (both)", value: "pvx", default: draft.type === "pvx" },
+          { label: "PvX", value: "pvx", default: draft.type === "pvx" },
         ],
       }],
     },

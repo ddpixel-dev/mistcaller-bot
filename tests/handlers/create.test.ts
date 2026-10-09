@@ -113,7 +113,7 @@ test("command opens a private panel with nothing chosen: type, kind (waiting for
   const p = panelOf(r);
   assert.equal(p.type.custom_id, "cp:type:-:-:-:-:-");
   assert.equal(p.type.placeholder, "Type of content");
-  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["PvP", "pvp", false], ["PvE", "pve", false], ["PvX (both)", "pvx", false]]);
+  assert.deepEqual(p.type.options.map((o: any) => [o.label, o.value, !!o.default]), [["PvP", "pvp", false], ["PvE", "pve", false], ["PvX", "pvx", false]]);
   assert.equal(p.kind.disabled, true);
   assert.match(p.kind.placeholder, /pick the type first/);
   assert.equal(p.loot.placeholder, "Loot vote (optional, default Off)");
