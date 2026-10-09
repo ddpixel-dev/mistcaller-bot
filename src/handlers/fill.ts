@@ -66,11 +66,12 @@ async function finish(deps: Deps, view: RosterView, userId: string, r: Extract<A
 
 // fa:<content> (the button), fa:p:<content> (a fill chosen), fa:s:<content>:<user> (a position chosen)
 export async function handleAssignComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  if (isOldRoster(i)) return reply(OLD_LAYOUT);
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const parts = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
   const values = Array.isArray(data?.values) ? data!.values : [];
   const isButton = parts.length === 2 && UUID.test(parts[1] ?? "");
+  // Only the button sits on the roster. The two selects sit on the private panel, an ephemeral message that is never a roster.
+  if (isButton && isOldRoster(i)) return reply(OLD_LAYOUT);
   const id = isButton ? parts[1]! : parts[2];
   if (parts[0] !== "fa" || !id || !UUID.test(id) || !i.guild_id || !i.member?.user?.id) return reply(INVALID);
   const checked = await authorize(deps, i, await getManageTargetById(deps.sql, id));
