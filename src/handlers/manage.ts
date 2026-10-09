@@ -138,7 +138,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
     hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, slots: slots.value,
     ...(buildChannelId !== undefined ? { buildChannelId } : {}),
   }, deps.now());
-  if (result.result === "unavailable") return reply("This content can no longer be edited. It may have started, been locked or been cancelled.");
+  if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
   if (result.result === "slots_held") return reply(result.error);
 
   const refreshed = await refreshRoster(deps, checked.target.id);
@@ -209,13 +209,12 @@ export async function handleCancelButton(deps: Deps, i: Interaction): Promise<In
   return done("Content cancelled.");
 }
 
-// "/content lock": close signups now instead of at the start (FR-009). Players can still leave.
+// "/content lock": close signups now (FR-009). Players can still leave.
 export async function handleLockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
-  const result = await lockContent(deps.sql, checked.target.id, deps.now());
-  if (result === "started") return reply("The content has already started, so signups are closed.");
+  const result = await lockContent(deps.sql, checked.target.id);
   if (result === "unavailable") {
     return reply(checked.target.status === "locked" ? "This roster is already locked." : "Only open content can be locked.");
   }
@@ -223,13 +222,12 @@ export async function handleLockCommand(deps: Deps, i: Interaction): Promise<Int
   return reply(`Roster locked: signups and moves are closed, and players can still leave.${refreshed ? "" : " The roster message will update on the next change."}`);
 }
 
-// "/content unlock": reopen a roster that was locked early. Not possible once the content has started.
+// "/content unlock": reopen a roster that was locked by hand. Works before and after the start.
 export async function handleUnlockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   const result = await unlockContent(deps.sql, checked.target.id, deps.now());
-  if (result.result === "started") return reply("The content has already started, so signups stay closed.");
   if (result.result === "unavailable") return reply(checked.target.status === "open" ? "This roster is not locked." : "Only a locked roster can be unlocked.");
   const refreshed = await refreshRoster(deps, checked.target.id);
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
@@ -239,11 +237,11 @@ export async function handleUnlockCommand(deps: Deps, i: Interaction): Promise<I
 
 const LIST_LIMIT = 15;
 
-// "/content list": upcoming content of this server with links (FR-015).
+// "/content list": live and upcoming content of this server with links (FR-015).
 export async function handleListCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (!i.guild_id) return reply("Use this command inside the server.");
-  const items = await listUpcoming(deps.sql, i.guild_id, deps.now(), LIST_LIMIT + 1);
-  if (items.length === 0) return reply("No upcoming content. Start one with `/content create` in a channel or post.");
+  const items = await listUpcoming(deps.sql, i.guild_id, LIST_LIMIT + 1);
+  if (items.length === 0) return reply("No live or upcoming content. Start one with `/content create` in a channel or post.");
   const lines = items.slice(0, LIST_LIMIT).map((c) => {
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
     const def = kindDef(c.type as ContentType, c.kind);
@@ -253,5 +251,5 @@ export async function handleListCommand(deps: Deps, i: Interaction): Promise<Int
     return `<t:${epoch}:R> · **${title}** · ${kind} · ${c.filled}/${c.total}${c.status === "locked" ? " 🔒" : ""}\n${link}`;
   });
   const more = items.length > LIST_LIMIT ? `\n…and more. Showing the next ${LIST_LIMIT}.` : "";
-  return reply(`📅 **Upcoming content**\n${lines.join("\n")}${more}`.slice(0, 2000));
+  return reply(`📅 **Live and upcoming content**\n${lines.join("\n")}${more}`.slice(0, 2000));
 }

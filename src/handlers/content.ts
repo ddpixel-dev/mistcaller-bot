@@ -13,7 +13,7 @@ import { handleMeCommand } from "./me.ts";
 import { handleDutyCommand } from "./duty.ts";
 import { handleSlotCommand } from "./guided.ts";
 import { handleListCommand, handleLockCommand, handleUnlockCommand } from "./manage.ts";
-import { handleAttendanceCommand, handleEndCommand, handleHistoryCommand } from "./attendance.ts";
+import { handleAttendanceCommand, handleEndCommand, handleHistoryCommand, handleReopenCommand } from "./attendance.ts";
 
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
@@ -27,6 +27,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "duty": return await handleDutyCommand(deps, i);
     case "slot": return await handleSlotCommand(deps, i);
     case "end": return await handleEndCommand(deps, i);
+    case "reopen": return await handleReopenCommand(deps, i);
     case "lock": return await handleLockCommand(deps, i);
     case "unlock": return await handleUnlockCommand(deps, i);
     case "list": return await handleListCommand(deps, i);

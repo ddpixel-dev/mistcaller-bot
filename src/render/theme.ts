@@ -55,9 +55,9 @@ export function roleIcon(role: string): string {
   return ROLE_ICONS.find(([re]) => re.test(role))?.[1] ?? "🔹";
 }
 
-export function statusBanner(status: ContentStatus, started: boolean): string | null {
+export function statusBanner(status: ContentStatus): string | null {
   if (status === "cancelled") return "✖ **Cancelled.** This content will not take place.";
   if (status === "done") return "🏁 **Concluded.**";
-  if (status === "locked" || started) return "🔒 **The roll is closed.**";
+  if (status === "locked") return "🔒 **The roll is closed.**";
   return null;
 }

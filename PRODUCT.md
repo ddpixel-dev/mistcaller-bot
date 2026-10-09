@@ -150,7 +150,7 @@ Guided steps and saved presets next to typed lines, with weapon search from game
 
 ### FR-001: Command namespace
 status: accepted
-The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `unlock`, `cancel`, `end`, `list`, `attendance`, `history`, `setup`, `preset`, `weapon`, `slot`, `duty` and `me`.
+The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `list`, `attendance`, `history`, `setup`, `preset`, `weapon`, `slot`, `duty` and `me`.
 
 ### FR-002: Creation location and content type
 status: accepted
@@ -174,7 +174,7 @@ At most one member shall hold a slot. When two members claim the same slot at th
 
 ### FR-007: Waitlist
 status: accepted
-When every position of a role is taken, a member shall be able to join the waitlist for that role, from a menu under the roster (owner decision 2026-10-08: the waitlist is per role). The roster lists the waitlist in join order with each member's role. When a position of a role frees up (the holder leaves or moves, or a position is added or renamed in an edit) while the content is open, the first member waiting for that role is seated in it, in the same database change so nobody can slip in between, and is pinged in the content's post. A member who holds a position cannot wait; a waiting member who takes an open position, or presses Leave, leaves the waitlist; changing the role waited for puts the member at the back. No promotion happens once the content is locked or started.
+When every position of a role is taken, a member shall be able to join the waitlist for that role, from a menu under the roster (owner decision 2026-10-08: the waitlist is per role). The roster lists the waitlist in join order with each member's role. When a position of a role frees up (the holder leaves or moves, or a position is added or renamed in an edit) while the content is open, the first member waiting for that role is seated in it, in the same database change so nobody can slip in between, and is pinged in the content's post. A member who holds a position cannot wait; a waiting member who takes an open position, or presses Leave, leaves the waitlist; changing the role waited for puts the member at the back. No promotion happens while the content is locked (it still happens after the start while the content is open; changed 2026-10-09, ADR 0024).
 
 ### FR-008: Loot vote
 status: accepted
@@ -182,7 +182,7 @@ For content with loot, signed-up members (not waitlisted) shall vote split or re
 
 ### FR-009: Management rights
 status: accepted
-The creator, any member with Manage Server or Administrator, and any member with one of the server's admin roles (ADR 0020) shall be able to edit, lock and cancel content and mark attendance. Others are refused. `/content lock` closes signups and moves before the start (players can still leave, and the reminder is still sent); the start locks it anyway. `/content unlock` reopens a roster locked early, before the start, and seats the waitlist in positions freed while it was locked (owner request 2026-10-08). Changing the start time pings signed-up members and resets the reminder.
+The creator, any member with Manage Server or Administrator, and any member with one of the server's admin roles (ADR 0020) shall be able to edit, lock and cancel content and mark attendance. Others are refused. `/content lock` closes signups and moves (players can still leave, and the reminder is still sent); the start no longer locks it (FR-034). `/content unlock` reopens a locked roster, before or after the start, and seats the waitlist in positions freed while it was locked (owner request 2026-10-08, changed 2026-10-09). Changing the start time pings signed-up members and resets the reminder.
 
 ### FR-010: Creation cap
 status: dropped (owner decision 2026-10-08, ADR 0020; not built)
@@ -193,12 +193,12 @@ status: accepted
 The content's owner shall be able to remind the signed-up players with a **Ping players** button on the roster (owner decision 2026-10-08, replacing the automatic reminder because the scheduler ran only every few hours, see Q1). Only the creator can use it, and only **once per content**: the first use is recorded (`content.pinged_at`, migration 0013) and the button is dimmed on the roster so nobody spams the players; if nobody could be reached the use is given back. It sends a private message to every signed-up player (not the owner, not the waitlist) with the start time and a link to the roster, plus a labelled copy to the owner so they can see what players get (owner decision 2026-10-08), and tells the owner how many were reached and who could not be (closed private messages). With nobody else signed up, only the owner's copy is sent and the one use is kept. The automatic 30-minute reminder is built but switched off; setting `AUTO_REMINDERS=on` enables it once the scheduler is reliable. When enabled it pings the signed-up players once in the content's post about 30 minutes before the start, claimed in the database before sending, reset by a changed start time, and skipped for content created or edited inside the 30 minutes.
 
 ### FR-012: Auto-lock
-status: accepted
+status: superseded by FR-034 (owner decision 2026-10-09, ADR 0024)
 Content shall lock automatically at its start time.
 
 ### FR-013: Scheduled jobs
 status: accepted
-An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results, sends the attendance message and report, and ends content that nobody ended **4 hours after its start** (owner decision 2026-10-08): it becomes done and the roster shows it as concluded. Submitting the attendance form does not end content, because somebody can join late; only `/content end` or this 4-hour rule does. No message is posted in the thread for the automatic end, the same as for `/content end`.
+An external free cron service (ADR 0019, owner decision 2026-10-08) shall call the protected cron route every few minutes; the GitHub Actions workflow remains as a slow fallback. The route sends due reminders, auto-locks, posts vote results, sends the attendance message and report, and ends content that nobody ended **4 hours after its start, or after its last reopen if that is later** (owner decisions 2026-10-08 and 2026-10-09): it becomes done and the roster shows it as concluded. Submitting the attendance form does not end content, because somebody can join late; only `/content end` or this 4-hour rule does. No message is posted in the thread for the automatic end, the same as for `/content end`.
 
 ### FR-014: Attendance and history
 status: accepted
@@ -207,6 +207,14 @@ About 5 minutes after the start, the bot shall send the content's creator a **pr
 ### FR-028: End content
 status: accepted
 The creator, a member with Manage Server, or an admin role shall be able to end content that has started with `/content end` (owner decision 2026-10-08: the command only, no button). The content becomes done, the roster shows it as concluded, and its controls are dimmed. Ending does not post the attendance report; that waits for the attendance form to be submitted (FR-014).
+
+### FR-034: Live after the start
+status: accepted (ADR 0024)
+A roster shall stay fully operable after its start time, until the content ends with `/content end` or the 4-hour rule (FR-013): edit, join, move, waitlist and its promotion, Fill and Assign fill, lock and unlock all keep working while the content is open. The start no longer locks it (supersedes FR-012). The loot vote still closes 5 minutes before the start (FR-008). The "roll is closed" banner shows only when a manager locked the roster.
+
+### FR-035: Reopen ended content
+status: accepted (ADR 0024)
+The creator, a member with Manage Server, or an admin role shall be able to reopen ended content with `/content reopen` (a command only), whether it ended by hand or by the 4-hour rule. It becomes open again, the roster is refreshed, and its auto-end window restarts from the reopen (`content.reopened_at`, migration 0017). Cancelled content cannot be reopened. The attendance report and the owner's attendance message are one-time actions and are not undone or resent.
 
 ### FR-029: Help and owner tips
 status: accepted
@@ -229,8 +237,8 @@ status: accepted (ADR 0023)
 A third content type, **PvX**, chosen in the create panel next to PvP and PvE, with every PvP category followed by every PvE category and Other once, last. Its roster shows `PvX · Category` and a purple colour (or the category's colour).
 
 ### FR-015: Upcoming list
-status: accepted
-`/content list` shall show the server's upcoming content (open, or locked early and not yet started; not cancelled, ended or already started), soonest first, up to 15, each with its start (relative), title, type and category, how many positions are filled, a lock mark when locked, and a link to its roster message. The reply is private.
+status: accepted (changed 2026-10-09, ADR 0024)
+`/content list` shall show the server's live and upcoming content (open or locked, whether or not it has started; not cancelled or ended), soonest first, up to 15, each with its start (relative), title, type and category, how many positions are filled, a lock mark when locked, and a link to its roster message. The reply is private.
 
 ### FR-016: Guild setup
 status: accepted
@@ -250,7 +258,7 @@ A forum post shall hold at most one content whose status is `open` or `locked`. 
 
 ### FR-020: Edit content
 status: accepted
-The creator, a member with Manage Server, or a member with an admin role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open and before its start. It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot-vote` option changes the loot-vote toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
+The creator, a member with Manage Server, or a member with an admin role shall be able to edit a content's title, start time, tier, notes and loot toggle, add slots, and rename slots. A slot can be removed only while it is empty. Changing the start time pings the signed-up members and resets the reminder. Editing is allowed only while the content is open, before or after its start (changed 2026-10-09, ADR 0024; it was "and before its start"). It is done with `/content edit` inside the post: a form shows the current title, start, tier, slots and notes, and an optional `loot-vote` option changes the loot-vote toggle. Slot lines map to positions: a changed line renames that slot, extra lines add slots, and dropping trailing lines removes them only if nobody holds them. The reminder reset applies once reminders exist (FT-007). The roster message is re-rendered after every edit.
 
 ### FR-021: Cancel content
 status: accepted
@@ -379,8 +387,8 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 ## Current state
 
 Phase: MVP, release 0.18.0 live (optional weapon, build channel, PvX, Fill; migration 0016); before it, 0.17.1 (small line gaps on the roster; 0.17.0: gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
-Last updated: 2026-10-08
-Next step: owner tests 0.18.0 (role-only slots and the weapon picker, build channel, PvX, Fill and Assign fill, then line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Last updated: 2026-10-09
+Next step: release 0.19.0 (rosters stay live after the start, `/content reopen`, Assign fill panel fix; migration 0017; re-register commands) once the owner approves, then the owner tests it. Owner tests 0.18.0 (role-only slots and the weapon picker, build channel, PvX, Fill and Assign fill, then line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|

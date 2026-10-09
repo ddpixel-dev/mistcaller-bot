@@ -269,16 +269,18 @@ test("a claim waiting on a content lock sees the committed lock and returns lock
   assert.equal(rows.length, 0);
 });
 
-test("claim at exactly starts_at is locked with no row written; one millisecond before is accepted", async () => {
+test("claim works before, at and after starts_at while open; a locked roster refuses with no row written", async () => {
   const { sql, contentId, slotIds } = await setup();
   const startsAt = base.startsAt;
-  const at = await claimSlot(sql, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1", now: startsAt });
-  assert.equal(at, "locked");
-  assert.equal((await sql`select 1 from signup where content_id = ${contentId}`).length, 0);
-  const after = await claimSlot(sql, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1", now: new Date(startsAt.getTime() + 1) });
-  assert.equal(after, "locked");
-  const before = await claimSlot(sql, { contentId, slotId: slotIds[0]!, userId: "u1", guildId: "g1", now: new Date(startsAt.getTime() - 1) });
-  assert.equal(before, "claimed");
+  const claim = (slot: number, userId: string, at: Date) =>
+    claimSlot(sql, { contentId, slotId: slotIds[slot]!, userId, guildId: "g1", now: at });
+  assert.equal(await claim(0, "u1", new Date(startsAt.getTime() - 1)), "claimed");
+  assert.equal(await claim(1, "u2", startsAt), "claimed");
+  assert.equal(await claim(2, "u3", new Date(startsAt.getTime() + 3600000)), "claimed");
+  await sql`update content set status = 'locked' where id = ${contentId}`;
+  const rows = (await sql`select 1 from signup where content_id = ${contentId}`).length;
+  assert.equal(await claim(0, "u4", startsAt), "locked");
+  assert.equal((await sql`select 1 from signup where content_id = ${contentId}`).length, rows);
 });
 
 async function lootSetup() {

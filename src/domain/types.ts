@@ -32,6 +32,5 @@ export type RosterView = {
   pinged?: boolean;
   votes: { split: number; regear: number };
   voteClosed: boolean;
-  started: boolean;
   voteResult: "split" | "regear" | "tie" | "none" | null;
 };

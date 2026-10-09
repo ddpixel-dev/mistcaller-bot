@@ -127,7 +127,7 @@ function headerText(view: RosterView, filled: number, notes: boolean, spaced: bo
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),
     ...gap,
   ];
-  const banner = statusBanner(view.status, view.started);
+  const banner = statusBanner(view.status);
   if (banner) lines.push(banner);
   if (notes && view.notes) lines.push(`📝 **Notes:** ${escapeText(view.notes)}`);
   lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
@@ -179,7 +179,7 @@ export function renderRosterMessage(view: RosterView): {
   const body: unknown[] = [text(headerText(view, filled, notes, spaced)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
-  if (view.status === "open" && !view.started && open.length > 0) {
+  if (view.status === "open" && open.length > 0) {
     body.push({
       type: 1,
       components: [{
@@ -199,7 +199,7 @@ export function renderRosterMessage(view: RosterView): {
   const fullRoles = [...new Set(view.slots.map((s) => s.role))].filter(
     (role) => !view.slots.some((s) => s.role === role && s.userId === null),
   );
-  if (view.status === "open" && !view.started && fullRoles.length > 0) {
+  if (view.status === "open" && fullRoles.length > 0) {
     body.push({
       type: 1,
       components: [{

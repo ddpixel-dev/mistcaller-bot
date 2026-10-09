@@ -18,7 +18,7 @@ function view(over: Partial<RosterView> = {}): RosterView {
       { id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: "111" },
       { id: "s2", position: 2, role: "Healer", weapon: "Great Holy Staff", userId: null },
     ],
-    votes: { split: 0, regear: 0 }, voteClosed: false, voteResult: null, started: false,
+    votes: { split: 0, regear: 0 }, voteClosed: false, voteResult: null,
     ...over,
   };
 }
@@ -195,9 +195,12 @@ test("the menu uses the weapon's emoji when it exists, and the role icon otherwi
   assert.deepEqual(menu.options[2].emoji, { name: "🛡️" });
 });
 
-test("no menu when the roster is full, closed, started, cancelled or done", () => {
+test("no menu when the roster is full, closed, cancelled or done; a started but open roster keeps its menus", () => {
   assert.equal(byId(view({ slots: slots(4, 4) }), "join:").length, 0);
-  for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }, { started: true }] as const) {
+  const started = view({ slots: slots(4, 1), startsAt: new Date("2020-01-01T00:00:00Z") });
+  assert.equal(byId(started, "join:").length, 1);
+  assert.ok(!raw(started).includes("The roll is closed."));
+  for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }] as const) {
     assert.equal(byId(view({ ...over, slots: slots(4, 1) }), "join:").length, 0, JSON.stringify(over));
   }
   assert.equal(byId(view({ slots: slots(4, 1) }), "join:").length, 1);
@@ -217,7 +220,7 @@ test("one shared Leave button for every party size: enabled while anyone is sign
 
 test("the shared Leave stays on when locked or started, and is dimmed when cancelled or done", () => {
   assert.equal(byId(view({ slots: slots(4, 2), status: "locked" }), "leave:c1")[0]!.disabled, false);
-  assert.equal(byId(view({ slots: slots(4, 2), started: true }), "leave:c1")[0]!.disabled, false);
+  assert.equal(byId(view({ slots: slots(4, 2), startsAt: new Date("2020-01-01T00:00:00Z") }), "leave:c1")[0]!.disabled, false);
   for (const status of ["cancelled", "done"] as const) {
     assert.equal(byId(view({ slots: slots(4, 2), status }), "leave:c1")[0]!.disabled, true);
   }
@@ -250,7 +253,7 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
     for (const filled of [0, Math.floor(n / 2), n]) {
       for (const hasLoot of [true, false]) {
         for (const status of ["open", "locked", "cancelled", "done"] as const) {
-          const v = view({ slots: slots(n, filled), hasLoot, status, started: status === "locked" });
+          const v = view({ slots: slots(n, filled), hasLoot, status });
           for (const p of discordProblems(msg(v))) problems.push(`n=${n} filled=${filled} loot=${hasLoot} ${status}: ${p}`);
         }
       }
@@ -299,7 +302,8 @@ test("a menu to join the waitlist lists only the roles with no open position", (
   assert.deepEqual(menu.options.map((o: any) => o.description), [undefined, "0 waiting", "1 waiting"]);
   assert.ok(menu.options[1].label.startsWith("Tank (all taken)"));
   assert.equal(byId(view({ slots: slots(4, 2) }), "wait:").length, 0);
-  for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }, { started: true }] as const) {
+  assert.equal(byId(view({ slots: slots(4, 4), startsAt: new Date("2020-01-01T00:00:00Z") }), "wait:").length, 1, "started but open");
+  for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }] as const) {
     assert.equal(byId(view({ ...over, slots: slots(4, 4) }), "wait:").length, 0, JSON.stringify(over));
   }
   assert.deepEqual(discordProblems(msg(mixed)), []);

@@ -118,3 +118,17 @@ export async function endContent(sql: Sql, contentId: string, now: Date): Promis
     return "ok";
   });
 }
+
+export type ReopenResult = "ok" | "not_ended";
+
+// A manager reopens ended content (ended by hand or by the 4-hour rule): it is open again with a fresh auto-end
+// window counted from now. The attendance report and the owner's DM are one-time actions and are not touched.
+// The one-content-per-post index still holds the post for a done content, so nothing can have taken its place.
+export async function reopenContent(sql: Sql, contentId: string, now: Date): Promise<ReopenResult> {
+  return await sql.begin(async (tx): Promise<ReopenResult> => {
+    const [c] = await tx`select status from content where id = ${contentId} for update`;
+    if (!c || c.status !== "done") return "not_ended";
+    await tx`update content set status = 'open', ended_at = null, reopened_at = ${now} where id = ${contentId}`;
+    return "ok";
+  });
+}
