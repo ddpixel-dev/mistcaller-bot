@@ -16,7 +16,7 @@ const INVALID = "That panel is out of date. Run `/content me` again.";
 export function renderMePanel(view: RosterView, userId: string) {
   const mine = view.slots.find((s) => s.userId === userId) ?? null;
   const isFill = (view.fills ?? []).includes(userId);
-  const open = view.status === "open" && !view.started;
+  const open = view.status === "open";
   const lines = [`**${escapeText(view.title)}**`];
   lines.push(
     mine

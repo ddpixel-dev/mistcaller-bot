@@ -138,14 +138,6 @@ test("createContent with 20 slots stores all in input order", async () => {
   });
 });
 
-test("getRosterView sets started when starts_at <= now", async () => {
-  const sql = await testSql();
-  const id = await createContent(sql, base);
-  assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() - 1)))!.started, false);
-  assert.equal((await getRosterView(sql, id, startsAt))!.started, true);
-  assert.equal((await getRosterView(sql, id, new Date(startsAt.getTime() + 1)))!.started, true);
-});
-
 test("a second content in the same post is rejected with PostTakenError", async () => {
   const sql = await testSql();
   await createContent(sql, base);

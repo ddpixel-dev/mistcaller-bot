@@ -84,6 +84,45 @@ test("/content end: only a manager, only after the start; the content becomes do
   isEphemeral(await d(cmd("end")), "already finished");
 });
 
+test("/content reopen: a manager reopens ended content; it is live again, with a fresh auto-end window", async () => {
+  const { sql, id, slots, d, edits, deps } = await setup();
+  isEphemeral(await d(cmd("reopen")), "not ended");
+  await d(cmd("end"));
+  edits.length = 0;
+  isEphemeral(await d(cmd("reopen", "stranger")), "Only the creator");
+  assert.equal((await sql`select status from content`)[0]!.status, "done");
+  const r = await d(cmd("reopen"));
+  assert.ok(text(r).includes("Content reopened"), text(r));
+  const [row] = await sql`select status, ended_at, reopened_at from content where id = ${id}`;
+  assert.equal(row!.status, "open");
+  assert.equal(row!.ended_at, null);
+  assert.equal(new Date(row!.reopened_at).getTime(), AFTER.getTime());
+  assert.equal(edits.length, 1);
+  assert.ok(!textOf(edits[0].body).includes("Concluded."));
+  assert.ok(flatComponents(edits[0].body).some((c) => c.custom_id === `join:${id}`));
+  assert.equal(await claimSlot(deps.sql, { contentId: id, slotId: slots[3]!, userId: "late", guildId: "g1", now: AFTER }), "claimed");
+  isEphemeral(await d(cmd("reopen")), "not ended");
+});
+
+test("/content reopen also reopens content that ended by itself, an officer may do it, and cancelled content cannot be reopened", async () => {
+  const { sql, d } = await setup();
+  await sql`update content set status = 'done', ended_at = ${AFTER}`;
+  assert.ok(text(await d(cmd("reopen", "o", { member: member("o", ["officer"]) }))).includes("Content reopened"));
+  await sql`update content set status = 'cancelled'`;
+  isEphemeral(await d(cmd("reopen")), "no active content");
+  isEphemeral(await d(cmd("reopen", "boss", { channel: { id: "other", type: 11, parent_id: "fp" } })), "no active content");
+});
+
+test("reopening does not undo or resend the attendance report", async () => {
+  const { sql, d, posts } = await setup();
+  await d(cmd("end"));
+  await sql`update content set attendance_submitted_at = ${AFTER}, report_posted_at = ${AFTER}`;
+  assert.ok(text(await d(cmd("reopen"))).includes("Content reopened"));
+  const [row] = await sql`select report_posted_at from content`;
+  assert.ok(row!.report_posted_at);
+  assert.equal(posts.length, 0);
+});
+
 test("an officer and Manage Server may end; the report is NOT posted just because the content ended", async () => {
   const { d, posts } = await setup();
   assert.ok(text(await d(cmd("end", "x", {}, []))).includes("Only the creator"));

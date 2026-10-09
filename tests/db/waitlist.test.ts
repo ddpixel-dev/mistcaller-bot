@@ -102,7 +102,7 @@ test("promotion also happens when someone moves away: their old position goes to
   assert.equal((await view()).slots[0]!.userId, "tw");
 });
 
-test("no promotion once the content is locked, started, or cancelled", async () => {
+test("no promotion while the content is locked", async () => {
   const { sql, id, slots, claim, wait, leave, view } = await setup();
   await claim("t1", slots[0]!);
   await wait("tw", "Tank");
@@ -113,6 +113,17 @@ test("no promotion once the content is locked, started, or cancelled", async () 
   assert.equal((await view()).slots[0]!.userId, null);
   assert.deepEqual((await view()).waitlist!.map((w) => w.userId), ["tw"]);
   assert.equal(await wait("late", "Tank"), "locked");
+});
+
+test("after the start an open roster still seats the waitlist and still takes new waiters", async () => {
+  const { id, slots, claim, wait, leave, view, sql } = await setup();
+  await claim("t1", slots[0]!);
+  await wait("tw", "Tank");
+  await sql`update content set starts_at = ${new Date(NOW.getTime() - 3600000)} where id = ${id}`;
+  const promoted: Promotion[] = [];
+  assert.equal(await leave("t1", promoted), "left");
+  assert.deepEqual(promoted.map((p) => [p.userId, p.role]), [["tw", "Tank"]]);
+  assert.equal((await view()).slots[0]!.userId, "tw");
 });
 
 test("the waitlist is refused for content that does not exist in this guild", async () => {

@@ -66,14 +66,16 @@ test("lock is for the creator, an officer or Manage Server; others are refused a
   assert.ok(text(await d(cmd("lock", "o", { member: member("o", ["officer"]) }))).includes("Roster locked"));
 });
 
-test("lock explains itself when already locked, started, cancelled or done, or when the post has no content", async () => {
+test("lock explains itself when already locked, cancelled or done, or when the post has no content; it works after the start too", async () => {
   const { sql, d, setNow } = await setup();
   await d(cmd("lock"));
   isEphemeral(await d(cmd("lock")), "already locked");
   await sql`update content set status = 'open'`;
   setNow(new Date(START.getTime() + 1000));
-  isEphemeral(await d(cmd("lock")), "already started");
+  assert.ok(text(await d(cmd("lock"))).includes("Roster locked"));
+  assert.equal(await status(sql), "locked");
   setNow(NOW);
+  await sql`update content set status = 'open'`;
   for (const s of ["cancelled", "done"]) {
     await sql`update content set status = ${s}`;
     isEphemeral(await d(cmd("lock")), s === "cancelled" ? "no active content" : "Only open content");
@@ -104,7 +106,7 @@ test("/content list shows upcoming content soonest first with counts and links, 
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
   const lines = text(r).split("\n");
-  assert.equal(lines[0], "📅 **Upcoming content**");
+  assert.equal(lines[0], "📅 **Live and upcoming content**");
   assert.ok(lines[1]!.includes("**Earlier \\*run\\***") && lines[1]!.includes("PvE · World boss") && lines[1]!.includes("0/2") && lines[1]!.includes("🔒"));
   assert.equal(lines[2], "https://discord.com/channels/g1/t2/m-t2");
   assert.ok(lines[3]!.includes("**Raid**") && lines[3]!.includes("PvP") && lines[3]!.includes("1/2") && !lines[3]!.includes("🔒"));
@@ -112,13 +114,16 @@ test("/content list shows upcoming content soonest first with counts and links, 
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
-test("the list leaves out started, ended, cancelled and other-server content, and says so when empty", async () => {
+test("the list keeps started content that is not ended, leaves out ended, cancelled and other-server content, and says so when empty", async () => {
   const { sql, make, d, setNow } = await setup();
   await sql`update content set status = 'cancelled'`;
-  assert.ok(text(await d(cmd("list"))).includes("No upcoming content"));
+  assert.ok(text(await d(cmd("list"))).includes("No live or upcoming content"));
   await sql`update content set status = 'open'`;
   setNow(new Date(START.getTime() + 1000));
-  assert.ok(text(await d(cmd("list"))).includes("No upcoming content"));
+  assert.ok(text(await d(cmd("list"))).includes("**Raid**"), "started but not ended content is still live");
+  await sql`update content set status = 'done'`;
+  assert.ok(text(await d(cmd("list"))).includes("No live or upcoming content"));
+  await sql`update content set status = 'open'`;
   setNow(NOW);
   await make({ threadId: "t3", title: "Done one" });
   await sql`update content set status = 'done' where thread_id = 't3'`;
@@ -155,12 +160,12 @@ test("/content unlock reopens signups before the start, with the same permission
   assert.ok(text(await d(cmd("unlock", "o", { member: member("o", ["officer"]) }))).includes("not locked"));
 });
 
-test("unlock refuses after the start, for cancelled or done content, or with no content", async () => {
+test("unlock works after the start; it refuses for cancelled or done content, or with no content", async () => {
   const { sql, d, setNow } = await setup();
   await d(cmd("lock"));
   setNow(new Date(START.getTime() + 1000));
-  isEphemeral(await d(cmd("unlock")), "already started");
-  assert.equal(await status(sql), "locked");
+  assert.ok(text(await d(cmd("unlock"))).includes("Roster unlocked"));
+  assert.equal(await status(sql), "open");
   setNow(NOW);
   for (const s of ["cancelled", "done"]) {
     await sql`update content set status = ${s}`;

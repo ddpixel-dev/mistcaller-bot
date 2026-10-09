@@ -237,3 +237,15 @@ test("the attendance form lists a fill and a role-only holder with sensible labe
   assert.deepEqual(options.map((o: any) => [o.label, o.description]), [["1. Player 1", "Tank - Mace"], ["2. Ana", "Healer"], ["🔁 Cy", "Fill"]].map(([l, dsc]) => [l === "1. Player 1" ? "1. Player 1" : l, dsc]));
   assert.deepEqual(discordProblems({ ...form, flags: 0 }), []);
 });
+
+test("the selects of the private Assign fill panel work: that message is ephemeral, not a roster", async () => {
+  const { d, id, slots, sql } = await setup();
+  await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
+  const panel = { message: { id: "p1", flags: 64 } };
+  const chosen: any = await d(click(`fa:p:${id}`, OWNER, [A], panel));
+  assert.equal(chosen.type, 7);
+  assert.ok(String(chosen.data.content).includes("pick the position") || String(chosen.data.content).includes("Now pick"));
+  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [slots[1]!], panel));
+  assert.ok(String(done.data.content).includes("position 2"), String(done.data.content));
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[1]!.userId, A);
+});

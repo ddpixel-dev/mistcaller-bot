@@ -98,7 +98,6 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     sql`select user_id from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
-  const started = c.starts_at <= now;
   const voteClosed = !isVoteOpen(c.starts_at, now);
   return {
     id: c.id,
@@ -128,7 +127,6 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
     voteClosed,
-    started,
     voteResult: voteClosed && c.has_loot ? tally.result : null,
   };
 }

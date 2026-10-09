@@ -43,15 +43,16 @@ async function editRoster(deps: Deps, id: string): Promise<void> {
   }
 }
 
-// Content nobody ended is ended by the scheduler this long after its start (owner decision 2026-10-08). Submitting the
-// attendance form does not end it, because somebody can join late; only `/content end` or this does.
+// Content nobody ended is ended by the scheduler this long after its start, or after its last reopen if later (owner
+// decisions 2026-10-08 and 2026-10-09). Submitting the attendance form does not end it, because somebody can join late;
+// only `/content end` or this does.
 export const AUTO_END_MS = 4 * 60 * 60 * 1000;
 
 export async function endStale(deps: Deps): Promise<number> {
   const now = deps.now();
   const rows = await deps.sql`
     update content set status = 'done', ended_at = ${now}
-    where status in ('open', 'locked') and starts_at <= ${new Date(now.getTime() - AUTO_END_MS)}
+    where status in ('open', 'locked') and greatest(starts_at, coalesce(reopened_at, starts_at)) <= ${new Date(now.getTime() - AUTO_END_MS)}
     returning id`;
   for (const r of rows) {
     try {
@@ -59,23 +60,6 @@ export async function endStale(deps: Deps): Promise<number> {
     } catch (e) {
       // The content stays ended; the roster is refreshed the next time anything edits it.
       logFailure("end_edit_failed", r.id, e);
-    }
-  }
-  return rows.length;
-}
-
-export async function lockStarted(deps: Deps): Promise<number> {
-  const now = deps.now();
-  const rows = await deps.sql`
-    update content set status = 'locked'
-    where status = 'open' and starts_at <= ${now}
-    returning id`;
-  for (const r of rows) {
-    try {
-      await editRoster(deps, r.id);
-    } catch (e) {
-      // The lock stays; the next run does not re-edit (POC limitation).
-      logFailure("lock_edit_failed", r.id, e);
     }
   }
   return rows.length;
@@ -244,13 +228,12 @@ export async function sendReminders(deps: Deps): Promise<number> {
 export async function runJobs(
   deps: Deps,
   opts: { autoReminders?: boolean } = {},
-): Promise<{ locked: number; ended: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
+): Promise<{ ended: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
   const remindersSent = opts.autoReminders ? await sendReminders(deps) : 0;
   const attendanceDms = await sendAttendanceDms(deps);
   const reportsPosted = await postPendingReports(deps);
-  const locked = await lockStarted(deps);
   const ended = await endStale(deps);
   const draftsPurged = await purgeDrafts(deps.sql, deps.now());
-  return { locked, ended, resultsPosted, remindersSent, attendanceDms, reportsPosted, draftsPurged };
+  return { ended, resultsPosted, remindersSent, attendanceDms, reportsPosted, draftsPurged };
 }
