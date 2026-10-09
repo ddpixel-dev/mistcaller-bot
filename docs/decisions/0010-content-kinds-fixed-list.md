@@ -15,7 +15,7 @@ The owner asked for kinds of PvP and PvE content, each with its own label and co
 ## Decision
 The list is fixed and lives in code for now, per forum type. The owner chose all candidates on 2026-10-07 and added Skirmish and Training.
 - PvP: ZvZ, Small-scale, Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training, Other.
-- PvE: Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming, Other.
+- PvE: Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming, Avalonian gold chest (added 2026-10-09), Other.
 
 Hellgate is one kind (team size is already given by the slot count). The kind is optional at creation and defaults to Other.
 
