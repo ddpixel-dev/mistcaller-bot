@@ -6,7 +6,7 @@ import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
 import {
-  claimReport, endContent, getAttendance, memberHistory, releaseReport, setAttended, submitAttendance, type Attendance,
+  claimReport, endContent, getAttendance, memberHistory, releaseReport, reopenContent, setAttended, submitAttendance, type Attendance,
 } from "../db/attendance.ts";
 import { canManage } from "../domain/permissions.ts";
 import { renderAttendanceForm, renderReport } from "../render/attendance.ts";
@@ -85,6 +85,24 @@ export async function handleEndCommand(deps: Deps, i: Interaction): Promise<Inte
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
   return reply(a.submittedAt ? "Content ended." : "Content ended. The attendance report is posted when the owner submits the attendance form.");
+}
+
+// "/content reopen": a manager reopens ended content (owner decision 2026-10-09). It is live again, with a fresh
+// 4-hour auto-end window. The attendance report is not touched.
+export async function handleReopenCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const a = target ? await getAttendance(deps.sql, target.id) : null;
+  if (!a || !target) return reply(NO_CONTENT);
+  if (!(await allowed(deps, i, a))) return reply(NOT_ALLOWED);
+  const result = await reopenContent(deps.sql, a.contentId, deps.now());
+  if (result === "not_ended") return reply("This content is not ended, so there is nothing to reopen.");
+  try {
+    const view = await getRosterView(deps.sql, a.contentId, deps.now());
+    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+  } catch (err) {
+    console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
+  }
+  return reply("Content reopened: signups, edits and every other action work again. It ends by itself 4 hours from now unless you end it with `/content end`.");
 }
 
 // "/content history @member": attended, no-show, and finished contents where the member was never marked.

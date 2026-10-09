@@ -2,7 +2,7 @@ import { isAuthorized } from "./cron.ts";
 
 export type CronDeps = {
   secret: string | undefined;
-  run: () => Promise<{ locked: number; resultsPosted: number }>;
+  run: () => Promise<{ resultsPosted: number }>;
 };
 
 const json = (body: unknown, status: number): Response =>

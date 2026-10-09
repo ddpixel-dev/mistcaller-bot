@@ -115,9 +115,10 @@ export const commands = [
         ],
       },
       { type: 1, name: "lock", description: "Close signups now (creator, admin roles, Manage Server)" },
-      { type: 1, name: "unlock", description: "Reopen signups after a lock, before the start (creator, admin roles, Manage Server)" },
-      { type: 1, name: "list", description: "Upcoming content in this server, with links" },
+      { type: 1, name: "unlock", description: "Reopen signups after a lock (creator, admin roles, Manage Server)" },
+      { type: 1, name: "list", description: "Live and upcoming content in this server, with links" },
       { type: 1, name: "end", description: "End this content once it has started (creator, admin roles, Manage Server)" },
+      { type: 1, name: "reopen", description: "Reopen ended content (creator, admin roles, Manage Server)" },
       { type: 1, name: "attendance", description: "Open the attendance form privately (creator, admin roles, Manage Server)" },
       {
         type: 1,

@@ -6,7 +6,7 @@ import { createContent, setMessageId, getRosterView, type NewContent } from "../
 import { claimSlot } from "../../src/db/signup.ts";
 import { castVote } from "../../src/db/vote.ts";
 import { editContent } from "../../src/db/manage.ts";
-import { AUTO_END_MS, endStale, isAuthorized, lockStarted, postVoteResults, runJobs, sendReminders } from "../../src/jobs/cron.ts";
+import { AUTO_END_MS, endStale, isAuthorized, postVoteResults, runJobs, sendReminders } from "../../src/jobs/cron.ts";
 import * as cronRoute from "../../api/cron.ts";
 import { handleCron } from "../../src/jobs/cron-handler.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
@@ -66,41 +66,6 @@ test("isAuthorized", () => {
   assert.equal(isAuthorized("Bearer ", ""), false);
   assert.equal(isAuthorized("Bearer", ""), false);
   assert.equal(isAuthorized("", ""), false);
-});
-
-test("lockStarted locks only started open content, edits once, second run 0", async () => {
-  const { sql, id } = await make({ startsAt: new Date("2026-12-01T18:00:00Z") });
-  const { id: later } = await make({ threadId: "t2", startsAt: new Date("2026-12-01T20:00:00Z") }, "m2");
-  const { rest, calls } = fakeRest();
-  const deps: Deps = { sql, rest, now: () => new Date("2026-12-01T18:00:00Z") };
-  assert.equal(await lockStarted(deps), 1);
-  assert.equal(await status(sql, id), "locked");
-  assert.equal(await status(sql, later), "open");
-  assert.equal(calls.edits.length, 1);
-  assert.deepEqual([calls.edits[0]!.channel, calls.edits[0]!.message], ["t1", "m1"]);
-  assert.equal(await lockStarted(deps), 0);
-  assert.equal(calls.edits.length, 1);
-});
-
-test("lockStarted skips the edit when message_id is null and survives a 404", async () => {
-  const { sql, id } = await make({}, null);
-  const { rest, calls } = fakeRest();
-  const now = () => new Date("2026-12-02T00:00:00Z");
-  assert.equal(await lockStarted({ sql, rest, now }), 1);
-  assert.equal(calls.edits.length, 0);
-  assert.equal(await status(sql, id), "locked");
-
-  const b = await make({ threadId: "t9" }, "m9");
-  const f = fakeRest({ edit: () => new DiscordApiError(404, "gone") });
-  assert.equal(await lockStarted({ sql, rest: f.rest, now }), 1);
-  assert.equal(await status(sql, b.id), "locked");
-});
-
-test("lockStarted keeps the DB lock when Discord fails with 500", async () => {
-  const { sql, id } = await make();
-  const f = fakeRest({ edit: () => new DiscordApiError(500, "boom") });
-  assert.equal(await lockStarted({ sql, rest: f.rest, now: () => new Date("2026-12-02T00:00:00Z") }), 1);
-  assert.equal(await status(sql, id), "locked");
 });
 
 test("postVoteResults does nothing before start minus 5 minutes", async () => {
@@ -232,7 +197,7 @@ test("two concurrent runs post exactly one thread message", async () => {
   assert.equal(f.calls.posts.length, 1);
 });
 
-test("runJobs posts results before locking, even when both are due", async () => {
+test("runJobs posts the vote result at the start and leaves the started content open", async () => {
   const { sql, id } = await make();
   const order: string[] = [];
   const f = fakeRest();
@@ -245,10 +210,10 @@ test("runJobs posts results before locking, even when both are due", async () =>
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { locked: 1, ended: 0, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
-  assert.deepEqual(order, ["edit:open", "post", "edit:locked"]);
-  assert.equal(await status(sql, id), "locked");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { locked: 0, ended: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(out, { ended: 0, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(order, ["edit:open", "post"]);
+  assert.equal(await status(sql, id), "open", "the start does not lock the roster any more");
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { ended: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
 });
 
 // cron handler
@@ -257,7 +222,7 @@ const req = (header?: string) =>
 
 test("handleCron: 401 without or with wrong secret, jobs not called", async () => {
   let called = 0;
-  const run = async () => { called++; return { locked: 1, resultsPosted: 2 }; };
+  const run = async () => { called++; return { resultsPosted: 2 }; };
   for (const h of [undefined, "Bearer nope"]) {
     const r = await handleCron(req(h), { secret: "s3cret", run });
     assert.equal(r.status, 401);
@@ -267,15 +232,15 @@ test("handleCron: 401 without or with wrong secret, jobs not called", async () =
 });
 
 test("handleCron: 200 with counts", async () => {
-  const r = await handleCron(req("Bearer s3cret"), { secret: "s3cret", run: async () => ({ locked: 3, resultsPosted: 2 }) });
+  const r = await handleCron(req("Bearer s3cret"), { secret: "s3cret", run: async () => ({ resultsPosted: 2 }) });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { locked: 3, resultsPosted: 2 });
+  assert.deepEqual(await r.json(), { resultsPosted: 2 });
 });
 
 test("handleCron: 500 generic when the secret is unset, even with a header", async () => {
   let called = 0;
   for (const secret of [undefined, ""]) {
-    const r = await handleCron(req("Bearer "), { secret, run: async () => { called++; return { locked: 0, resultsPosted: 0 }; } });
+    const r = await handleCron(req("Bearer "), { secret, run: async () => { called++; return { resultsPosted: 0 }; } });
     assert.equal(r.status, 500);
     assert.ok(!(await r.text()).includes("CRON_SECRET"));
   }
@@ -530,6 +495,18 @@ test("endStale ends open and locked content 4 hours after its start, edits the r
   assert.equal(await status(sql, young), "done");
   const [row] = await sql`select ended_at from content where id = ${id}`;
   assert.equal(new Date(row!.ended_at).getTime(), due().getTime());
+});
+
+test("reopened content gets a fresh 4-hour window counted from the reopen, not from the start", async () => {
+  const { sql, id } = await make({ startsAt });
+  const reopenedAt = new Date(startsAt.getTime() + 5 * 3600000);
+  await sql`update content set reopened_at = ${reopenedAt} where id = ${id}`;
+  const { rest, calls } = fakeRest();
+  assert.equal(await endStale({ sql, rest, now: () => new Date(reopenedAt.getTime() + AUTO_END_MS - 1000) }), 0, "not before 4 hours after the reopen");
+  assert.equal(await status(sql, id), "open");
+  assert.equal(await endStale({ sql, rest, now: () => new Date(reopenedAt.getTime() + AUTO_END_MS) }), 1);
+  assert.equal(await status(sql, id), "done");
+  assert.equal(calls.edits.length, 1);
 });
 
 test("submitting the attendance form does not end the content; the attendance DM and report still work either way", async () => {

@@ -91,14 +91,20 @@ test("removing a held slot is refused and nothing changes", async () => {
   assert.equal(v.slots.length, 3);
 });
 
-test("edit is refused once locked, started, cancelled or done", async () => {
+test("edit is refused once locked, cancelled or done", async () => {
   const { sql, id } = await setup();
   for (const status of ["locked", "cancelled", "done"]) {
     await sql`update content set status = ${status} where id = ${id}`;
     assert.deepEqual(await editContent(sql, id, edit(), NOW), { result: "unavailable" });
   }
-  await sql`update content set status = 'open' where id = ${id}`;
-  assert.deepEqual(await editContent(sql, id, edit(), new Date("2026-12-01T19:00:00Z")), { result: "unavailable" });
+});
+
+test("edit still works after the start, until the content is ended", async () => {
+  const { sql, id } = await setup();
+  const after = new Date("2026-12-01T19:00:00Z");
+  const r = await editContent(sql, id, edit({ title: "Late change" }), after);
+  assert.equal(r.result, "ok");
+  assert.equal((await getRosterView(sql, id, after))!.title, "Late change");
 });
 
 test("cancel marks the content cancelled and returns the signed members once", async () => {

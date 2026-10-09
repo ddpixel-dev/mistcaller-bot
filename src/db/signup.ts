@@ -7,10 +7,10 @@ type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
 
 // FR-007 (per role): every open position goes to the first member waiting for its role. Runs inside the
 // transaction of the change that freed the position, so nobody can slip into it in between. Only while
-// the content is open and before its start.
+// the content is open (it stays open after its start, until it ends).
 export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Promise<Promotion[]> {
-  const [c] = await tx`select status, starts_at from content where id = ${contentId}`;
-  if (!c || c.status !== "open" || c.starts_at <= now) return [];
+  const [c] = await tx`select status from content where id = ${contentId}`;
+  if (!c || c.status !== "open") return [];
   const open = await tx`
     select s.id, s.position, s.role, s.weapon from slot s
     left join signup su on su.slot_id = s.id and su.status = 'signed'
@@ -64,11 +64,11 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
   try {
     return await sql.begin(async (tx): Promise<ClaimResult> => {
       if (a.promoted) a.promoted.length = 0; // a retried attempt starts clean
-      const [c] = await tx`select status, guild_id, starts_at from content where id = ${a.contentId} for share`;
+      const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for share`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
       const [s] = await tx`select id, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
-      if (c.status !== "open" || c.starts_at <= a.now) return "locked";
+      if (c.status !== "open") return "locked";
 
       const [prev] = await tx`
         select slot_id, status, chosen_weapon from signup
@@ -126,9 +126,9 @@ export async function joinWaitlist(
   a: { contentId: string; userId: string; guildId: string; role: string; now: Date },
 ): Promise<WaitResult> {
   return await sql.begin(async (tx): Promise<WaitResult> => {
-    const [c] = await tx`select status, guild_id, starts_at from content where id = ${a.contentId} for share`;
+    const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for share`;
     if (!c || c.guild_id !== a.guildId) return "not_found";
-    if (c.status !== "open" || c.starts_at <= a.now) return "locked";
+    if (c.status !== "open") return "locked";
     const slots = await tx`
       select s.role, su.user_id from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
@@ -159,9 +159,9 @@ export async function joinFill(
 ): Promise<FillResult> {
   return await sql.begin(async (tx): Promise<FillResult> => {
     if (a.promoted) a.promoted.length = 0;
-    const [c] = await tx`select status, guild_id, starts_at from content where id = ${a.contentId} for update`;
+    const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
     if (!c || c.guild_id !== a.guildId) return "not_found";
-    if (c.status !== "open" || c.starts_at <= a.now) return "locked";
+    if (c.status !== "open") return "locked";
     const [prev] = await tx`
       select status from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
     if (prev?.status === "fill") return "unchanged";

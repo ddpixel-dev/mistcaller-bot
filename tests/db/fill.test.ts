@@ -62,13 +62,13 @@ test("a waitlisted member can become a fill, and a fill can take a position like
   assert.equal(v.slots[2]!.userId, B);
 });
 
-test("fills are refused when signups are locked, and for another server", async () => {
+test("fills are refused when signups are locked or for another server, and accepted after the start while open", async () => {
   const { sql, id } = await setup();
   assert.equal(await joinFill(sql, { contentId: id, userId: A, guildId: "other", now: NOW }), "not_found");
   await sql`update content set status = 'locked'`;
   assert.equal(await fill(sql, id, A), "locked");
   await sql`update content set status = 'open'`;
-  assert.equal(await joinFill(sql, { contentId: id, userId: A, guildId: G, now: new Date(START.getTime() + 1000) }), "locked");
+  assert.equal(await joinFill(sql, { contentId: id, userId: A, guildId: G, now: new Date(START.getTime() + 1000) }), "claimed", "open content takes a fill after the start");
 });
 
 test("leaving removes a fill, and its vote", async () => {
