@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindChoices, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010: 11 PvP and 8 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 11);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 8);
+test("the lists match ADR 0010: 12 PvP and 9 PvE kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 12);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 9);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -20,7 +20,7 @@ test("ids are unique within a type", () => {
 
 test("command choices are distinct, within Discord's 25 limit, and name the type", () => {
   const c = kindChoices();
-  assert.equal(c.length, 18);
+  assert.equal(c.length, 20);
   assert.ok(c.length <= 25);
   assert.equal(new Set(c.map((x) => x.value)).size, c.length);
   assert.ok(c.every((x) => x.name.length <= 100));
@@ -47,4 +47,23 @@ test("Avalonian gold chest is a PvE category, listed before Other, and PvX has i
   assert.ok(kindsOf("pvx").some((k) => k.id === "gold-chest"));
   assert.equal(resolveKind("pve", "gold-chest").ok, true);
   assert.equal(resolveKind("pvp", "gold-chest").ok, false);
+});
+
+test("Ava Gank is a PvP category and Ava Gold a PvE one, each before Other, and PvX has both", () => {
+  const pvp = kindsOf("pvp").map((k) => k.id);
+  const pve = kindsOf("pve").map((k) => k.id);
+  assert.ok(pvp.includes("ava-gank") && !pve.includes("ava-gank"));
+  assert.ok(pve.includes("ava-gold") && !pvp.includes("ava-gold"));
+  assert.equal(pvp.at(-1), "other");
+  assert.equal(pve.at(-1), "other");
+  assert.equal(kindDef("pvp", "ava-gank")!.label, "Ava Gank");
+  assert.equal(kindDef("pve", "ava-gold")!.label, "Ava Gold");
+  const pvx = kindsOf("pvx").map((k) => k.id);
+  assert.ok(pvx.includes("ava-gank") && pvx.includes("ava-gold"));
+  assert.ok(pvx.length <= 25, "a menu holds 25 options at most");
+  assert.equal(resolveKind("pvp", "ava-gank").ok, true);
+  assert.equal(resolveKind("pve", "ava-gank").ok, false, "a PvP category on PvE content is refused");
+  assert.equal(resolveKind("pve", "ava-gold").ok, true);
+  assert.equal(resolveKind("pvp", "ava-gold").ok, false);
+  assert.ok(kindChoices().length <= 25, "a slash command choice list holds 25 at most");
 });
