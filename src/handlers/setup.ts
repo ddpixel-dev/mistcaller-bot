@@ -10,10 +10,10 @@ import { refreshDashboard } from "../jobs/dashboards.ts";
 const SNOWFLAKE = /^\d{5,25}$/;
 const NOT_ALLOWED = "Only members with Manage Server can change the admin roles.";
 
-const NOT_ADMIN = "Only an admin (an admin role, Manage Server or Administrator) can change the schedule and statistics channels.";
+const NOT_ADMIN = "Only an admin (an admin role, Manage Server or Administrator) can change the calendar and statistics channels.";
 const BAD_CHANNEL = "Pick a text or announcement channel of this server.";
 const KINDS: { kind: DashboardKind; label: string; set: string; clear: string; what: string }[] = [
-  { kind: "schedule", label: "Schedule", set: "schedule-channel", clear: "clear-schedule", what: "the calendar of live and upcoming events" },
+  { kind: "schedule", label: "Calendar", set: "calendar-channel", clear: "clear-calendar", what: "the Events Calendar" },
   { kind: "statistics", label: "Statistics", set: "statistics-channel", clear: "clear-statistics", what: "the statistics" },
 ];
 
@@ -33,7 +33,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = []) {
       `Pick up to ${MAX_ADMIN_ROLES} roles below; the list saves as soon as you change it.`,
       "",
       "**Channels** (admins set them with the options of this command)",
-      `Schedule channel: ${channel("schedule")}`,
+      `Calendar channel: ${channel("schedule")}`,
       `Statistics channel: ${channel("statistics")}`,
     ].join("\n"),
     components: [{

@@ -240,17 +240,22 @@ The party heading reads "Party" (it was "The Company") and the word "Sworn" is r
 status: accepted (owner request 2026-10-15)
 The creator and admins shall be able to remove a signed-up player, fill or waiting member with a **Remove player** button (a private panel with a menu). The waitlist is then served, the roster is refreshed, and the thread gets one line mentioning only the removed member.
 
-### FR-043: Schedule channel (event calendar)
-status: accepted (owner request 2026-10-15; layout changed to a calendar the same day)
-An admin shall be able to choose a channel in `/content setup` where the bot keeps an **event calendar**: one message (a second when more than 12 events) with a section per day for the next 7 days (Today, Tomorrow, then the weekday and date), events already running on top under "Live now", and "Nothing planned" on empty days. Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
+### FR-043: Calendar channel (Events Calendar)
+status: accepted (owner request 2026-10-15; layout changed to a calendar and the option renamed `calendar-channel` the same day)
+An admin shall be able to choose a channel with the `calendar-channel` option of `/content setup` (`clear-calendar` removes it) where the bot keeps the **Events Calendar**: one message (a second when more than 12 events) with a section for each day of the next 7 days that has events (Today, Tomorrow, then the weekday and date; days without events are left out), events already running on top under "Live now". Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
 
 ### FR-044: Statistics channel
 status: accepted (owner request 2026-10-15)
 An admin shall be able to choose a channel in `/content setup` where the bot keeps one message of statistics: contents created, by type and category, participants, sign-ups, fill rate, busiest times, top hosts and most joined players, for all time and the last 30 days. There is no no-show board, and unknown attendance is never counted as a no-show (NFR-004).
+Each number is on its own line (owner request 2026-10-15). The message is recomputed by the scheduled job at most every 30 minutes, and when the channel is set.
 
 ### FR-045: Permission levels
 status: accepted (owner request 2026-10-15)
-Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the schedule and statistics channels. Refusals are explained in the reply. There is no host role.
+Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar and statistics channels. Refusals are explained in the reply. There is no host role.
+
+### FR-046: Party strip
+status: accepted (owner request 2026-10-15, option B)
+Under the header, the roster shall show a line of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out), so Discord can draw them larger than the inline icons in the rows. It is the first thing dropped when a very full roster needs the room. Whether Discord draws the line at its large size was not known when this was built; the owner checks it live and can ask for the heading-row option or an image gallery instead.
 
 ### FR-029: Help and owner tips
 status: accepted
@@ -426,9 +431,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.21.0 live (fills hold seats and count in the party, "Party" wording and `weapon - player - duty` rows, prefilled start time, Ping once per player, Remove player, tier 8 weapon emojis, history restricted, event calendar and statistics channels; migrations 0019 and 0020). Before it: 0.20.0 (Fix and retry for the forms, `build-reference`, Avalonian gold chest, Looter), 0.19.x (rosters stay live after the start, `/content reopen`, spacing above Fill and Waitlist), 0.18.0 (optional weapon, build channel, PvX, Fill; migration 0016) and earlier (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.21.1 live (party strip of weapon icons, `calendar-channel` and the Events Calendar showing only days with events, statistics one number per line); before it 0.21.0 (fills hold seats and count in the party, "Party" wording and `weapon - player - duty` rows, prefilled start time, Ping once per player, Remove player, tier 8 weapon emojis, history restricted, event calendar and statistics channels; migrations 0019 and 0020). Before it: 0.20.0 (Fix and retry for the forms, `build-reference`, Avalonian gold chest, Looter), 0.19.x (rosters stay live after the start, `/content reopen`, spacing above Fill and Waitlist), 0.18.0 (optional weapon, build channel, PvX, Fill; migration 0016) and earlier (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-15
-Next step: owner tests 0.21.0 (set the calendar and statistics channels with `/content setup`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.21.1 and 0.21.0 (the party strip: is it drawn large?; set the calendar and statistics channels with `/content setup`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|

@@ -54,11 +54,11 @@ export const commands = [
         ],
       },
       {
-        type: 1, name: "setup", description: "Admin roles (Manage Server), and the schedule and statistics channels (admins)",
+        type: 1, name: "setup", description: "Admin roles (Manage Server), and the calendar and statistics channels (admins)",
         options: [
-          { type: 7, name: "schedule-channel", description: "The channel where the bot keeps the calendar of live and upcoming events", required: false, channel_types: [0, 5] },
+          { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
           { type: 7, name: "statistics-channel", description: "The channel where the bot keeps the statistics", required: false, channel_types: [0, 5] },
-          { type: 5, name: "clear-schedule", description: "Stop keeping the calendar and remove its messages", required: false },
+          { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
           { type: 5, name: "clear-statistics", description: "Stop keeping the statistics and remove its messages", required: false },
         ],
       },
