@@ -138,21 +138,3 @@ test("the scheduled job refreshes every server's schedule and reports how many m
   assert.equal(await refreshAllDashboards(deps), 2, "both servers got their first message");
   assert.equal(await refreshAllDashboards(deps), 0, "nothing changed since");
 });
-
-test("the statistics dashboard posts one message with the numbers, and the scheduled job refreshes it only every 30 minutes", async () => {
-  const { rest, calls } = fakeRest();
-  const { deps, sql, add } = await setup(rest);
-  await add(1);
-  await setDashboardChannel(sql, { guildId: "g1", kind: "statistics", channelId: "ch9", now: NOW });
-  assert.equal(await refreshDashboard(deps, "g1", "statistics"), "updated");
-  assert.equal(calls.created.length, 1);
-  assert.equal(calls.created[0]!.channel, "ch9");
-  assert.ok(JSON.stringify(calls.created[0]!.body).includes("Statistics"));
-  await add(2);
-  assert.equal(await refreshAllDashboards({ ...deps, now: () => new Date(NOW.getTime() + 10 * 60000) }), 1, "the schedule changed; statistics are not due yet");
-  const stats = await getDashboard(sql, "g1", "statistics");
-  assert.equal(stats!.updatedAt.getTime(), NOW.getTime());
-  assert.equal(await refreshAllDashboards({ ...deps, now: () => new Date(NOW.getTime() + 31 * 60000) }), 1, "statistics are due and their numbers changed");
-  assert.equal(await refreshAllDashboards({ ...deps, now: () => new Date(NOW.getTime() + 70 * 60000) }), 0, "due again but nothing changed");
-  assert.equal((await getDashboard(sql, "g1", "statistics"))!.updatedAt.getTime(), NOW.getTime() + 70 * 60000, "the check is remembered");
-});

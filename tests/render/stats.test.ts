@@ -76,7 +76,7 @@ test("the footer says who is not counted, nobody is mentioned, and the message f
   assert.deepEqual(discordProblems(b), []);
 });
 
-test("the Updated stamp is the only thing that changes between two renders", () => {
+test("the Generated stamp is the only thing that changes between two renders", () => {
   const a = JSON.stringify(render(full, new Date(0)));
   const b = JSON.stringify(render(full, new Date(60000)));
   assert.notEqual(a, b);

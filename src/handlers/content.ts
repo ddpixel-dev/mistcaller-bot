@@ -1,3 +1,4 @@
+import { handleStatsCommand } from "./stats.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { reply } from "../discord/response.ts";
@@ -35,6 +36,7 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "assign": return await handleAssignCommand(deps, i);
     case "help": return await handleHelpCommand(deps, i);
     case "history": return await handleHistoryCommand(deps, i);
+    case "stats": return await handleStatsCommand(deps, i);
     default: return reply("Not implemented yet");
   }
 }

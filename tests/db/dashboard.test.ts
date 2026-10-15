@@ -21,12 +21,11 @@ test("a dashboard row holds the channel, the message ids and the last digest; a 
   await setDashboardChannel(sql, { guildId: "g1", kind: "schedule", channelId: "c2", now: NOW });
   const moved = (await getDashboard(sql, "g1", "schedule"))!;
   assert.deepEqual([moved.channelId, moved.messageIds, moved.digest], ["c2", [], ""]);
-  await setDashboardChannel(sql, { guildId: "g1", kind: "statistics", channelId: "c3", now: NOW });
   await setDashboardChannel(sql, { guildId: "g2", kind: "schedule", channelId: "c4", now: NOW });
   assert.deepEqual((await listDashboards(sql, "schedule")).map((x) => x.guildId), ["g1", "g2"]);
   await deleteDashboard(sql, "g1", "schedule");
   assert.equal(await getDashboard(sql, "g1", "schedule"), null);
-  assert.ok(await getDashboard(sql, "g1", "statistics"), "the other kind stays");
+  assert.ok(await getDashboard(sql, "g2", "schedule"), "another server's setting stays");
 });
 
 test("the schedule lists open and locked events that started or start within 7 days, soonest first, per server", async () => {

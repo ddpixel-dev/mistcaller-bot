@@ -71,9 +71,9 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.deepEqual(create.options!.map((o) => o.name), ["build-reference"]);
   assert.equal(create.options![0]!.type, 3);
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["statistics-channel", 7], ["clear-calendar", 5], ["clear-statistics", 5],
+    ["calendar-channel", 7], ["clear-calendar", 5],
   ]);
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "reopen", "attendance", "history", "assign", "help", "cancel"]);
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "edit", "setup", "preset", "weapon", "me", "duty", "slot", "lock", "unlock", "list", "end", "reopen", "attendance", "stats", "history", "assign", "help", "cancel"]);
 });
 
 test("the old server's command list is cleared with an empty PUT", () => {

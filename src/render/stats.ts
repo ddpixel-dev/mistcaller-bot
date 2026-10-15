@@ -2,7 +2,7 @@ import type { Stats, Period } from "../db/stats.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
 import { IS_COMPONENTS_V2 } from "./roster.ts";
 
-// FR-044: the statistics channel's message.
+// FR-044: the private answer of `/content stats`.
 const ACCENT = 0x6f4fb0;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MAX_CATEGORIES = 12;
@@ -15,7 +15,7 @@ const events = (title: string, p: Period) => [`**${title}**`, line("Created", St
 const players = (title: string, p: Period) => [`**${title}**`, line("Participants", String(p.participants)), line("Sign-ups", String(p.signups))].join("\n");
 
 export function renderStats(s: Stats, stamp: Date): unknown {
-  const updated = `-# Updated <t:${Math.floor(stamp.getTime() / 1000)}:R> · cancelled events and players who left a roster are not counted`;
+  const updated = `-# Generated <t:${Math.floor(stamp.getTime() / 1000)}:R> · cancelled events and players who left a roster are not counted`;
   const head = `# 📊 Statistics\n${updated}`;
   const message = (parts: string[]) => ({
     flags: IS_COMPONENTS_V2,

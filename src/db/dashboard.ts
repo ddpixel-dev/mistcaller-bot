@@ -1,6 +1,6 @@
 import type { Sql } from "./client.ts";
 
-export type DashboardKind = "schedule" | "statistics";
+export type DashboardKind = "schedule"; // the Events Calendar; the statistics channel was dropped on 2026-10-15 (ADR 0027)
 export type Dashboard = { guildId: string; kind: DashboardKind; channelId: string; messageIds: string[]; digest: string; updatedAt: Date };
 
 const row = (r: Record<string, any>): Dashboard => ({
