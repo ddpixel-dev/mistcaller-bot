@@ -2,7 +2,9 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, subOption, textInput } from "../discord/modal.ts";
-import { readBuildChannel } from "./create.ts";
+import { readBuildReference } from "./create.ts";
+import { packRef, unpackRef } from "../domain/buildref.ts";
+import { formProblems } from "./retry.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
@@ -79,12 +81,12 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
   const kindOpt = subOption(i, "edit", "category");
   const kind = typeof kindOpt === "string" ? resolveKind(view.type, kindOpt) : null;
   if (kind && !kind.ok) return reply(kind.error);
-  // The build channel (FR-031): a channel sets it, clear-build removes it, neither keeps it. The choice travels in the form's id.
-  const build = readBuildChannel(i, "edit");
+  // The build reference (FR-031, ADR 0025): a link sets it, clear-build removes it, neither keeps it. The choice travels in the form's id.
+  const build = readBuildReference(i, "edit");
   if (!build.ok) return reply(build.error);
   const clear = subOption(i, "edit", "clear-build") === true;
-  if (clear && build.id) return reply("Pick a build channel or clear it, not both.");
-  const marker = clear ? "bx" : build.id ? `b${build.id}` : null;
+  if (clear && build.id) return reply("Give a build reference or clear it, not both.");
+  const marker = clear ? "bx" : build.id ? `b${packRef(build.id)}` : null;
   return {
     type: MODAL,
     data: {
@@ -118,28 +120,28 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   }
 
   const marker = parts[4];
-  if (marker !== undefined && marker !== "bx" && !/^b\d{5,25}$/.test(marker)) return reply(INVALID);
-  const buildChannelId: string | null | undefined = marker === undefined ? undefined : marker === "bx" ? null : marker.slice(1);
+  const markedRef = marker !== undefined && marker !== "bx" && marker.startsWith("b") ? unpackRef(marker.slice(1)) : null;
+  if (marker !== undefined && marker !== "bx" && markedRef === null) return reply(INVALID);
+  const buildRef: string | null | undefined = marker === undefined ? undefined : marker === "bx" ? null : markedRef;
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
-  if (!title.ok) return reply(title.error);
   const start = parseUtcStart(v.start ?? "", deps.now());
-  if (!start.ok) return reply(start.error);
   const tier = parseGearTier(v.tier ?? "");
-  if (!tier.ok) return reply(tier.error);
   const slots = parseSlots(v.slots ?? "");
-  if (!slots.ok) return reply(slots.error);
   const notes = parseNotes(v.notes ?? "");
-  if (!notes.ok) return reply(notes.error);
+  // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
+  if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
+    return await formProblems(deps, i, String(customId), [title, start, tier, slots, notes].flatMap((r) => (r.ok ? [] : [r.error])));
+  }
 
   const result = await editContent(deps.sql, checked.target.id, {
     title: title.value, notes: notes.value, startsAt: start.value, tier: tier.value,
     hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, slots: slots.value,
-    ...(buildChannelId !== undefined ? { buildChannelId } : {}),
+    ...(buildRef !== undefined ? { buildRef } : {}),
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
-  if (result.result === "slots_held") return reply(result.error);
+  if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);
 
   const refreshed = await refreshRoster(deps, checked.target.id);
   if (result.startChanged && result.notify.length > 0) {

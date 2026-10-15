@@ -3,6 +3,7 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
 import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
+import { BUILD_REFERENCE_HELP, packRef, parseBuildReference, unpackRef } from "../domain/buildref.ts";
 import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
 } from "../db/content.ts";
@@ -11,6 +12,7 @@ import { renderRosterMessage } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
+import { formProblems } from "./retry.ts";
 
 export const NOT_HERE = "Use this command in a server channel, thread or forum post that the bot can write in.";
 const FAILED = "Could not create the content right now. Nothing was saved, please try again.";
@@ -18,19 +20,15 @@ const FAILED = "Could not create the content right now. Nothing was saved, pleas
 // FR-002 (changed 2026-10-08, ADR 0020): content may be created in any text channel, announcement channel, thread or
 // forum post of a server. The type (PvP or PvE) is chosen in the create panel, so no forum setup is needed.
 const CONTENT_PLACES = new Set([0, 5, 10, 11, 12]);
-const BUILD_CHANNEL_TYPES = new Set([0, 5, 10, 11, 12, 15]); // text, announcement, threads, forum
-const SNOWFLAKE = /^\d{5,25}$/;
 
-// The build channel option of a command (FR-031): a channel of this server that can be mentioned. `undefined` means
-// the option was not given. The channel must be among those Discord resolved for this command.
-export function readBuildChannel(i: Interaction, sub: string): { ok: true; id: string | undefined } | { ok: false; error: string } {
-  const value = subOption(i, sub, "build-channel");
+// The build reference option of a command (FR-031, ADR 0025): a Discord link to a channel, thread, post or message of
+// this server. `undefined` means the option was not given.
+export function readBuildReference(i: Interaction, sub: string): { ok: true; id: string | undefined } | { ok: false; error: string } {
+  const value = subOption(i, sub, "build-reference");
   if (value === undefined) return { ok: true, id: undefined };
-  const resolved = (i.data as { resolved?: { channels?: Record<string, { type?: number }> } } | undefined)?.resolved?.channels?.[String(value)];
-  if (typeof value !== "string" || !SNOWFLAKE.test(value) || !resolved || !BUILD_CHANNEL_TYPES.has(resolved.type ?? -1)) {
-    return { ok: false, error: "That channel cannot be linked. Pick a text, announcement, forum or thread channel of this server." };
-  }
-  return { ok: true, id: value };
+  const parsed = typeof value === "string" ? parseBuildReference(value, i.guild_id ?? "") : null;
+  if (!parsed) return { ok: false, error: `That is not a link. ${BUILD_REFERENCE_HELP}` };
+  return parsed.ok ? { ok: true, id: parsed.value } : parsed;
 }
 
 export function inContentPlace(i: Interaction): boolean {
@@ -77,16 +75,16 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return taken;
   }
-  const build = readBuildChannel(i, "create");
+  const build = readBuildReference(i, "create");
   if (!build.ok) return reply(build.error);
-  return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildChannelId: build.id ?? null }, "new");
+  return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildRef: build.id ?? null }, "new");
 }
 
-export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildChannelId?: string | null }, presetLines: string | null): InteractionResponse {
+export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null): InteractionResponse {
   return {
     type: MODAL,
     data: {
-      custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}${draft.buildChannelId ? `:${draft.buildChannelId}` : ""}`,
+      custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}${draft.buildRef ? `:${packRef(draft.buildRef)}` : ""}`,
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
@@ -110,20 +108,20 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
   const problem = placeProblem(i);
   if (problem) return reply(problem);
   if (typeId !== "pvp" && typeId !== "pve" && typeId !== "pvx") return reply("That form is out of date. Run `/content create` again.");
-  if (buildId !== undefined && !SNOWFLAKE.test(buildId)) return reply("That form is out of date. Run `/content create` again.");
+  const buildRef = buildId === undefined ? null : unpackRef(buildId);
+  if (buildId !== undefined && buildRef === null) return reply("That form is out of date. Run `/content create` again.");
   const type: ContentType = typeId;
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
-  if (!title.ok) return reply(title.error);
   const start = parseUtcStart(v.start ?? "", deps.now());
-  if (!start.ok) return reply(start.error);
   const tier = parseGearTier(v.tier ?? "");
-  if (!tier.ok) return reply(tier.error);
   const slots = parseSlots(v.slots ?? "");
-  if (!slots.ok) return reply(slots.error);
   const notes = parseNotes(v.notes ?? "");
-  if (!notes.ok) return reply(notes.error);
+  // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
+  if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
+    return await formProblems(deps, i, customId, [title, start, tier, slots, notes].flatMap((r) => (r.ok ? [] : [r.error])));
+  }
 
   const hasLoot = lootFlag === "1";
   const kind = resolveKind(type, kindId ?? null);
@@ -140,7 +138,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
       notes: notes.value,
       startsAt: start.value,
       tier: tier.value,
-      buildChannelId: buildId ?? null,
+      buildRef,
       hasLoot,
       createdBy: creator,
       slots: slots.value,

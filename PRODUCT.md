@@ -136,7 +136,7 @@ phase: MVP
 priority: should
 satisfies: FR-027
 
-A slot carries a duty (Caller, Scout, Rat), set while defining the slots or later by a manager; it appears on the roster line.
+A slot carries a duty (Caller, Scout, Rat, Looter (added 2026-10-09)), set while defining the slots or later by a manager; it appears on the roster line.
 
 ### FT-015: Slot builder and presets
 status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
@@ -224,9 +224,13 @@ status: accepted
 status: accepted (ADR 0023)
 A slot may be a role alone: typed as `Tank` or `Tank (Caller)`, or chosen in the guided steps with the weapon class and weapon left empty (they are optional), or with `/content slot` without a weapon. The roster shows "Player's choice". A player who joins such a slot gets a private picker (weapon class, then weapon) and the roster then shows the weapon with its icon; `/content me` offers **Change weapon**. The choice is kept when moving between such slots and cleared when moving to a slot that has a weapon or leaving. Relaxes FR-003.
 
-### FR-031: Build channel
-status: accepted (ADR 0023)
-An event may carry one build channel of the server, chosen with the optional `build-channel` option of `/content create` or `/content edit` (a searchable list; `clear-build` removes it on edit). Only text, announcement, forum and thread channels that Discord resolved for the command are accepted. The roster header shows a `🧰 Build` line with a clickable mention that pings nobody.
+### FR-031: Build reference
+status: accepted (ADR 0023; changed 2026-10-09, ADR 0025)
+An event may carry one build reference, given with the optional `build-reference` option of `/content create` or `/content edit` (`clear-build` removes it on edit). The option takes a Discord link to a channel, thread, forum post or message of the same server (it replaces the `build-channel` picker, which could not offer posts). Links of another server and other sites are refused. The roster header shows a `🧰 Build` line: a clickable mention for a channel, thread or post, a `Build message` link for a message; it pings nobody.
+
+### FR-036: Fix and retry for the forms
+status: accepted (ADR 0025)
+When the create or edit form has mistakes, the bot shall answer privately with every mistake at once and a **Fix and retry** button that opens the same form again with the text the member typed (Discord cannot validate inside an open form). Nothing is created or changed meanwhile. The typed text is kept for an hour for that member only (`form_retry`, migration 0018) and a new failure replaces it.
 
 ### FR-032: Fill
 status: accepted (ADR 0023)
@@ -270,11 +274,11 @@ The roster message shall use the Medieval Banner theme chosen by the owner on 20
 
 ### FR-023: Content kinds
 status: accepted
-Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Gank Squad, Bomb Squad (added 2026-10-08), Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming and Other. A per-server editable list was dropped from the MVP.
+Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Gank Squad, Bomb Squad (added 2026-10-08), Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming, Avalonian gold chest (added 2026-10-09) and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted
-An officer shall be able to define the slots in three ways: typing the lines (the final form), guided steps, or a saved preset. In the create panel, Continue goes straight to the guided steps (owner decisions 2026-10-07): a form asks "How many players needed?" (one whole number, 1 to 20, with validation), then one card per slot offers four lists with placeholders, **Role** (Tank, Healer, Support, DPS), **Weapon class** (Sword, Axe, Hammer, Mace, Spear, Dagger, Quarterstaff, Bow, Crossbow, Gloves, Fire, Frost, Holy, Arcane, Cursed and Nature Staff, Shapeshifter, Off-hand), **Weapon** (the weapons of the chosen class) and **Duty** (Caller, Scout, Rat, optional; deselect to clear), with the buttons Next (Finish on the last), Back, Same as previous, Fill the rest and Cancel (Change number is on the first and last screens). Next saves the slot. The Back button on the first card returns to the create panel. `/content slot role weapon duty` fills the current card in one command, with the weapon typed and picked from an autocomplete list. Discord select menus cannot have a search box and the owner asked for no pop-up search, so typing a name uses that command. A chosen preset skips the cards and opens the filled form. Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
+An officer shall be able to define the slots in three ways: typing the lines (the final form), guided steps, or a saved preset. In the create panel, Continue goes straight to the guided steps (owner decisions 2026-10-07): a form asks "How many players needed?" (one whole number, 1 to 20, with validation), then one card per slot offers four lists with placeholders, **Role** (Tank, Healer, Support, DPS), **Weapon class** (Sword, Axe, Hammer, Mace, Spear, Dagger, Quarterstaff, Bow, Crossbow, Gloves, Fire, Frost, Holy, Arcane, Cursed and Nature Staff, Shapeshifter, Off-hand), **Weapon** (the weapons of the chosen class) and **Duty** (Caller, Scout, Rat, Looter, optional; deselect to clear), with the buttons Next (Finish on the last), Back, Same as previous, Fill the rest and Cancel (Change number is on the first and last screens). Next saves the slot. The Back button on the first card returns to the create panel. `/content slot role weapon duty` fills the current card in one command, with the weapon typed and picked from an autocomplete list. Discord select menus cannot have a search box and the owner asked for no pop-up search, so typing a name uses that command. A chosen preset skips the cards and opens the filled form. Progress is kept in the database for an hour. The steps end by opening the usual create form with the slots filled in. Every mode produces the same slot list, at most 20 slots, so the roster and signup rules do not change.
 
 ### FR-025: Saved presets
 status: accepted
@@ -388,7 +392,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 Phase: MVP, release 0.18.0 live (optional weapon, build channel, PvX, Fill; migration 0016); before it, 0.17.1 (small line gaps on the roster; 0.17.0: gear tier as free text, Gank and Bomb Squad, `/content help`, owner tips, server-only commands, clear install and permission errors; migration 0015) (content nobody ended is ended 4 hours after its start; 0.15.1: roster title as a large heading; 0.15.0: roster rows grouped by role, measured header columns, owner's copy on Ping; 0.14.0 added single-use Ping, any-channel creation, admin roles, global commands; migrations through 0014) (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-09
-Next step: owner tests 0.19.1 (a gap above the Fill and Waitlist lines) and 0.19.0 (rosters stay live after the start, `/content reopen`, Assign fill panel fix; migration 0017 applied, commands registered). Owner tests 0.18.0 (role-only slots and the weapon picker, build channel, PvX, Fill and Assign fill, then line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: release 0.20.0 (Avalonian gold chest, Looter duty, PvX label, Fix and retry for the forms, build reference; migration 0018; re-register commands). Owner tests 0.19.1 (a gap above the Fill and Waitlist lines) and 0.19.0 (rosters stay live after the start, `/content reopen`, Assign fill panel fix; migration 0017 applied, commands registered). Owner tests 0.18.0 (role-only slots and the weapon picker, build channel, PvX, Fill and Assign fill, then line gaps, adding the bot to a second server, gear tier text, help and tips, automatic end after 4 hours, bigger title, layout E, header columns, Ping copy, the automatic reminder, `/content setup` role picker, creation in other channels). Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|

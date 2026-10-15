@@ -7,9 +7,9 @@ const kindOption = (description: string): CommandOption => ({
   type: 3, name: "category", description, required: false, choices: kindChoices(),
 });
 
-const buildChannelOption = (): CommandOption => ({
-  type: 7, name: "build-channel", description: "The channel that holds the build for this content (optional)",
-  required: false, channel_types: [0, 5, 10, 11, 12, 15],
+const buildReferenceOption = (): CommandOption => ({
+  type: 3, name: "build-reference", description: "A link to the build: a channel, post or message of this server (optional)",
+  required: false, max_length: 200,
 });
 
 export type CommandOption = {
@@ -40,7 +40,7 @@ export const commands = [
         type: 1,
         name: "create",
         description: "Create a content signup in this channel or post",
-        options: [buildChannelOption()],
+        options: [buildReferenceOption()],
       },
       {
         type: 1,
@@ -49,8 +49,8 @@ export const commands = [
         options: [
           { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
           kindOption("Change the category (leave empty to keep it)"),
-          buildChannelOption(),
-          { type: 5, name: "clear-build", description: "Remove the build channel", required: false },
+          buildReferenceOption(),
+          { type: 5, name: "clear-build", description: "Remove the build reference", required: false },
         ],
       },
       { type: 1, name: "setup", description: "Choose the admin roles that can manage content (Manage Server)" },

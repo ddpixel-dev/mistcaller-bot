@@ -1,3 +1,4 @@
+import { buildRefText, packRef, unpackRef } from "../domain/buildref.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -15,11 +16,11 @@ const NEED_TYPE = "Pick the type of content first.";
 
 // The draft lives in the custom ids of the panel's components, so nothing is kept in memory.
 // Every field starts unset (shown as "-" in the ids) so the boxes show what they are for.
-export type CreateDraft = { type: ContentType | null; loot: boolean | null; kind: string | null; presetId: string | null; buildChannelId: string | null };
-export const DEFAULT_DRAFT: CreateDraft = { type: null, loot: null, kind: null, presetId: null, buildChannelId: null };
+export type CreateDraft = { type: ContentType | null; loot: boolean | null; kind: string | null; presetId: string | null; buildRef: string | null };
+export const DEFAULT_DRAFT: CreateDraft = { type: null, loot: null, kind: null, presetId: null, buildRef: null };
 
 export const encode = (d: CreateDraft) =>
-  `${d.type ?? "-"}:${d.loot === null ? "-" : d.loot ? 1 : 0}:${d.kind ?? "-"}:${d.presetId ?? "-"}:${d.buildChannelId ?? "-"}`;
+  `${d.type ?? "-"}:${d.loot === null ? "-" : d.loot ? 1 : 0}:${d.kind ?? "-"}:${d.presetId ?? "-"}:${d.buildRef ? packRef(d.buildRef) : "-"}`;
 
 export function decodeDraft(parts: string[]): CreateDraft | null {
   const [type, loot, kind, preset, build] = parts;
@@ -27,13 +28,14 @@ export function decodeDraft(parts: string[]): CreateDraft | null {
   if (loot !== "-" && loot !== "0" && loot !== "1") return null;
   if (kind !== "-" && !(kind && /^[a-z-]{1,30}$/.test(kind))) return null;
   if (preset !== "-" && !(preset && UUID.test(preset))) return null;
-  if (build !== undefined && build !== "-" && !/^\d{5,25}$/.test(build)) return null; // a panel made before 0.18 has no build part
+  const buildRef = build === undefined || build === "-" ? null : unpackRef(build); // a panel made before 0.18 has no build part
+  if (build !== undefined && build !== "-" && buildRef === null) return null;
   return {
     type: type === "-" ? null : type,
     loot: loot === "-" ? null : loot === "1",
     kind: kind === "-" ? null : kind!,
     presetId: preset === "-" ? null : preset!,
-    buildChannelId: build === undefined || build === "-" ? null : build,
+    buildRef,
   };
 }
 
@@ -59,7 +61,7 @@ export async function createPanel(
         options: [
           { label: "PvP", value: "pvp", default: draft.type === "pvp" },
           { label: "PvE", value: "pve", default: draft.type === "pve" },
-          { label: "PvX (both)", value: "pvx", default: draft.type === "pvx" },
+          { label: "PvX", value: "pvx", default: draft.type === "pvx" },
         ],
       }],
     },
@@ -102,7 +104,7 @@ export async function createPanel(
     ],
   });
   const data = {
-    content: `**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.${draft.buildChannelId ? `\nBuild channel: <#${draft.buildChannelId}>` : ""}`,
+    content: `**Create content**\nPick the type and options, then press Continue to enter the title, time, gear tier and slots.${draft.buildRef ? `\nBuild reference: ${buildRefText(draft.buildRef, guildId)}` : ""}`,
     components: rows,
     allowed_mentions: { parse: [] },
   };
@@ -151,7 +153,7 @@ export async function handleCreatePanel(deps: Deps, i: Interaction): Promise<Int
   return await createPanel(deps, i.guild_id, draft, "update");
 }
 
-export type ReadyDraft = { type: ContentType; loot: boolean; kind: string; presetId: string | null; buildChannelId: string | null };
+export type ReadyDraft = { type: ContentType; loot: boolean; kind: string; presetId: string | null; buildRef: string | null };
 type Checked = { ok: true; draft: ReadyDraft } | { ok: false; response: InteractionResponse };
 
 // Shared checks for the buttons after Continue: the draft in the id, the post, the kind and a free post.
@@ -169,7 +171,7 @@ export async function checked(deps: Deps, i: Interaction, prefix: string): Promi
     const taken = await postTakenReply(deps, i.guild_id, i.channel.id);
     if (taken) return { ok: false, response: taken };
   }
-  return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId, buildChannelId: draft.buildChannelId } };
+  return { ok: true, draft: { type: draft.type, loot: draft.loot ?? false, kind: kind.value, presetId: draft.presetId, buildRef: draft.buildRef } };
 }
 
 // Continue: with a preset, open the form with its slots. Otherwise start the guided steps (how many players).

@@ -9,7 +9,7 @@ import { canManage } from "../domain/permissions.ts";
 import { CLEAR_DUTY, DUTY_WORD, dutyDef } from "../domain/duties.ts";
 import { renderRosterMessage } from "../render/roster.ts";
 
-// "/content duty position:<n> duty:<Caller|Scout|Rat|Clear>": assigned by the content's managers.
+// "/content duty position:<n> duty:<Caller|Scout|Rat|Looter|Clear>": assigned by the content's managers.
 export async function handleDutyCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   if (!i.guild_id || !userId || !i.channel?.id) return reply("Use this command inside a content post.");

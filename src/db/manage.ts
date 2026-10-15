@@ -42,7 +42,7 @@ export type EditInput = {
   tier: string;
   hasLoot: boolean | null; // null keeps the current value
   kind: string | null; // null keeps the current value
-  buildChannelId?: string | null; // undefined keeps the current value, null removes it
+  buildRef?: string | null; // undefined keeps the current value, null removes it
   slots: SlotDef[];
 };
 
@@ -90,7 +90,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         title = ${input.title}, notes = ${input.notes}, starts_at = ${input.startsAt},
         gear_tier = ${input.tier},
         has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind},
-        build_channel_id = ${input.buildChannelId === undefined ? c.build_channel_id : input.buildChannelId}
+        build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== input.startsAt.getTime();
