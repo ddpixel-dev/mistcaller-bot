@@ -233,7 +233,12 @@ export function renderRosterMessage(view: RosterView): {
   });
   // The owner places a fill in a position (FR-032); the button shows only while someone is waiting as a fill.
   if (live && fills.length > 0) buttons.push({ type: 2, style: 1, label: "Assign fill", emoji: { name: "🔁" }, custom_id: `fa:${view.id}` });
-  body.push({ type: 1, components: buttons });
+  // The creator and admins remove a player (FR-042); checked when pressed, shown to everyone while anyone is on the roster.
+  if (live && (filled > 0 || fills.length > 0 || waiting.length > 0)) {
+    buttons.push({ type: 2, style: 2, label: "Remove player", emoji: { name: "➖" }, custom_id: `rm:${view.id}` });
+  }
+  // A row holds five buttons at most.
+  for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
   if (live) body.push(text(OWNER_TIPS));
 
   return {
