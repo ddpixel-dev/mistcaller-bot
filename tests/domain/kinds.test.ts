@@ -41,10 +41,10 @@ test("resolveKind defaults to Other, accepts matching kinds and refuses others",
 
 test("Avalonian gold chest is a PvE category, listed before Other, and PvX has it too", () => {
   const pve = kindsOf("pve").map((k) => k.id);
-  assert.ok(pve.includes("avalonian-gold-chest"));
+  assert.ok(pve.includes("gold-chest"));
   assert.equal(pve.at(-1), "other");
-  assert.equal(kindDef("pve", "avalonian-gold-chest")!.label, "Avalonian gold chest");
-  assert.ok(kindsOf("pvx").some((k) => k.id === "avalonian-gold-chest"));
-  assert.equal(resolveKind("pve", "avalonian-gold-chest").ok, true);
-  assert.equal(resolveKind("pvp", "avalonian-gold-chest").ok, false);
+  assert.equal(kindDef("pve", "gold-chest")!.label, "Avalonian gold chest");
+  assert.ok(kindsOf("pvx").some((k) => k.id === "gold-chest"));
+  assert.equal(resolveKind("pve", "gold-chest").ok, true);
+  assert.equal(resolveKind("pvp", "gold-chest").ok, false);
 });

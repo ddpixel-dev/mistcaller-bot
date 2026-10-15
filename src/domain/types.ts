@@ -28,7 +28,7 @@ export type RosterView = {
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string }[];
   fills?: string[]; // members signed up as Fill (any position), oldest first
-  buildChannelId?: string | null;
+  buildRef?: string | null;
   pinged?: boolean;
   votes: { split: number; regear: number };
   voteClosed: boolean;
