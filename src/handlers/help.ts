@@ -14,7 +14,8 @@ export const HELP_TEXT = [
   "• **Split / Regear:** vote on the loot, while the vote is open.",
   "• `/content create` starts a roster in this channel or post. If the form has mistakes, press **Fix and retry**.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
-  "• `/content history` shows your own attendance. `/content weapon` looks up a weapon. `/content help` shows this message.",
+  "• `/content stats` shows this server's numbers, only to you. `/content history` shows your own attendance.",
+  "• `/content weapon` looks up a weapon. `/content help` shows this message.",
   "",
   "### The content's owner",
   "• `/content edit` changes the event. `/content cancel` cancels it.",
@@ -26,7 +27,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do, on any content, and `/content history` for any member. Saving and deleting presets.",
-  "• `/content setup` chooses the admin roles, the calendar channel and the statistics channel.",
+  "• `/content setup` chooses the admin roles and the Events Calendar channel.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {

@@ -54,12 +54,10 @@ export const commands = [
         ],
       },
       {
-        type: 1, name: "setup", description: "Admin roles (Manage Server), and the calendar and statistics channels (admins)",
+        type: 1, name: "setup", description: "Admin roles (Manage Server), and the Events Calendar channel (admins)",
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
-          { type: 7, name: "statistics-channel", description: "The channel where the bot keeps the statistics", required: false, channel_types: [0, 5] },
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
-          { type: 5, name: "clear-statistics", description: "Stop keeping the statistics and remove its messages", required: false },
         ],
       },
       {
@@ -128,6 +126,7 @@ export const commands = [
       { type: 1, name: "end", description: "End this content once it has started (creator, admin roles, Manage Server)" },
       { type: 1, name: "reopen", description: "Reopen ended content (creator, admin roles, Manage Server)" },
       { type: 1, name: "attendance", description: "Open the attendance form privately (creator, admin roles, Manage Server)" },
+      { type: 1, name: "stats", description: "This server's statistics, shown only to you" },
       {
         type: 1,
         name: "history",
