@@ -140,14 +140,15 @@ test("choosing the type loads that type's categories, shown as plain values", as
   assert.deepEqual(p.type.options.map((o: any) => !!o.default), [true, false, false]);
   assert.deepEqual(p.type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
   assert.equal(p.kind.disabled, false);
-  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "gank-squad", "bomb-squad", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
-  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Gank Squad", "Bomb Squad", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.value), ["zvz", "small-scale", "gank-squad", "bomb-squad", "ava-gank", "hellgate", "faction-warfare", "crystal-league", "arena", "skirmish", "training", "other"]);
+  assert.deepEqual(p.kind.options.map((o: any) => o.label), ["ZvZ", "Small-scale", "Gank Squad", "Bomb Squad", "Ava Gank", "Hellgate", "Faction Warfare", "Crystal League", "Arena", "Skirmish", "Training", "Other"]);
   assert.ok(p.kind.options.every((o: any) => !o.default));
   assert.equal(p.go.disabled, false);
   assert.equal(p.go.custom_id, "cpgo:pvp:-:-:-:-");
   const pve: any = await d(component("cp:type:-:-:-:-", ["pve"]));
   p = panelOf(pve);
   assert.ok(p.kind.options.some((o: any) => o.value === "world-boss") && !p.kind.options.some((o: any) => o.value === "zvz"));
+  assert.ok(p.kind.options.some((o: any) => o.value === "ava-gold" && o.label === "Ava Gold") && !p.kind.options.some((o: any) => o.value === "ava-gank"));
 });
 
 test("choosing kind and loot vote updates the ids; changing the type drops a kind that no longer fits", async () => {

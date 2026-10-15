@@ -314,7 +314,7 @@ The roster message shall use the Medieval Banner theme chosen by the owner on 20
 
 ### FR-023: Content kinds
 status: accepted
-Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Gank Squad, Bomb Squad (added 2026-10-08), Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming, Avalonian gold chest (added 2026-10-09) and Other. A per-server editable list was dropped from the MVP.
+Each content shall have a category inside its type (a PvP category or a PvE category), chosen in the create panel after the type (the word "kind" was renamed "category" on 2026-10-07), shown on the roster and used for its label and color. The kind is optional and defaults to Other. The list is fixed in code (ADR 0010): PvP has ZvZ, Small-scale, Gank Squad, Bomb Squad (added 2026-10-08), Ava Gank (added 2026-10-16), Hellgate, Faction Warfare, Crystal League, Arena, Skirmish, Training and Other; PvE has Group dungeon, Avalonian dungeon, Mists, Corrupted dungeon, World boss, Fame farming, Avalonian gold chest (added 2026-10-09), Ava Gold (added 2026-10-16) and Other. A per-server editable list was dropped from the MVP.
 
 ### FR-024: Slot definition modes
 status: accepted

@@ -11,6 +11,7 @@ export const KINDS: KindDef[] = [
   { id: "small-scale", label: "Small-scale", type: "pvp", color: 0x2b4db0 },
   { id: "gank-squad", label: "Gank Squad", type: "pvp", color: 0x8a2f4f },
   { id: "bomb-squad", label: "Bomb Squad", type: "pvp", color: 0xa0522d },
+  { id: "ava-gank", label: "Ava Gank", type: "pvp", color: 0x9b3d5a },
   { id: "hellgate", label: "Hellgate", type: "pvp", color: 0x7a1f2b },
   { id: "faction-warfare", label: "Faction Warfare", type: "pvp", color: 0x3b6fd1 },
   { id: "crystal-league", label: "Crystal League", type: "pvp", color: 0x5b8ee6 },
@@ -25,6 +26,7 @@ export const KINDS: KindDef[] = [
   { id: "world-boss", label: "World boss", type: "pve", color: 0xd4a017 },
   { id: "fame-farming", label: "Fame farming", type: "pve", color: 0xe0b84a },
   { id: "gold-chest", label: "Avalonian gold chest", type: "pve", color: 0xdaa520 },
+  { id: "ava-gold", label: "Ava Gold", type: "pve", color: 0xe6b422 },
   { id: DEFAULT_KIND, label: "Other", type: "pve", color: 0xc9a227 },
 ];
 
