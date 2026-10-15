@@ -26,6 +26,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0013 Weapon icons by link](decisions/0013-weapon-icons-by-link.md): linked from the render service, not uploaded
 - [0018 Roster as Components V2](decisions/0018-roster-as-components-v2.md): open-positions menu, one shared Leave button
 - [0019 External cron service](decisions/0019-external-cron-service.md): reminders and jobs on time; automatic reminder stays off until verified
+- [Release 0.21.0 plan](plan/2026-10-15-release-0.21.md): eleven owner requests, order and branches
 - [0025 Form retry; build reference](decisions/0025-form-retry-and-build-reference.md): Fix and retry button, one build-reference link option
 - [0024 Live after the start; reopen](decisions/0024-live-after-start-and-reopen.md): no auto-lock at the start, `/content reopen`, fresh auto-end window
 - [0023 Optional weapon, build channel, PvX and Fill](decisions/0023-optional-weapon-build-channel-pvx-fill.md): roster and signup changes
