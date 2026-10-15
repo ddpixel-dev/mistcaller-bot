@@ -2,7 +2,7 @@
 // Albion render service is uploaded once so it can sit inline in text, menus and buttons.
 import type { Weapon } from "./weapons.ts";
 
-export const EMOJI_PREFIX = "w_";
+export const EMOJI_PREFIX = "w8_"; // FR-039: "w8_" marks the tier 8 icons; the older "w_" emojis (tier 4) are removed after the switch
 
 // Discord emoji names: 2 to 32 letters, digits and underscores.
 export const emojiName = (base: string): string => `${EMOJI_PREFIX}${base}`.replace(/[^A-Za-z0-9_]/g, "_").slice(0, 32);
