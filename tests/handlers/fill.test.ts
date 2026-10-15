@@ -81,7 +81,7 @@ test("joining a slot without a weapon answers with a private weapon picker, afte
   assert.equal(r.data.flags, 64);
   assert.equal(edits.length, 1);
   assert.ok(rosterText(edits[0]).includes(`Player's choice`) || rosterText(edits[0]).includes(`<@${A}>`));
-  assert.ok(rosterText(edits[0]).includes(`Sworn: <@${A}>`));
+  assert.ok(rosterText(edits[0]).includes(` - <@${A}>`));
   const rows = r.data.components;
   assert.equal(rows[0].components[0].custom_id, `wp:c:${id}`);
   assert.ok(rows[0].components[0].options.length > 5);
@@ -185,7 +185,7 @@ test("Assign fill: only the owner or an admin; then a fill, then an open positio
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.slots[2]!.userId, A);
   assert.deepEqual(v.fills, [B]);
-  assert.ok(rosterText(edits.at(-1)).includes(`Sworn: <@${A}>`));
+  assert.ok(rosterText(edits.at(-1)).includes(` - <@${A}>`));
   assert.equal(posts.length, 1);
   assert.ok(posts[0]!.body.content.includes("position 3") && posts[0]!.body.content.includes(`<@${A}>`));
   assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] });
