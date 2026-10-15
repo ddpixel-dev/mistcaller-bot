@@ -123,7 +123,7 @@ export const commands = [
       {
         type: 1,
         name: "history",
-        description: "A member's attendance history",
+        description: "A member's attendance history (your own for everyone; others: admins only)",
         options: [{ type: 6, name: "member", description: "The member", required: true }],
       },
       {
