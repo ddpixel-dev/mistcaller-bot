@@ -231,7 +231,7 @@ test("all rows sit in one text block; Leave and the vote buttons share the last 
   assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
   const rows = comps(v).filter((c) => c.type === 1);
   const last = rows[rows.length - 1]!;
-  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1"]);
+  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "rm:c1"]);
   assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
@@ -262,13 +262,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 11 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 12 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 11);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 11, "full roster: the waitlist menu replaces the open-positions menu");
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 12);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 12, "full roster: the waitlist menu replaces the open-positions menu");
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -450,8 +450,10 @@ test("fills are listed under the rows; Assign fill shows only while a fill exist
 
 test("the buttons row never holds more than five buttons, even with the loot vote and a fill", () => {
   const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"] });
-  const row = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1).at(-1);
-  assert.deepEqual(row.components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
+  const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1);
+  assert.ok(rows.every((r: any) => r.components.length <= 5));
+  assert.deepEqual(rows.at(-2).components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
+  assert.deepEqual(rows.at(-1).components.map((c: any) => c.label), ["Remove player"], "the sixth button starts a second row");
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
