@@ -1,3 +1,4 @@
+import { buildRefText } from "../domain/buildref.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
@@ -121,7 +122,7 @@ function headerText(view: RosterView, filled: number, notes: boolean, spaced: bo
     ...gap,
     fact("⚔️", "Type", `**${kind}**`),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
-    ...(view.buildChannelId ? [fact("🧰", "Build", `<#${view.buildChannelId}>`)] : []),
+    ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
     fact(VOTE_ICON, "Loot vote", lootValue(view)),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),

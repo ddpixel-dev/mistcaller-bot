@@ -41,12 +41,12 @@ const countForm = (d: StoredDraft): InteractionResponse => ({
 export async function startGuided(
   deps: Deps,
   i: Interaction,
-  draft: { type: ContentType; loot: boolean; kind: string; buildChannelId?: string | null },
+  draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null },
 ): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   const threadId = i.channel?.id;
   if (!i.guild_id || !userId || !threadId) return reply(EXPIRED);
-  const id = await startDraft(deps.sql, { guildId: i.guild_id, userId, threadId, type: draft.type, loot: draft.loot, kind: draft.kind, buildChannelId: draft.buildChannelId ?? null });
+  const id = await startDraft(deps.sql, { guildId: i.guild_id, userId, threadId, type: draft.type, loot: draft.loot, kind: draft.kind, buildRef: draft.buildRef ?? null });
   const d = await getDraft(deps.sql, id, deps.now());
   return d ? countForm(d) : reply(EXPIRED);
 }
@@ -99,7 +99,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
       // On the first card, Back returns to the create panel with the choices kept.
       if (!i.guild_id) return reply(EXPIRED);
-      return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null, buildChannelId: d.buildChannelId }, "update");
+      return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null, buildRef: d.buildRef }, "update");
     }
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
@@ -114,7 +114,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildChannelId: d.buildChannelId }, formatSlotLines(d.slots));
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots));
     }
     default: return reply(EXPIRED);
   }

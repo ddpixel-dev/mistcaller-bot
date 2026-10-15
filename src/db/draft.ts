@@ -12,7 +12,7 @@ export type StoredDraft = GuidedDraft & {
   type: ContentType;
   loot: boolean;
   kind: string;
-  buildChannelId: string | null;
+  buildRef: string | null;
   weaponClass: string | null;
 };
 
@@ -22,7 +22,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   userId: r.user_id,
   threadId: r.thread_id,
   type: (r.type === "pve" || r.type === "pvx" ? r.type : "pvp") as ContentType,
-  buildChannelId: r.build_channel_id ?? null,
+  buildRef: r.build_channel_id ?? null,
   loot: r.loot,
   kind: r.kind,
   count: r.count ?? null,
@@ -37,11 +37,11 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
 // One draft per member per post: starting again replaces the old one.
 export async function startDraft(
   sql: Sql,
-  a: { guildId: string; userId: string; threadId: string; type: ContentType; loot: boolean; kind: string; buildChannelId?: string | null },
+  a: { guildId: string; userId: string; threadId: string; type: ContentType; loot: boolean; kind: string; buildRef?: string | null },
 ): Promise<string> {
   const [row] = await sql`
     insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, build_channel_id, slots)
-    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, ${a.buildChannelId ?? null}, '[]'::jsonb)
+    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, ${a.buildRef ?? null}, '[]'::jsonb)
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = excluded.loot, kind = excluded.kind, build_channel_id = excluded.build_channel_id, count = null, counts = null,
       slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, created_at = now()
@@ -82,5 +82,6 @@ export async function deleteDraft(sql: Sql, id: string): Promise<void> {
 export async function purgeDrafts(sql: Sql, now: Date): Promise<number> {
   const rows = await sql`
     delete from slot_draft where created_at <= ${new Date(now.getTime() - DRAFT_TTL_MS)} returning id`;
-  return rows.length;
+  const retries = await sql`delete from form_retry where created_at <= ${new Date(now.getTime() - DRAFT_TTL_MS)} returning id`;
+  return rows.length + retries.length;
 }

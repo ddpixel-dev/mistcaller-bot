@@ -483,11 +483,18 @@ test("with 20 open positions the join menu has 21 entries, and a full roster of 
   assert.ok(raw(v).includes("🔁 **Fill (30):**"));
 });
 
-test("the build channel is a header line with a mention, right after the gear tier, and absent when not set", () => {
-  const lines = raw(view({ buildChannelId: "123456789012345678" })).split("\n");
+test("the build reference is a header line with a mention (a message shows as a link), right after the gear tier, and absent when not set", () => {
+  const lines = raw(view({ buildRef: "123456789012345678" })).split("\n");
   const i = lines.findIndex((l) => l.includes("**Gear tier**"));
   assert.ok(plain(lines[i + 1]!).includes("🧰 **Build** <#123456789012345678>"), plain(lines[i + 1]!));
   assert.ok(!raw(view()).includes("🧰"));
   const pad = lines[i + 1]!.split("**Build**")[1]!.match(/^ */)![0].length;
   assert.ok(pad >= 1);
+});
+
+test("a build reference that points at a message shows as a link, not a channel mention", () => {
+  const t = plain(raw(view({ buildRef: "123456789012345678/223456789012345678" })));
+  assert.ok(t.includes("🧰 **Build**"), t);
+  assert.ok(t.includes("[Build message](https://discord.com/channels/g1/123456789012345678/223456789012345678)"), t);
+  assert.ok(!t.includes("<#123456789012345678/"), t);
 });

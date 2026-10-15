@@ -14,7 +14,7 @@ export type NewContent = {
   hasLoot: boolean;
   createdBy: string;
   slots: SlotDef[];
-  buildChannelId?: string | null;
+  buildRef?: string | null;
   now?: Date;
 };
 
@@ -58,7 +58,7 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
         gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildChannelId ?? null})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null})
       returning id`;
     const id: string = row!.id;
     const rows = input.slots.map((s, i) => ({
@@ -122,7 +122,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       chosenWeapon: s.chosen_weapon ?? null,
     })),
     fills: fills.map((f) => f.user_id as string),
-    buildChannelId: c.build_channel_id ?? null,
+    buildRef: c.build_channel_id ?? null,
     pinged: c.pinged_at !== null && c.pinged_at !== undefined,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
