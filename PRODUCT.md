@@ -253,6 +253,10 @@ Each number is on its own line (owner request 2026-10-15). The message is recomp
 status: accepted (owner request 2026-10-15)
 Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar and statistics channels. Refusals are explained in the reply. There is no host role.
 
+### FR-046: Party strip
+status: accepted (owner request 2026-10-15, option B)
+Under the header, the roster shall show a line of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out), so Discord can draw them larger than the inline icons in the rows. It is the first thing dropped when a very full roster needs the room. Whether Discord draws the line at its large size was not known when this was built; the owner checks it live and can ask for the heading-row option or an image gallery instead.
+
 ### FR-029: Help and owner tips
 status: accepted
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
@@ -427,9 +431,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.21.0 live (fills hold seats and count in the party, "Party" wording and `weapon - player - duty` rows, prefilled start time, Ping once per player, Remove player, tier 8 weapon emojis, history restricted, event calendar and statistics channels; migrations 0019 and 0020). Before it: 0.20.0 (Fix and retry for the forms, `build-reference`, Avalonian gold chest, Looter), 0.19.x (rosters stay live after the start, `/content reopen`, spacing above Fill and Waitlist), 0.18.0 (optional weapon, build channel, PvX, Fill; migration 0016) and earlier (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
+Phase: MVP, release 0.21.1 live (party strip of weapon icons, `calendar-channel` and the Events Calendar showing only days with events, statistics one number per line); before it 0.21.0 (fills hold seats and count in the party, "Party" wording and `weapon - player - duty` rows, prefilled start time, Ping once per player, Remove player, tier 8 weapon emojis, history restricted, event calendar and statistics channels; migrations 0019 and 0020). Before it: 0.20.0 (Fix and retry for the forms, `build-reference`, Avalonian gold chest, Looter), 0.19.x (rosters stay live after the start, `/content reopen`, spacing above Fill and Waitlist), 0.18.0 (optional weapon, build channel, PvX, Fill; migration 0016) and earlier (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-15
-Next step: owner tests 0.21.0 (set the calendar and statistics channels with `/content setup`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.21.1 and 0.21.0 (the party strip: is it drawn large?; set the calendar and statistics channels with `/content setup`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|
