@@ -253,8 +253,8 @@ status: accepted (owner request 2026-10-15)
 Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, `stats`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar channel. Refusals are explained in the reply. There is no host role.
 
 ### FR-046: Party strip
-status: accepted (owner request 2026-10-15, option B)
-Under the header, the roster shall show a line of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out), so Discord can draw them larger than the inline icons in the rows. It is the first thing dropped when a very full roster needs the room. Whether Discord draws the line at its large size was not known when this was built; the owner checks it live and can ask for the heading-row option or an image gallery instead.
+status: accepted (owner request 2026-10-15, option B; changed to a level-1 heading the same day because the plain line was still small)
+Under the header, the roster shall show a **level-1 heading** of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out). Discord draws an emoji as big as the text around it and cannot draw the extra-large "jumbo" size in this kind of message, so the largest text style is what makes the icons bigger (about one and a half times the inline size). It is the first thing dropped when a very full roster needs the room. If the owner still finds the icons too small, the next options are larger text on each row or an image gallery of the real weapon pictures.
 
 ### FR-029: Help and owner tips
 status: accepted

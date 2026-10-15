@@ -138,7 +138,9 @@ test("user text is escaped in the title, notes, role and weapon, and nothing can
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
   // a role like "# big" cannot break out of its heading into another one
   const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
-  assert.equal(h.split("\n").filter((l) => l.startsWith("# ")).length, 1, "only the title is a level-1 heading");
+  const headings = h.split("\n").filter((l) => l.startsWith("# "));
+  const own = headings.filter((l) => l.slice(2).replace(/<a?:\w+:\d+>/g, "").trim() !== "");
+  assert.equal(own.length, 1, "only the title is a level-1 heading made of text; the other is the icon strip");
 });
 
 test("notes get a Notes: label and a different icon than the title", () => {
@@ -529,11 +531,12 @@ test("the join menu closes when every free position is held for a fill; the wait
 
 const stripOf = (v: RosterView) => {
   const blocks = (msg(v) as any).components[0].components.filter((c: any) => c.type === 10).map((c: any) => String(c.content));
-  return blocks.find((b: string) => b.length > 0 && b.replace(/<a?:\w+:\d+>/g, "").trim() === "");
+  // A level-1 heading holding only icons: Discord draws an emoji as big as the text around it, and # is the largest text.
+  return blocks.find((b: string) => b.startsWith("# ") && b.slice(2).replace(/<a?:\w+:\d+>/g, "").trim() === "");
 };
 const known = () => WEAPONS.filter((w) => WEAPON_EMOJI[w.base]);
 
-test("a line holding only the party's weapon icons sits between the header and the rows, one icon per position in order", () => {
+test("a level-1 heading holding only the party's weapon icons sits between the header and the rows, one icon per position in order", () => {
   const [a, b, c] = known();
   const v = view({ slots: [
     { id: "s1", position: 1, role: "Tank", weapon: a!.name, userId: null },
@@ -547,7 +550,7 @@ test("a line holding only the party's weapon icons sits between the header and t
   assert.deepEqual(tags.map((t: string) => t.split(":")[2]!.replace(">", "")), [a, b, c].map((w) => WEAPON_EMOJI[w!.base]!));
   const blocks = (msg(v) as any).components[0].components.filter((x: any) => x.type === 10);
   assert.ok(blocks.findIndex((x: any) => x.content === strip) === 1, "second block: after the header, before the rows");
-  assert.equal(strip.trim(), tags.join(" "), "icons separated by single spaces, nothing else");
+  assert.equal(strip, `# ${tags.join(" ")}`, "a level-1 heading: icons separated by single spaces, nothing else");
   void tag;
 });
 
