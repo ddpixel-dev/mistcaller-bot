@@ -21,7 +21,7 @@ const failure = (r: AssignResult["result"]): string =>
   : r === "unavailable" ? "This content is finished or cancelled."
   : "This content no longer exists.";
 
-async function names(deps: Deps, guildId: string, ids: string[]): Promise<Record<string, string>> {
+export async function names(deps: Deps, guildId: string, ids: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (!deps.rest.memberName) return out;
   await Promise.all(ids.map(async (u) => {

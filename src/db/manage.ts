@@ -173,7 +173,10 @@ export type UpcomingItem = {
 export async function listUpcoming(sql: Sql, guildId: string, limit: number): Promise<UpcomingItem[]> {
   const rows = await sql`
     select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status,
-      (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed') as filled,
+      (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed')
+        + least((select count(*)::int from signup su where su.content_id = c.id and su.status = 'fill'),
+                (select count(*)::int from slot s where s.content_id = c.id)
+                - (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed')) as filled,
       (select count(*)::int from slot s where s.content_id = c.id) as total
     from content c
     where c.guild_id = ${guildId} and c.status in ('open', 'locked')

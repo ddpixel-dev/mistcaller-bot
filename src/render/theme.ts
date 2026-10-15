@@ -16,8 +16,7 @@ export const BANNER_URL: string | null = null;
 export const ICON_URL: string | null = null;
 
 export const WORDS = {
-  company: "The Company",
-  sworn: "Sworn",
+  company: "Party",
   open: "Open",
   choice: "Player's choice",
   spoils: "Spoils",

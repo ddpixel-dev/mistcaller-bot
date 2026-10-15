@@ -44,7 +44,7 @@ test("the creator assigns a duty to a held position: saved and shown on the rost
   assert.ok(text(r).includes("Caller assigned for position 1."));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   assert.equal(edits.length, 1);
-  assert.ok(textOf(edits[0].body).includes("📯 Caller · Sworn: <@alice>"));
+  assert.ok(textOf(edits[0].body).includes("<@alice> - 📯 Caller"));
   assert.ok(text(await d(duty(1, "none"))).includes("Duty cleared"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, null);
 });

@@ -187,3 +187,11 @@ test("unlock seats the waitlist in positions that were freed while locked, and a
   assert.equal(posts.length, 1);
   assert.ok(posts[0].body.content.includes("<@tankwait> a position opened for you"));
 });
+
+test("the list counts reserved fills in the party, like the roster", async () => {
+  const { sql, id, d } = await setup();
+  const slots = (await getRosterView(sql, id, NOW))!.slots.map((s) => s.id);
+  await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: "a", guildId: "g1", now: NOW });
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'f1', null, 'fill'), ('g1', ${id}, 'f2', null, 'fill'), ('g1', ${id}, 'f3', null, 'fill')`;
+  assert.ok(text(await d(cmd("list"))).includes("2/2"), "1 seated + min(3 fills, 1 open) = 2 of 2");
+});

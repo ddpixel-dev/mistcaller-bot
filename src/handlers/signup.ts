@@ -50,6 +50,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
   const result = await claimSlot(deps.sql, { contentId: got[0]!, slotId, userId, guildId, now: deps.now(), promoted });
   if (result === "unchanged") return reply("You already hold this position.");
   if (result === "taken") return reply("That position was just taken. Pick another one from the menu.");
+  if (result === "reserved") return reply("Every free position is held for fill players who signed up earlier. Join the waitlist instead.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);
   // A slot without a weapon (FR-030): update the roster through the API, and give the player a private weapon picker.

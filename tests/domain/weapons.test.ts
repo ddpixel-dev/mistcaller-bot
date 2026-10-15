@@ -13,6 +13,7 @@ const sample = `   1: UNIQUE_HIDEOUT                                            
    8: T3_OFF_SHIELD                                                    : Journeyman's Shield
    9: T4_ARMOR_PLATE_SET1                                              : Adept's Soldier Armor
   10: T4_2H_KNUCKLES_SET1                                              : Adept's Brawler Gloves
+  11: T8_2H_GREATAXE                                                   : Elder's Greataxe
 garbage line`;
 
 test("parseWeapons keeps weapons, drops tools, enchants and non-weapons, and strips the tier word", () => {
@@ -22,8 +23,9 @@ test("parseWeapons keeps weapons, drops tools, enchants and non-weapons, and str
     return name(a).localeCompare(name(b));
   }));
   const sword = w.find((x) => x.base === "MAIN_SWORD")!;
-  assert.deepEqual(sword, { base: "MAIN_SWORD", name: "Broadsword", slot: "main", iconTier: 4 });
-  assert.equal(w.find((x) => x.base === "OFF_SHIELD")!.iconTier, 2);
+  assert.deepEqual(sword, { base: "MAIN_SWORD", name: "Broadsword", slot: "main", iconTier: 5 }, "no T8 in the data: the highest tier there is");
+  assert.equal(w.find((x) => x.base === "OFF_SHIELD")!.iconTier, 3);
+  assert.equal(w.find((x) => x.base === "2H_GREATAXE")!.iconTier, 8, "FR-039: tier 8 when the weapon has it");
   assert.equal(w.find((x) => x.base === "2H_GREATAXE")!.slot, "2h");
   assert.ok(!w.some((x) => /TOOL|ARMOR|@/.test(x.base)));
 });

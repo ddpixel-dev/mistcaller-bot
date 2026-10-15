@@ -13,6 +13,8 @@ import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
 import { formProblems } from "./retry.ts";
+import { refreshDashboardSoon } from "../jobs/dashboards.ts";
+import { defaultStart } from "../domain/time.ts";
 
 export const NOT_HERE = "Use this command in a server channel, thread or forum post that the bot can write in.";
 const FAILED = "Could not create the content right now. Nothing was saved, please try again.";
@@ -80,7 +82,7 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildRef: build.id ?? null }, "new");
 }
 
-export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null): InteractionResponse {
+export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null, now: Date): InteractionResponse {
   return {
     type: MODAL,
     data: {
@@ -88,7 +90,7 @@ export function createForm(draft: { type: ContentType; loot: boolean; kind: stri
       title: "Create content",
       components: [
         textInput("title", "Title", 100),
-        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00" }),
+        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00", value: defaultStart(now) }),
         textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3" }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
           style: 2, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(presetLines ? { value: presetLines } : {}),
@@ -172,5 +174,6 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     }));
     return reply(FAILED);
   }
+  await refreshDashboardSoon(deps, i.guild_id, "schedule"); // FR-043
   return reply("Created");
 }

@@ -114,7 +114,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots));
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now());
     }
     default: return reply(EXPIRED);
   }

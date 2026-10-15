@@ -1,3 +1,4 @@
+import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -8,7 +9,7 @@ import { getManageTarget } from "../db/manage.ts";
 import {
   claimReport, endContent, getAttendance, memberHistory, releaseReport, reopenContent, setAttended, submitAttendance, type Attendance,
 } from "../db/attendance.ts";
-import { canManage } from "../domain/permissions.ts";
+import { canManage, isAdmin } from "../domain/permissions.ts";
 import { renderAttendanceForm, renderReport } from "../render/attendance.ts";
 import { renderRosterMessage } from "../render/roster.ts";
 
@@ -84,6 +85,7 @@ export async function handleEndCommand(deps: Deps, i: Interaction): Promise<Inte
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
+  await refreshDashboardSoon(deps, a.guildId, "schedule");
   return reply(a.submittedAt ? "Content ended." : "Content ended. The attendance report is posted when the owner submits the attendance form.");
 }
 
@@ -102,14 +104,24 @@ export async function handleReopenCommand(deps: Deps, i: Interaction): Promise<I
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
+  await refreshDashboardSoon(deps, a.guildId, "schedule");
   return reply("Content reopened: signups, edits and every other action work again. It ends by itself 4 hours from now unless you end it with `/content end`.");
 }
 
-// "/content history @member": attended, no-show, and finished contents where the member was never marked.
+// "/content history @member": attended, no-show, and finished contents where the member was never marked. Everyone sees
+// their own; another member's history is for admins only (FR-045, owner decision 2026-10-15).
 export async function handleHistoryCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const member = leafOption(i, "member");
   if (!i.guild_id) return reply("Use this command inside the server.");
   if (typeof member !== "string" || !/^\d{5,25}$/.test(member)) return reply("Pick a member.");
+  const actor = i.member?.user?.id;
+  if (!actor) return reply("Use this command inside the server.");
+  if (member !== actor) {
+    const adminRoles = await getAdminRoleIds(deps.sql, i.guild_id);
+    if (!isAdmin({ userId: actor, roles: i.member?.roles ?? [], permissions: i.member?.permissions }, adminRoles)) {
+      return reply("You can see your own attendance history. Only a server admin (an admin role or Manage Server) can see another member's.");
+    }
+  }
   const h = await memberHistory(deps.sql, i.guild_id, member);
   return reply(`<@${member}>\n✅ Attended: ${h.attended}\n❌ No-show: ${h.noShow}\n❔ Not recorded: ${h.notRecorded}`);
 }

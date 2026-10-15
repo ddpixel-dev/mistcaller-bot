@@ -5,6 +5,8 @@ import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { readBuildReference } from "./create.ts";
 import { packRef, unpackRef } from "../domain/buildref.ts";
 import { formProblems } from "./retry.ts";
+import { refreshDashboardSoon } from "../jobs/dashboards.ts";
+import { utcInput } from "../domain/time.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
@@ -62,10 +64,6 @@ export async function announce(deps: Deps, threadId: string, text: string, users
 }
 
 const mentions = (users: string[]) => users.map((u) => `<@${u}>`).join(" ");
-const pad = (n: number) => String(n).padStart(2, "0");
-const utcInput = (d: Date) =>
-  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-
 function lootOption(i: Interaction): "1" | "0" | "k" {
   const v = subOption(i, "edit", "loot-vote");
   return v === true ? "1" : v === false ? "0" : "k";
@@ -144,6 +142,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);
 
   const refreshed = await refreshRoster(deps, checked.target.id);
+  await refreshDashboardSoon(deps, checked.target.guildId, "schedule");
   if (result.startChanged && result.notify.length > 0) {
     const epoch = Math.floor(start.value.getTime() / 1000);
     await announce(
@@ -199,6 +198,7 @@ export async function handleCancelButton(deps: Deps, i: Interaction): Promise<In
   const result = await cancelContent(deps.sql, id);
   if (result.result === "unavailable") return done("This content is already cancelled or finished.");
   await refreshRoster(deps, id);
+  await refreshDashboardSoon(deps, checked.target.guildId, "schedule");
   if (result.notify.length > 0) {
     const view = await getRosterView(deps.sql, id, deps.now());
     await announce(

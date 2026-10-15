@@ -1,6 +1,8 @@
-// Uploads the weapon icons from the Albion render service as application emoji and writes
-// src/data/weapon-emoji.ts. Safe to run again: it only uploads what is missing.
+// Uploads the weapon icons (tier 8 where the weapon has one, FR-039) from the Albion render service as application
+// emoji and writes src/data/weapon-emoji.ts. Safe to run again: it only uploads what is missing.
 // Run: docker compose run --rm node node scripts/sync-emoji.ts
+// After the new ids are deployed, remove the older tier 4 emojis (named "w_..."):
+//      docker compose run --rm node node scripts/sync-emoji.ts --remove-old
 import { writeFile } from "node:fs/promises";
 import { WEAPONS } from "../src/data/weapons.ts";
 import { emojiName, weaponsToUpload } from "../src/domain/weaponEmoji.ts";
@@ -30,6 +32,17 @@ async function call(method: string, url: string, body?: unknown): Promise<any> {
 }
 
 const listed = (await call("GET", API)) as { items?: { id: string; name: string }[] };
+
+if (process.argv.includes("--remove-old")) {
+  const old = (listed.items ?? []).filter((e) => /^w_/.test(e.name));
+  for (const e of old) {
+    await call("DELETE", `${API}/${e.id}`);
+    await sleep(350);
+  }
+  console.log(`removed ${old.length} older emoji`);
+  process.exit(0);
+}
+
 const existing = new Map((listed.items ?? []).map((e) => [e.name, e.id]));
 const todo = weaponsToUpload(WEAPONS, new Set(existing.keys()));
 console.log(`${existing.size} emoji already exist, ${todo.length} to upload`);

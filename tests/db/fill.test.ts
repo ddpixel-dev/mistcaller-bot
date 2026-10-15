@@ -170,3 +170,64 @@ test("a fill counts as signed up for voting, attendance, history, reminders, edi
   const cancelled = await cancelContent(sql, id);
   assert.ok(cancelled.result === "ok" && cancelled.notify.includes(B));
 });
+
+// ---- FR-040: a fill holds a seat ----
+
+test("a fill holds a seat: the last open position cannot be taken from them, and the others are told it is reserved", async () => {
+  const { sql, id, slots, view } = await setup(); // 4 positions
+  assert.equal(await fill(sql, id, A), "claimed");
+  assert.equal(await claim(sql, id, slots[0]!, B), "claimed");
+  assert.equal(await claim(sql, id, slots[1]!, C), "claimed");
+  assert.equal(await claim(sql, id, slots[2]!, D), "claimed", "2 open positions, 1 fill: one stays free");
+  assert.equal(await claim(sql, id, slots[3]!, OWNER), "reserved", "the last open position is the fill's");
+  const v = await view();
+  assert.equal(v.slots.filter((s) => s.userId).length, 3);
+  assert.deepEqual(v.fills, [A]);
+});
+
+test("the fill can take the held seat, and moving between positions is never blocked", async () => {
+  const { sql, id, slots, view } = await setup();
+  await fill(sql, id, A);
+  for (const [n, u] of [[0, B], [1, C], [2, D]] as const) await claim(sql, id, slots[n]!, u);
+  assert.equal(await claim(sql, id, slots[3]!, A), "claimed", "the fill takes their seat");
+  assert.deepEqual((await view()).fills, []);
+  assert.equal(await claim(sql, id, slots[3]!, A), "unchanged");
+  await fill(sql, id, OWNER);
+  assert.equal(await claim(sql, id, slots[0]!, D), "taken", "a taken position is still taken");
+});
+
+test("when a player leaves, the first waiter is seated only if a seat is left over after the fills' seats", async () => {
+  const { sql, id, slots, view } = await setup();
+  for (const [n, u] of [[0, B], [1, C], [2, D]] as const) await claim(sql, id, slots[n]!, u);
+  await fill(sql, id, A); // the last open position is now the fill's
+  assert.equal(await joinWaitlist(sql, { contentId: id, userId: OWNER, guildId: G, role: "DPS", now: NOW }), "ok", "a role with a free position can be waited for when every seat is reserved");
+  const promoted: any[] = [];
+  assert.equal(await leaveContent(sql, { contentId: id, userId: D, guildId: G, now: NOW, promoted }), "left");
+  assert.deepEqual(promoted.map((p) => p.userId), [OWNER], "2 open positions, 1 fill: one seat is left over for the waiter");
+  const v = await view();
+  assert.equal(v.slots[3]!.userId, null, "the position held for the fill stays open");
+  assert.equal(v.slots[2]!.userId, OWNER);
+});
+
+test("a waiter is not seated while every free position is reserved for fills", async () => {
+  const { sql, id, slots, view } = await setup();
+  await claim(sql, id, slots[0]!, B);
+  await claim(sql, id, slots[1]!, C);
+  for (const u of [A, D, "100000000000000005"]) await fill(sql, id, u);
+  // 2 seated, 2 open, 3 fills: every open position is held (one fill is standby)
+  assert.equal(await joinWaitlist(sql, { contentId: id, userId: OWNER, guildId: G, role: "Tank", now: NOW }), "ok");
+  const promoted: any[] = [];
+  assert.equal(await leaveContent(sql, { contentId: id, userId: B, guildId: G, now: NOW, promoted }), "left");
+  assert.deepEqual(promoted, [], "3 open positions, 3 fills: nothing is left over for the waiter");
+  assert.deepEqual((await view()).waitlist!.map((w) => w.userId), [OWNER]);
+});
+
+test("a role with a free position can be waited for only while every free seat is reserved", async () => {
+  const { sql, id, slots } = await setup();
+  assert.equal(await joinWaitlist(sql, { contentId: id, userId: B, guildId: G, role: "Tank", now: NOW }), "open_slot");
+  await claim(sql, id, slots[0]!, C);
+  await claim(sql, id, slots[1]!, D);
+  await fill(sql, id, A);
+  await fill(sql, id, OWNER);
+  assert.equal(await joinWaitlist(sql, { contentId: id, userId: B, guildId: G, role: "DPS", now: NOW }), "ok");
+});

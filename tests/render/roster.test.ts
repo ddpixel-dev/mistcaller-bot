@@ -63,7 +63,7 @@ test("header lines: category, tier and loot vote each on their own line with an 
   assert.ok(lines.some((l) => l.startsWith("💰 **Loot vote** On")));
   assert.ok(lines.includes("🕰️ **UTC** Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** <t:1791396000:f> · <t:1791396000:R>"));
-  assert.ok(lines.some((l) => l.startsWith("**The Company (1/2)**")));
+  assert.ok(lines.some((l) => l.startsWith("**Party (1/2)**")));
   assert.ok(lines[0]!.startsWith("# 📜 ⚜ Ava roam ⚜"), "the title is a level-1 heading");
 });
 
@@ -92,7 +92,7 @@ test("the loot vote line carries the tally and closing time while open, and the 
   assert.equal(voteLine(view({ voteClosed: true, votes: { split: 2, regear: 1 }, voteResult: "split" })), "💰 Loot vote result: Split won 2-1");
 });
 
-test("rows sit under a heading per role and read: number, weapon icon, weapon - duty, then Sworn: player or Open", () => {
+test("rows sit under a heading per role and read: number, weapon icon, weapon - player - duty (Open for an empty position)", () => {
   // Weapons without an icon (not in the list) show only their name, so the text format is easy to read here.
   const t = txt(view({ slots: [
     { id: "s1", position: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
@@ -100,10 +100,10 @@ test("rows sit under a heading per role and read: number, weapon icon, weapon - 
     { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: "222" },
     { id: "s4", position: 4, role: "Support", weapon: "Mystery Orb", userId: null },
   ] }));
-  assert.ok(t.includes("### 🛡️ Tank · 1/1\n1. Mystery Axe - 📯 Caller · Sworn: <@111>"));
-  assert.ok(t.includes("### 💚 Healer · 0/1\n2. Mystery Staff - 🏹 Scout · Open"));
-  assert.ok(t.includes("### ⚔️ DPS · 1/1\n3. Mystery Bow · Sworn: <@222>"));
-  assert.ok(t.includes("### 🤝 Support · 0/1\n4. Mystery Orb · Open"));
+  assert.ok(t.includes("### 🛡️ Tank · 1/1\n1. Mystery Axe - <@111> - 📯 Caller"));
+  assert.ok(t.includes("### 💚 Healer · 0/1\n2. Mystery Staff - Open - 🏹 Scout"));
+  assert.ok(t.includes("### ⚔️ DPS · 1/1\n3. Mystery Bow - <@222>"));
+  assert.ok(t.includes("### 🤝 Support · 0/1\n4. Mystery Orb - Open"));
 });
 
 test("slots of one role share a heading with its count, even when they are not next to each other; groups follow first appearance", () => {
@@ -125,8 +125,8 @@ test("the weapon icon sits inline before the weapon name when its emoji exists, 
   assert.ok(withIds > 100, "run scripts/sync-emoji.ts");
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
   const t = txt(view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
-  assert.ok(t.includes(`1. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword · Open`));
-  assert.ok(t.includes("2. Mystery Blade · Open"));
+  assert.ok(t.includes(`1. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
+  assert.ok(t.includes("2. Mystery Blade - Open"));
 });
 
 test("user text is escaped in the title, notes, role and weapon, and nothing can ping", () => {
@@ -134,7 +134,7 @@ test("user text is escaped in the title, notes, role and weapon, and nothing can
   assert.ok(t.includes("@​everyone \\*\\*x\\*\\*"));
   assert.ok(t.includes("@​here \\*hi\\*"));
   assert.ok(t.includes("\\_R\\_ · 0/1"));
-  assert.ok(t.includes("1. @​W · Open"));
+  assert.ok(t.includes("1. @​W - Open"));
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
   // a role like "# big" cannot break out of its heading into another one
   const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
@@ -191,7 +191,7 @@ test("the menu uses the weapon's emoji when it exists, and the role icon otherwi
     { id: "s1", position: 1, role: "DPS", weapon: "Longbow", userId: null },
     { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null },
   ] }), "join:")[0]!;
-  assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w_${known.base}` });
+  assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w8_${known.base}` });
   assert.deepEqual(menu.options[2].emoji, { name: "🛡️" });
 });
 
@@ -231,7 +231,7 @@ test("all rows sit in one text block; Leave and the vote buttons share the last 
   assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
   const rows = comps(v).filter((c) => c.type === 1);
   const last = rows[rows.length - 1]!;
-  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1"]);
+  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "rm:c1"]);
   assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
@@ -262,13 +262,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 11 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 12 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 11);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 11, "full roster: the waitlist menu replaces the open-positions menu");
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 12);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 12, "full roster: the waitlist menu replaces the open-positions menu");
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -278,7 +278,7 @@ test("worst case text: 20 slots with the longest roles and weapons and a long no
   const v = view({ slots: long, title: "T".repeat(100), notes: "N".repeat(500), hasLoot: true });
   assert.ok(txt(v).length <= 4000, String(txt(v).length));
   assert.deepEqual(discordProblems(msg(v)), []);
-  assert.ok(txt(v).includes("The Company (20/20)"));
+  assert.ok(txt(v).includes("Party (20/20)"));
 });
 
 test("the waitlist shows its members in order with the role they wait for, and nothing when empty", () => {
@@ -450,8 +450,10 @@ test("fills are listed under the rows; Assign fill shows only while a fill exist
 
 test("the buttons row never holds more than five buttons, even with the loot vote and a fill", () => {
   const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"] });
-  const row = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1).at(-1);
-  assert.deepEqual(row.components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
+  const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1);
+  assert.ok(rows.every((r: any) => r.components.length <= 5));
+  assert.deepEqual(rows.at(-2).components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
+  assert.deepEqual(rows.at(-1).components.map((c: any) => c.label), ["Remove player"], "the sixth button starts a second row");
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
@@ -464,10 +466,10 @@ test("a role-only slot reads Player's choice, then the holder's own weapon with 
     { id: "d", position: 4, role: "DPS", weapon: "", duty: "caller", userId: null },
   ] });
   const t = raw(v);
-  assert.ok(t.includes("1. Player's choice · Open"));
-  assert.ok(t.includes(`2. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword · Sworn: <@111111111111111111>`));
-  assert.ok(t.includes("3. Player's choice · Sworn: <@222222222222222222>"));
-  assert.ok(t.includes("4. Player's choice - 📯 Caller · Open"));
+  assert.ok(t.includes("1. Player's choice - Open"));
+  assert.ok(t.includes(`2. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - <@111111111111111111>`));
+  assert.ok(t.includes("3. Player's choice - <@222222222222222222>"));
+  assert.ok(t.includes("4. Player's choice - Open - 📯 Caller"));
   const menu = byId(v, "join:")[0]!;
   assert.deepEqual(menu.options.map((o: any) => o.label), ["Fill (play any position)", "1. Tank", "4. DPS - Caller"]);
   assert.deepEqual(menu.options[1].emoji, { name: "🛡️" });
@@ -497,4 +499,28 @@ test("a build reference that points at a message shows as a link, not a channel 
   assert.ok(t.includes("🧰 **Build**"), t);
   assert.ok(t.includes("[Build message](https://discord.com/channels/g1/123456789012345678/223456789012345678)"), t);
   assert.ok(!t.includes("<#123456789012345678/"), t);
+});
+
+// ---- FR-040: fills hold seats ----
+
+test("the party count is seated players plus reserved fills, and the bar follows it", () => {
+  const withFill = view({ slots: slots(10, 7), fills: ["9001"] });
+  assert.ok(txt(withFill).includes("Party (8/10)"), txt(withFill));
+  const many = view({ slots: slots(10, 7), fills: ["9001", "9002", "9003", "9004", "9005"] });
+  assert.ok(txt(many).includes("Party (10/10)"), "standby fills hold no seat, so the party never exceeds the positions");
+  assert.ok(txt(view({ slots: slots(10, 7) })).includes("Party (7/10)"));
+});
+
+test("the join menu closes when every free position is held for a fill; the waitlist menu then offers every role", () => {
+  const two = [...slots(2, 1, "Tank", "Mace"), ...slots(2, 1, "DPS", "Bow").map((s, n) => ({ ...s, id: `d${n}`, position: n + 3, userId: n === 0 ? "7" : null }))];
+  const open = view({ slots: two, fills: [] });
+  assert.equal(byId(open, "join:").length, 1);
+  const held = view({ slots: two, fills: ["9001", "9002"] }); // 2 open positions, 2 fills: both held
+  assert.equal(byId(held, "join:").length, 0, "no menu: nothing is left to pick");
+  const wait = byId(held, "wait:")[0]!;
+  assert.deepEqual(wait.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"], "a role with a position that is held can be waited for");
+  const spare = view({ slots: two, fills: ["9001"] });
+  assert.equal(byId(spare, "join:").length, 1, "2 open positions, 1 fill: one can still be picked");
+  assert.deepEqual(byId(spare, "wait:").length, 0);
+  assert.deepEqual(discordProblems(msg(held)), []);
 });

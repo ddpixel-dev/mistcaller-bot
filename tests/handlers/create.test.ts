@@ -521,3 +521,13 @@ test("Administrator, or no permission information at all, lets creation try", as
   await handleCreateModal(deps, modal(good, "1", { app_permissions: "garbage", channel: { id: "c", type: 0 } }));
   assert.equal(posts.length, 3);
 });
+
+test("the create form's Start field is prefilled with the current UTC time plus one hour, and still shows the example", async () => {
+  const { createForm } = await import("../../src/handlers/create.ts");
+  const r: any = createForm({ type: "pvp", loot: false, kind: "other" }, null, new Date("2026-10-15T13:20:00Z"));
+  const start = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "start");
+  assert.equal(start.value, "2026-10-15 14:20");
+  assert.equal(start.placeholder, "2026-10-07 18:00");
+  const title = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "title");
+  assert.equal("value" in title, false, "only the start is prefilled");
+});

@@ -1,4 +1,5 @@
 import { buildRefText } from "../domain/buildref.ts";
+import { seatCounts } from "../domain/seats.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { VOTE_CUTOFF_MS } from "../domain/vote.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
@@ -63,7 +64,7 @@ function lootValue(view: RosterView): string {
 }
 
 // Layout E (owner decision 2026-10-08): the rows are grouped under a heading per role, so there is no role column to
-// line up. A row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`); the duty only when set.
+// line up. A row reads `n. WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
 // Groups follow the order in which each role first appears; rows keep their position numbers.
 type Line = { text: string; heading: boolean };
 
@@ -90,9 +91,9 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, spaced: boolean): Lin
       const emoji = withEmoji && weaponName ? weaponEmojiTag(weaponName) : "";
       const duty = dutyDef(s.duty);
       lines.push({
-        text: `${s.position}. ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice}${duty ? ` - ${duty.icon} ${duty.label}` : ""} · ${
-          s.userId ? `${WORDS.sworn}: <@${s.userId}>` : WORDS.open
-        }`,
+        text: `${s.position}. ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
+          s.userId ? `<@${s.userId}>` : WORDS.open
+        }${duty ? ` - ${duty.icon} ${duty.label}` : ""}`,
         heading: false,
       });
     }
@@ -149,6 +150,7 @@ export function renderRosterMessage(view: RosterView): {
   allowed_mentions: { parse: [] };
 } {
   const filled = view.slots.filter((s) => s.userId !== null).length;
+  const seats = seatCounts(view.slots.length, filled, (view.fills ?? []).length);
   const live = view.status === "open" || view.status === "locked";
 
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
@@ -156,7 +158,7 @@ export function renderRosterMessage(view: RosterView): {
   let withEmoji = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 30 + 20) + 2 * (SPACER.length + 1);
-  const fits = () => headerText(view, filled, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, seats.party, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) spaced = false;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
@@ -171,17 +173,18 @@ export function renderRosterMessage(view: RosterView): {
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
   ].filter(Boolean).map((l) => (spaced ? `${SPACER}\n${l}` : l)).join("\n");
-  const budget = TEXT_LIMIT - headerText(view, filled, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
+  const budget = TEXT_LIMIT - headerText(view, seats.party, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
   const kept = rowLines(view.slots, withEmoji, spaced).filter((l) => (used += l.text.length + 1) <= budget);
   while (kept.length > 0 && kept[kept.length - 1]!.heading) kept.pop(); // never end on a heading with no row
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, filled, notes, spaced)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, seats.party, notes, spaced)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
-  if (view.status === "open" && open.length > 0) {
+  // FR-040: a position held for a fill is not offered. When every free position is held, the waitlist menu takes over.
+  if (view.status === "open" && open.length > 0 && seats.available >= 1) {
     body.push({
       type: 1,
       components: [{
@@ -199,7 +202,7 @@ export function renderRosterMessage(view: RosterView): {
   }
   // A role with no open position can be waited for (FR-007, per role).
   const fullRoles = [...new Set(view.slots.map((s) => s.role))].filter(
-    (role) => !view.slots.some((s) => s.role === role && s.userId === null),
+    (role) => seats.available < 1 || !view.slots.some((s) => s.role === role && s.userId === null),
   );
   if (view.status === "open" && fullRoles.length > 0) {
     body.push({
@@ -226,11 +229,16 @@ export function renderRosterMessage(view: RosterView): {
   // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
   buttons.push({
     type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
-    disabled: !(live && (filled > 0 || fills.length > 0)) || view.pinged === true,
+    disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || fills.length > 0)),
   });
   // The owner places a fill in a position (FR-032); the button shows only while someone is waiting as a fill.
   if (live && fills.length > 0) buttons.push({ type: 2, style: 1, label: "Assign fill", emoji: { name: "🔁" }, custom_id: `fa:${view.id}` });
-  body.push({ type: 1, components: buttons });
+  // The creator and admins remove a player (FR-042); checked when pressed, shown to everyone while anyone is on the roster.
+  if (live && (filled > 0 || fills.length > 0 || waiting.length > 0)) {
+    buttons.push({ type: 2, style: 2, label: "Remove player", emoji: { name: "➖" }, custom_id: `rm:${view.id}` });
+  }
+  // A row holds five buttons at most.
+  for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
   if (live) body.push(text(OWNER_TIPS));
 
   return {
