@@ -216,6 +216,42 @@ A roster shall stay fully operable after its start time, until the content ends 
 status: accepted (ADR 0024)
 The creator, a member with Manage Server, or an admin role shall be able to reopen ended content with `/content reopen` (a command only), whether it ended by hand or by the 4-hour rule. It becomes open again, the roster is refreshed, and its auto-end window restarts from the reopen (`content.reopened_at`, migration 0017). Cancelled content cannot be reopened. The attendance report and the owner's attendance message are one-time actions and are not undone or resent.
 
+### FR-037: Prefilled start time
+status: accepted (owner request 2026-10-15)
+The create form's start field shall be prefilled with the current UTC time plus one hour, to the minute, so the member only adjusts it.
+
+### FR-038: Ping once per player
+status: accepted (owner request 2026-10-15; changes the once-per-content rule of the Ping players button)
+The **Ping players** button shall message each signed-up player (seated or fill) at most once per content: a press reaches only the players not pinged before, so late joiners can be pinged later. It dims when nobody is left to ping. The owner still gets a labelled copy of what was sent and who could not be reached (`ping_log`, migration 0019).
+
+### FR-039: Weapon icons at tier 8
+status: accepted (owner request 2026-10-15; changes the icon source of FR-026)
+The weapon emojis and thumbnails shall come from the tier 8 icon (the stored tier where the render service has no T8 image).
+
+### FR-040: Fills hold seats
+status: accepted (owner request 2026-10-15)
+A fill shall hold a seat from the moment they sign up, so they cannot be left without a place: the party count shows seated players plus reserved fills (`min(fills, open positions)`), a position can be picked only while open positions outnumber fills, and the waitlist is promoted under the same rule. A fill beyond the free positions waits as a standby fill.
+
+### FR-041: Roster wording and rows
+status: accepted (owner request 2026-10-15; supersedes the wording of FR-005 and the row format of ADR 0021)
+The party heading reads "Party" (it was "The Company") and the word "Sworn" is removed. A row reads `n. WeaponIcon Weapon - @Player - DutyIcon Duty`, with "Open" in place of the player when the position is empty.
+
+### FR-042: Remove player
+status: accepted (owner request 2026-10-15)
+The creator and admins shall be able to remove a signed-up player, fill or waiting member with a **Remove player** button (a private panel with a menu). The waitlist is then served, the roster is refreshed, and the thread gets one line mentioning only the removed member.
+
+### FR-043: Schedule channel
+status: accepted (owner request 2026-10-15)
+An admin shall be able to choose a channel in `/content setup` where the bot keeps one message (a second when more than 12 events) listing the server's live and upcoming events for the next 7 days, grouped as Live now, Next 24 hours and Later this week, each with its start, party count and a link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted.
+
+### FR-044: Statistics channel
+status: accepted (owner request 2026-10-15)
+An admin shall be able to choose a channel in `/content setup` where the bot keeps one message of statistics: contents created, by type and category, participants, sign-ups, fill rate, busiest times, top hosts and most joined players, for all time and the last 30 days. There is no no-show board, and unknown attendance is never counted as a no-show (NFR-004).
+
+### FR-045: Permission levels
+status: accepted (owner request 2026-10-15)
+Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the schedule and statistics channels. Refusals are explained in the reply. There is no host role.
+
 ### FR-029: Help and owner tips
 status: accepted
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
