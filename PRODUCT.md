@@ -150,7 +150,7 @@ Guided steps and saved presets next to typed lines, with weapon search from game
 
 ### FR-001: Command namespace
 status: accepted
-The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `list`, `attendance`, `history`, `setup`, `preset`, `weapon`, `slot`, `duty` and `me`.
+The bot shall expose the slash command `/content` with the subcommands `create`, `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `stats`, `list`, `attendance`, `history`, `setup`, `preset`, `weapon`, `slot`, `duty` and `me`.
 
 ### FR-002: Creation location and content type
 status: accepted
@@ -244,14 +244,13 @@ The creator and admins shall be able to remove a signed-up player, fill or waiti
 status: accepted (owner request 2026-10-15; layout changed to a calendar and the option renamed `calendar-channel` the same day)
 An admin shall be able to choose a channel with the `calendar-channel` option of `/content setup` (`clear-calendar` removes it) where the bot keeps the **Events Calendar**: one message (a second when more than 12 events) with a section for each day of the next 7 days that has events (Today, Tomorrow, then the weekday and date; days without events are left out), events already running on top under "Live now". Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
 
-### FR-044: Statistics channel
-status: accepted (owner request 2026-10-15)
-An admin shall be able to choose a channel in `/content setup` where the bot keeps one message of statistics: contents created, by type and category, participants, sign-ups, fill rate, busiest times, top hosts and most joined players, for all time and the last 30 days. There is no no-show board, and unknown attendance is never counted as a no-show (NFR-004).
-Each number is on its own line (owner request 2026-10-15). The message is recomputed by the scheduled job at most every 30 minutes, and when the channel is set.
+### FR-044: Statistics command
+status: accepted (owner request 2026-10-15; changed from a statistics channel to a command the same day, ADR 0027)
+Anyone shall be able to use `/content stats` to see the server's statistics as a **private** message: contents created, finished and cancelled, by type and by category, participants and sign-ups, the average fill rate of finished events, the busiest day and hour (UTC), the top hosts and the 10 most joined players, for all time and the last 30 days. Each number is on its own line. It counts only the server it is used in. Cancelled events and players who left a roster are not counted, there is no no-show board, and unknown attendance is never counted as a no-show (NFR-004). There is no statistics channel.
 
 ### FR-045: Permission levels
 status: accepted (owner request 2026-10-15)
-Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar and statistics channels. Refusals are explained in the reply. There is no host role.
+Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, `stats`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar channel. Refusals are explained in the reply. There is no host role.
 
 ### FR-046: Party strip
 status: accepted (owner request 2026-10-15, option B)
@@ -433,7 +432,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 Phase: MVP, release 0.21.1 live (party strip of weapon icons, `calendar-channel` and the Events Calendar showing only days with events, statistics one number per line); before it 0.21.0 (fills hold seats and count in the party, "Party" wording and `weapon - player - duty` rows, prefilled start time, Ping once per player, Remove player, tier 8 weapon emojis, history restricted, event calendar and statistics channels; migrations 0019 and 0020). Before it: 0.20.0 (Fix and retry for the forms, `build-reference`, Avalonian gold chest, Looter), 0.19.x (rosters stay live after the start, `/content reopen`, spacing above Fill and Waitlist), 0.18.0 (optional weapon, build channel, PvX, Fill; migration 0016) and earlier (owner accepted the POC on 2026-10-06, see docs/decisions/0007-poc-accepted-with-open-checks.md)
 Last updated: 2026-10-15
-Next step: owner tests 0.21.1 and 0.21.0 (the party strip: is it drawn large?; set the calendar and statistics channels with `/content setup`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
+Next step: owner tests 0.21.1 and 0.21.0 (the party strip: is it drawn large?; set the calendar channel with `/content setup`, try `/content stats`, then create events, sign up as a fill, Remove player, Ping, the prefilled start time, the tier 8 emojis) and reports the Change number bug with details. The older tier 4 weapon emojis (`w_`) are still on the Discord app and can be removed with `scripts/sync-emoji.ts --remove-old` once old rosters have been re-rendered. Then roster recovery (FR-017), the remaining live checks and the banner art.
 
 | Item | Status | Note |
 |---|---|---|

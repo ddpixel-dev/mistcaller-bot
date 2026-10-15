@@ -49,23 +49,14 @@ test("an admin sets the calendar channel: the calendar is posted there at once a
   assert.deepEqual((await getDashboard(d.sql, GUILD, "schedule"))!.messageIds, ["m1"]);
 });
 
-test("the statistics channel works the same way, and both can be set in one command", async () => {
-  const { rest, created } = fake();
-  const d = await deps(rest);
-  await handleSetupCommand(d, setup([opt("calendar-channel", CH1), opt("statistics-channel", CH2)], { permissions: "32" }));
-  assert.deepEqual(created.map((c) => c.channel).sort(), [CH1, CH2].sort());
-  assert.ok(created.some((c) => JSON.stringify(c.body).includes("Statistics")));
-  assert.equal((await getDashboard(d.sql, GUILD, "statistics"))!.channelId, CH2);
-});
-
-test("an admin role may set the channels too; an ordinary member may not, and nothing is posted", async () => {
+test("an admin role may set the calendar channel too; an ordinary member may not, and nothing is posted", async () => {
   const { rest, created } = fake();
   const d = await deps(rest);
   await setAdminRoles(d.sql, GUILD, ["200000001"]);
   assert.ok(text(await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { roles: ["200000001"] }))).includes(`<#${CH1}>`));
-  const refused: any = await handleSetupCommand(d, setup([opt("statistics-channel", CH2)], { roles: ["999"] }));
+  const refused: any = await handleSetupCommand(d, setup([opt("calendar-channel", CH2)], { roles: ["999"] }));
   assert.ok(text(refused).includes("Only an admin"));
-  assert.equal(await getDashboard(d.sql, GUILD, "statistics"), null);
+  assert.equal((await getDashboard(d.sql, GUILD, "schedule"))!.channelId, CH1, "the refused change did nothing");
   assert.equal(created.length, 1);
 });
 
@@ -121,5 +112,5 @@ test("the setup panel shows the channels now in use", async () => {
   const d = await deps(rest);
   await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { permissions: "32" }));
   const panel: any = await handleSetupCommand(d, setup([], { permissions: "32" }));
-  assert.ok(text(panel).includes(`Calendar channel: <#${CH1}>`) && text(panel).includes("Statistics channel: none"));
+  assert.ok(text(panel).includes(`Calendar channel: <#${CH1}>`) && !text(panel).includes("Statistics"));
 });
