@@ -65,13 +65,15 @@ function lootValue(view: RosterView): string {
 
 // Layout E (owner decision 2026-10-08): the rows are grouped under a heading per role, so there is no role column to
 // line up. A row reads `n. WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
-// The party strip (owner request 2026-10-15): a text block of only weapon icons, one per position in order, so Discord
-// can draw them large. Positions without a known icon are left out.
+// The party strip (owner request 2026-10-15): a heading of only weapon icons, one per position in order. Discord draws
+// an emoji as big as the text around it and cannot draw them "jumbo" in this kind of message, so the largest text
+// style (a level-1 heading) is what makes them bigger. Positions without a known icon are left out.
 function weaponStrip(slots: RosterSlot[]): string {
-  return slots.map((s) => {
+  const tags = slots.map((s) => {
     const name = s.weapon || s.chosenWeapon || "";
     return name ? weaponEmojiTag(name) : "";
-  }).filter(Boolean).join(" ");
+  }).filter(Boolean);
+  return tags.length ? `# ${tags.join(" ")}` : "";
 }
 
 // Groups follow the order in which each role first appears; rows keep their position numbers.
