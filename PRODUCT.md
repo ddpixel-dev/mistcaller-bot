@@ -240,17 +240,18 @@ The party heading reads "Party" (it was "The Company") and the word "Sworn" is r
 status: accepted (owner request 2026-10-15)
 The creator and admins shall be able to remove a signed-up player, fill or waiting member with a **Remove player** button (a private panel with a menu). The waitlist is then served, the roster is refreshed, and the thread gets one line mentioning only the removed member.
 
-### FR-043: Schedule channel (event calendar)
-status: accepted (owner request 2026-10-15; layout changed to a calendar the same day)
-An admin shall be able to choose a channel in `/content setup` where the bot keeps an **event calendar**: one message (a second when more than 12 events) with a section per day for the next 7 days (Today, Tomorrow, then the weekday and date), events already running on top under "Live now", and "Nothing planned" on empty days. Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
+### FR-043: Calendar channel (Events Calendar)
+status: accepted (owner request 2026-10-15; layout changed to a calendar and the option renamed `calendar-channel` the same day)
+An admin shall be able to choose a channel with the `calendar-channel` option of `/content setup` (`clear-calendar` removes it) where the bot keeps the **Events Calendar**: one message (a second when more than 12 events) with a section for each day of the next 7 days that has events (Today, Tomorrow, then the weekday and date; days without events are left out), events already running on top under "Live now". Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
 
 ### FR-044: Statistics channel
 status: accepted (owner request 2026-10-15)
 An admin shall be able to choose a channel in `/content setup` where the bot keeps one message of statistics: contents created, by type and category, participants, sign-ups, fill rate, busiest times, top hosts and most joined players, for all time and the last 30 days. There is no no-show board, and unknown attendance is never counted as a no-show (NFR-004).
+Each number is on its own line (owner request 2026-10-15). The message is recomputed by the scheduled job at most every 30 minutes, and when the channel is set.
 
 ### FR-045: Permission levels
 status: accepted (owner request 2026-10-15)
-Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the schedule and statistics channels. Refusals are explained in the reply. There is no host role.
+Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar and statistics channels. Refusals are explained in the reply. There is no host role.
 
 ### FR-029: Help and owner tips
 status: accepted

@@ -19,19 +19,23 @@ test("an empty calendar says so and how to start an event", () => {
   const bodies = render([]);
   assert.equal(bodies.length, 1);
   const t = all(bodies);
-  assert.ok(t.includes("Event calendar"));
+  assert.ok(t.includes("Events Calendar"));
   assert.ok(t.includes("No live or upcoming events") && t.includes("/content create"));
   assert.deepEqual(discordProblems(bodies[0]), []);
 });
 
-test("the calendar has one section per day for the next 7 days, in order, and empty days say nothing is planned", () => {
-  const t = all(render([event({ startsAt: at(0, 18) }), event({ startsAt: at(2, 20) })]));
+test("only the days that have events get a section, in date order; days without events are left out", () => {
+  const t = all(render([event({ startsAt: at(2, 20) }), event({ startsAt: at(0, 18) }), event({ startsAt: at(2, 9) })]));
   const heads = t.split("\n").filter((l) => l.startsWith("### "));
-  assert.deepEqual(heads, [
-    "### 📆 Thu 15 Oct · Today", "### 📆 Fri 16 Oct · Tomorrow", "### 📆 Sat 17 Oct", "### 📆 Sun 18 Oct",
-    "### 📆 Mon 19 Oct", "### 📆 Tue 20 Oct", "### 📆 Wed 21 Oct",
-  ]);
-  assert.equal((t.match(/Nothing planned/g) ?? []).length, 5, "five of the seven days have no event");
+  assert.deepEqual(heads, ["### 📆 Thu 15 Oct · Today", "### 📆 Sat 17 Oct"]);
+  assert.ok(!t.includes("Nothing planned") && !t.includes("Fri 16 Oct"), "the empty Friday is not shown");
+  assert.ok(t.includes("Events Calendar") && !t.includes("Event calendar"));
+});
+
+test("the day tags say Today and Tomorrow, and the window is 7 days", () => {
+  const t = all(render([event({ startsAt: at(1, 18) }), event({ startsAt: at(6, 18) }), event({ startsAt: at(7, 18) })]));
+  const heads = t.split("\n").filter((l) => l.startsWith("### "));
+  assert.deepEqual(heads, ["### 📆 Fri 16 Oct · Tomorrow", "### 📆 Wed 21 Oct"], "the 8th day is outside the window");
 });
 
 test("an event shows its UTC time as a column, its title, its party, your time, and a roster link, on the right day", () => {
@@ -45,7 +49,8 @@ test("an event shows its UTC time as a column, its title, its party, your time, 
   assert.ok(detail.includes("PvE · Group dungeon") && detail.includes("👥 7/10") && detail.includes("🔒"), detail);
   const epoch = Math.floor(e.startsAt.getTime() / 1000);
   assert.ok(detail.includes(`<t:${epoch}:t>`) && detail.includes(`<t:${epoch}:R>`), "local time and relative time");
-  assert.ok(t.indexOf("Fri 16 Oct") < t.indexOf("Ava") && t.indexOf("Ava") < t.indexOf("Sat 17 Oct"), "listed under Friday");
+  assert.ok(t.indexOf("Fri 16 Oct") < t.indexOf("Ava"), "listed under Friday");
+  assert.ok(!t.includes("Sat 17 Oct"), "and no empty days after it");
 });
 
 test("events within a day are in time order; events already running sit above the days under Live now", () => {

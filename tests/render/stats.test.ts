@@ -25,29 +25,46 @@ test("with no events yet the message says statistics appear after the first one"
   assert.deepEqual(discordProblems(render(empty)), []);
 });
 
-test("every section shows its numbers: events, types, categories, players, busiest times, hosts and players", () => {
-  const x = t(full);
-  assert.ok(x.includes("**All time** · 42 created · 30 finished · 5 cancelled"), x);
-  assert.ok(x.includes("**Last 30 days** · 12 created · 9 finished · 1 cancelled"));
-  assert.ok(x.includes("PvP **20** · PvE **15** · PvX **2**"));
-  assert.ok(x.includes("ZvZ **8**") && x.includes("Group dungeon **5**") && x.includes("Avalonian gold chest **2**"));
-  assert.ok(x.includes("**All time** · 85 participants · 420 sign-ups") && x.includes("**Last 30 days** · 40 participants · 130 sign-ups"));
-  assert.ok(x.includes("Average fill rate of finished events: **87%**"));
-  assert.ok(x.includes("**Friday** (12 events)") && x.includes("**18:00 UTC** (9 events)"));
-  assert.ok(x.includes("1. <@100000000000000001> · 12 events") && x.includes("2. <@100000000000000002> · 7 events"));
-  assert.ok(x.includes("10. <@200000000000000009> · 21 events"));
-  assert.ok(x.includes("1. <@200000000000000000> · 30 events"));
+test("every number sits on its own line, under a heading per section", () => {
+  const lines = t(full).split("\n");
+  const has = (line: string) => assert.ok(lines.includes(line), `missing line: ${line}`);
+  has("### 🗓️ Events");
+  for (const l of ["**All time**", "• Created: **42**", "• Finished: **30**", "• Cancelled: **5**", "**Last 30 days**", "• Created: **12**", "• Finished: **9**", "• Cancelled: **1**"]) has(l);
+  has("### ⚔️ By type");
+  for (const l of ["• PvP: **20**", "• PvE: **15**", "• PvX: **2**"]) has(l);
+  has("### 🏷️ By category");
+  for (const l of ["• ZvZ: **8**", "• Group dungeon: **5**", "• Avalonian gold chest: **2**"]) has(l);
+  has("### 👥 Players");
+  for (const l of ["• Participants: **85**", "• Sign-ups: **420**", "• Participants: **40**", "• Sign-ups: **130**"]) has(l);
+  has("**Fill rate**");
+  has("• Average of finished events: **87%**");
+  has("### ⏰ Busiest");
+  has("• Day: **Friday** (12 events)");
+  has("• Hour: **18:00 UTC** (9 events)");
+  has("### 🏆 Top hosts");
+  has("1. <@100000000000000001> · 12 events");
+  has("2. <@100000000000000002> · 7 events");
+  has("### 🌟 Most joined players");
+  has("1. <@200000000000000000> · 30 events");
+  has("10. <@200000000000000009> · 21 events");
+  assert.ok(!lines.some((l) => (l.match(/\*\*\d/g) ?? []).length > 1), "no line holds more than one number");
 });
 
 test("a category that only exists in Other is named by its type, and singular counts read 'event'", () => {
   const x = t({ ...full, topHosts: [{ userId: "100000000000000001", count: 1 }] });
-  assert.ok(x.includes("PvP · Other **3**"), x);
-  assert.ok(x.includes("1. <@100000000000000001> · 1 event\n") || x.includes("1. <@100000000000000001> · 1 event"));
+  assert.ok(x.split("\n").includes("• PvP · Other: **3**"), x);
+  assert.ok(x.split("\n").includes("1. <@100000000000000001> · 1 event"));
+});
+
+test("a long category list is cut and says how many more there are", () => {
+  const many = Array.from({ length: 15 }, (_, i) => ({ type: "pvp" as const, kind: i === 0 ? "zvz" : "other", count: 20 - i }));
+  const x = t({ ...full, byKind: many });
+  assert.ok(x.split("\n").includes("• …and 3 more"));
 });
 
 test("optional lines are left out when there is nothing to show", () => {
   const x = t({ ...full, fillRate: null, busiestDay: null, busiestHour: null, topHosts: [] });
-  assert.ok(!x.includes("fill rate") && !x.includes("Busiest") && !x.includes("Top hosts"));
+  assert.ok(!x.includes("Fill rate") && !x.includes("Busiest") && !x.includes("Top hosts"));
 });
 
 test("the footer says who is not counted, nobody is mentioned, and the message fits Discord's limits", () => {

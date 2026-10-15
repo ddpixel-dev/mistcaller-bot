@@ -2,8 +2,9 @@ import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
 import { escapeText, IS_COMPONENTS_V2 } from "./roster.ts";
 
-// FR-043: the calendar channel's message(s): the next 7 days, one section per day, with the events already running on
-// top. Each event shows its UTC time as a column, its party, the viewer's own time and a link to its roster.
+// FR-043: the calendar channel's message(s): the next 7 days, one section per day that has events, with the events
+// already running on top. Each event shows its UTC time as a column, its party, the viewer's own time and a link to
+// its roster. Days without events are left out.
 export type ScheduleEvent = {
   id: string; threadId: string; messageId: string | null; title: string; type: ContentType; kind: string;
   startsAt: Date; status: "open" | "locked"; party: number; total: number;
@@ -59,7 +60,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   const shown = running.length + days.reduce((k, d) => k + d.events.length, 0);
   const updated = `-# Updated <t:${Math.floor(stamp.getTime() / 1000)}:R>`;
   if (shown === 0) {
-    return [message([`# 📅 Event calendar\n${updated}`, "No live or upcoming events. Start one with `/content create` in a channel or post."])];
+    return [message([`# 📅 Events Calendar\n${updated}`, "No live or upcoming events. Start one with `/content create` in a channel or post."])];
   }
 
   // Pack the groups into messages by event count and by text size. A day that continues repeats its heading.
@@ -69,12 +70,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   let size = 0;
   const page = () => pages[pages.length - 1]!;
   for (const g of groups) {
-    if (g.events.length === 0) {
-      const block = `${g.heading}\n-# Nothing planned`;
-      page().push(block);
-      size += block.length + 2;
-      continue;
-    }
+    if (g.events.length === 0) continue;
     let heading = g.heading;
     let lines: string[] = [];
     const flush = () => {
@@ -100,8 +96,8 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   const total = pages.length;
   return pages.map((parts, i) => {
     const head = i === 0
-      ? `# 📅 Event calendar\n${updated} · ${shown} event${shown === 1 ? "" : "s"} · times in UTC, with yours beside them`
-      : `-# Event calendar, continued (${i + 1}/${total})`;
+      ? `# 📅 Events Calendar\n${updated} · ${shown} event${shown === 1 ? "" : "s"} · times in UTC, with yours beside them`
+      : `-# Events Calendar, continued (${i + 1}/${total})`;
     return message([head, ...parts]);
   });
 }
