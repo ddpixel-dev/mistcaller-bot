@@ -266,11 +266,28 @@ test("/content history counts attended, no-shows and finished contents where the
   assert.deepEqual(await memberHistory(sql, "g1", P1), { attended: 1, noShow: 0, notRecorded: 0 });
   assert.deepEqual(await memberHistory(sql, "g1", P2), { attended: 0, noShow: 1, notRecorded: 0 + 1 });
   assert.deepEqual(await memberHistory(sql, "g2", P2), { attended: 0, noShow: 0, notRecorded: 0 });
-  const r = await d({ ...cmd("history", "boss", {}, [{ name: "member", type: 6, value: "123456789012345678" }]) });
+  const r = await d({ ...cmd("history", "o", { member: member("o", ["officer"]) }, [{ name: "member", type: 6, value: "123456789012345678" }]) });
   assert.ok(text(r).includes("<@123456789012345678>") && text(r).includes("Attended: 0"));
-  const invalid: any = await d({ ...cmd("history", "x", {}, [{ name: "member", type: 6, value: "not-a-user" }]) });
+  const invalid: any = await d({ ...cmd("history", "o", { member: member("o", ["officer"]) }, [{ name: "member", type: 6, value: "not-a-user" }]) });
   assert.ok(text(invalid).includes("Pick a member"));
   void deps;
+});
+
+test("/content history: everyone sees their own; another member's needs an admin role or Manage Server (FR-045)", async () => {
+  const { d } = await setup();
+  const ask = (user: string, target: string, over: Partial<Interaction> = {}) =>
+    d({ ...cmd("history", user, over, [{ name: "member", type: 6, value: target }]) });
+  const mine: any = await ask(P1, P1);
+  assert.ok(text(mine).includes(`<@${P1}>`) && text(mine).includes("Attended"), "one's own history is open to everyone");
+  const refused: any = await ask(P1, P2);
+  assert.equal(refused.data.flags, 64);
+  assert.ok(text(refused).includes("your own") && !text(refused).includes("Attended"), "another member's is refused");
+  const creator: any = await ask("boss", P2);
+  assert.ok(text(creator).includes("your own"), "being the creator of some content does not open it");
+  for (const m of [member("o", ["officer"]), member("m", [], "32")]) {
+    const ok: any = await ask(m.user.id, P2, { member: m });
+    assert.ok(text(ok).includes(`<@${P2}>`) && text(ok).includes("Attended"), JSON.stringify(m));
+  }
 });
 
 test("the scheduled job DMs the owner 5 minutes after the start, once, with a button that opens the form", async () => {
