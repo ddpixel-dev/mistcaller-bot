@@ -181,7 +181,7 @@ export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<
   if (c.draft.presetId) {
     const preset = await getPresetById(deps.sql, i.guild_id!, c.draft.presetId);
     if (!preset) return reply("That preset no longer exists. Run `/content create` again.");
-    return createForm(c.draft, formatSlotLines(preset.slots));
+    return createForm(c.draft, formatSlotLines(preset.slots), deps.now());
   }
   return await startGuided(deps, i, c.draft);
 }

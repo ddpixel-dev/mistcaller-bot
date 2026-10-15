@@ -5,6 +5,7 @@ import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { readBuildReference } from "./create.ts";
 import { packRef, unpackRef } from "../domain/buildref.ts";
 import { formProblems } from "./retry.ts";
+import { utcInput } from "../domain/time.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
@@ -62,10 +63,6 @@ export async function announce(deps: Deps, threadId: string, text: string, users
 }
 
 const mentions = (users: string[]) => users.map((u) => `<@${u}>`).join(" ");
-const pad = (n: number) => String(n).padStart(2, "0");
-const utcInput = (d: Date) =>
-  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-
 function lootOption(i: Interaction): "1" | "0" | "k" {
   const v = subOption(i, "edit", "loot-vote");
   return v === true ? "1" : v === false ? "0" : "k";
