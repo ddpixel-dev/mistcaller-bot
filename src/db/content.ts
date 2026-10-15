@@ -1,3 +1,4 @@
+import { pingTargets } from "./ping.ts";
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
 import type { ContentStatus, ContentType, RosterView, SlotDef } from "../domain/types.ts";
@@ -123,7 +124,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     })),
     fills: fills.map((f) => f.user_id as string),
     buildRef: c.build_channel_id ?? null,
-    pinged: c.pinged_at !== null && c.pinged_at !== undefined,
+    pingLeft: (await pingTargets(sql, contentId, c.created_by ?? null)).length,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
     voteClosed,

@@ -29,7 +29,7 @@ export type RosterView = {
   waitlist?: { userId: string; role: string }[];
   fills?: string[]; // members signed up as Fill (any position), oldest first
   buildRef?: string | null;
-  pinged?: boolean;
+  pingLeft?: number; // signed-up players (not the owner) who were not pinged yet (FR-038)
   votes: { split: number; regear: number };
   voteClosed: boolean;
   voteResult: "split" | "regear" | "tie" | "none" | null;

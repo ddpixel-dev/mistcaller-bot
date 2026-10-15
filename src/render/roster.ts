@@ -229,7 +229,7 @@ export function renderRosterMessage(view: RosterView): {
   // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
   buttons.push({
     type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
-    disabled: !(live && (filled > 0 || fills.length > 0)) || view.pinged === true,
+    disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || fills.length > 0)),
   });
   // The owner places a fill in a position (FR-032); the button shows only while someone is waiting as a fill.
   if (live && fills.length > 0) buttons.push({ type: 2, style: 1, label: "Assign fill", emoji: { name: "🔁" }, custom_id: `fa:${view.id}` });
