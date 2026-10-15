@@ -262,13 +262,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 12 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 13 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 12);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 12, "full roster: the waitlist menu replaces the open-positions menu");
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 13, "including the party strip");
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 13, "full roster: the waitlist menu replaces the open-positions menu");
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -523,4 +523,58 @@ test("the join menu closes when every free position is held for a fill; the wait
   assert.equal(byId(spare, "join:").length, 1, "2 open positions, 1 fill: one can still be picked");
   assert.deepEqual(byId(spare, "wait:").length, 0);
   assert.deepEqual(discordProblems(msg(held)), []);
+});
+
+// ---- the party strip: a line of only weapon icons (owner request 2026-10-15, option B) ----
+
+const stripOf = (v: RosterView) => {
+  const blocks = (msg(v) as any).components[0].components.filter((c: any) => c.type === 10).map((c: any) => String(c.content));
+  return blocks.find((b: string) => b.length > 0 && b.replace(/<a?:\w+:\d+>/g, "").trim() === "");
+};
+const known = () => WEAPONS.filter((w) => WEAPON_EMOJI[w.base]);
+
+test("a line holding only the party's weapon icons sits between the header and the rows, one icon per position in order", () => {
+  const [a, b, c] = known();
+  const v = view({ slots: [
+    { id: "s1", position: 1, role: "Tank", weapon: a!.name, userId: null },
+    { id: "s2", position: 2, role: "Healer", weapon: b!.name, userId: "111" },
+    { id: "s3", position: 3, role: "DPS", weapon: c!.name, userId: null },
+  ] });
+  const tag = (w: { base: string }) => `<:w8_${w.base}:${WEAPON_EMOJI[w.base]}>`.replace(/^<:w8_/, "<:").replace(/^<:/, "<:w8_");
+  const strip = stripOf(v);
+  assert.ok(strip, "an emoji-only text block exists");
+  const tags = strip.match(/<a?:\w+:\d+>/g)!;
+  assert.deepEqual(tags.map((t: string) => t.split(":")[2]!.replace(">", "")), [a, b, c].map((w) => WEAPON_EMOJI[w!.base]!));
+  const blocks = (msg(v) as any).components[0].components.filter((x: any) => x.type === 10);
+  assert.ok(blocks.findIndex((x: any) => x.content === strip) === 1, "second block: after the header, before the rows");
+  assert.equal(strip.trim(), tags.join(" "), "icons separated by single spaces, nothing else");
+  void tag;
+});
+
+test("a role-only slot uses the holder's own weapon, and positions without a known icon are skipped", () => {
+  const [a, b] = known();
+  const v = view({ slots: [
+    { id: "s1", position: 1, role: "Tank", weapon: "", userId: "111", chosenWeapon: a!.name },
+    { id: "s2", position: 2, role: "Healer", weapon: "", userId: null },
+    { id: "s3", position: 3, role: "DPS", weapon: "Mystery Axe", userId: null },
+    { id: "s4", position: 4, role: "DPS", weapon: b!.name, userId: null },
+  ] });
+  const ids = stripOf(v)!.match(/<a?:\w+:(\d+)>/g)!.map((t: string) => t.split(":")[2]!.replace(">", ""));
+  assert.deepEqual(ids, [WEAPON_EMOJI[a!.base]!, WEAPON_EMOJI[b!.base]!]);
+});
+
+test("with no known icon there is no strip", () => {
+  const v = view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Mystery Axe", userId: null }, { id: "s2", position: 2, role: "DPS", weapon: "", userId: null }] });
+  assert.equal(stripOf(v), undefined);
+});
+
+test("the strip is the first thing dropped when a very full roster needs the room, and the message still fits", () => {
+  const w = known();
+  const slots20 = Array.from({ length: 20 }, (_, i) => ({
+    id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: w[i % w.length]!.name, userId: String(100000000000000000n + BigInt(i)), duty: "caller",
+  }));
+  const v = view({ slots: slots20, notes: "x".repeat(900), title: "T".repeat(100) });
+  assert.deepEqual(discordProblems(msg(v)), []);
+  const small = view({ slots: slots20.slice(0, 5) });
+  assert.ok(stripOf(small), "a small roster keeps its strip");
 });

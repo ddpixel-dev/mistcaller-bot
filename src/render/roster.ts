@@ -65,6 +65,15 @@ function lootValue(view: RosterView): string {
 
 // Layout E (owner decision 2026-10-08): the rows are grouped under a heading per role, so there is no role column to
 // line up. A row reads `n. WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
+// The party strip (owner request 2026-10-15): a text block of only weapon icons, one per position in order, so Discord
+// can draw them large. Positions without a known icon are left out.
+function weaponStrip(slots: RosterSlot[]): string {
+  return slots.map((s) => {
+    const name = s.weapon || s.chosenWeapon || "";
+    return name ? weaponEmojiTag(name) : "";
+  }).filter(Boolean).join(" ");
+}
+
 // Groups follow the order in which each role first appears; rows keep their position numbers.
 type Line = { text: string; heading: boolean };
 
@@ -153,13 +162,18 @@ export function renderRosterMessage(view: RosterView): {
   const seats = seatCounts(view.slots.length, filled, (view.fills ?? []).length);
   const live = view.status === "open" || view.status === "locked";
 
-  // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
+  // Keep the text under Discord's 4000: drop the gaps, the party strip, the weapon icons, then the notes, then cut rows,
+  // only if needed.
   let spaced = true;
+  let strip = true;
+  const stripText = weaponStrip(view.slots);
+  const stripLen = () => (strip && stripText ? stripText.length + 1 : 0);
   let withEmoji = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 30 + 20) + 2 * (SPACER.length + 1);
-  const fits = () => headerText(view, seats.party, notes, spaced).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, seats.party, notes, spaced).length + waitLen + stripLen() + OWNER_TIPS.length + rowLines(view.slots, withEmoji, spaced).reduce((n, l) => n + l.text.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) spaced = false;
+  if (!fits()) strip = false;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
@@ -173,14 +187,14 @@ export function renderRosterMessage(view: RosterView): {
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
   ].filter(Boolean).map((l) => (spaced ? `${SPACER}\n${l}` : l)).join("\n");
-  const budget = TEXT_LIMIT - headerText(view, seats.party, notes, spaced).length - waitText.length - 2 - OWNER_TIPS.length;
+  const budget = TEXT_LIMIT - headerText(view, seats.party, notes, spaced).length - waitText.length - stripLen() - 2 - OWNER_TIPS.length;
   let used = 0;
   const kept = rowLines(view.slots, withEmoji, spaced).filter((l) => (used += l.text.length + 1) <= budget);
   while (kept.length > 0 && kept[kept.length - 1]!.heading) kept.pop(); // never end on a heading with no row
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, seats.party, notes, spaced)), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, seats.party, notes, spaced)), ...(strip && stripText ? [text(stripText)] : []), text([...kept.map((l) => l.text), ...(waitText ? [waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   // FR-040: a position held for a fill is not offered. When every free position is held, the waitlist menu takes over.
