@@ -13,6 +13,7 @@ import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
 import { formProblems } from "./retry.ts";
+import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { defaultStart } from "../domain/time.ts";
 
 export const NOT_HERE = "Use this command in a server channel, thread or forum post that the bot can write in.";
@@ -173,5 +174,6 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
     }));
     return reply(FAILED);
   }
+  await refreshDashboardSoon(deps, i.guild_id, "schedule"); // FR-043
   return reply("Created");
 }

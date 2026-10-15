@@ -1,3 +1,4 @@
+import { refreshAllDashboards } from "./dashboards.ts";
 import { timingSafeEqual } from "node:crypto";
 import type { Deps } from "../discord/dispatch.ts";
 import { DiscordApiError } from "../discord/rest.ts";
@@ -228,12 +229,13 @@ export async function sendReminders(deps: Deps): Promise<number> {
 export async function runJobs(
   deps: Deps,
   opts: { autoReminders?: boolean } = {},
-): Promise<{ ended: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
+): Promise<{ dashboards: number; ended: number; resultsPosted: number; remindersSent: number; attendanceDms: number; reportsPosted: number; draftsPurged: number }> {
   const resultsPosted = await postVoteResults(deps);
   const remindersSent = opts.autoReminders ? await sendReminders(deps) : 0;
   const attendanceDms = await sendAttendanceDms(deps);
   const reportsPosted = await postPendingReports(deps);
   const ended = await endStale(deps);
+  const dashboards = await refreshAllDashboards(deps); // after the ends, so a just-ended event leaves the calendar
   const draftsPurged = await purgeDrafts(deps.sql, deps.now());
-  return { ended, resultsPosted, remindersSent, attendanceDms, reportsPosted, draftsPurged };
+  return { dashboards, ended, resultsPosted, remindersSent, attendanceDms, reportsPosted, draftsPurged };
 }

@@ -53,7 +53,15 @@ export const commands = [
           { type: 5, name: "clear-build", description: "Remove the build reference", required: false },
         ],
       },
-      { type: 1, name: "setup", description: "Choose the admin roles that can manage content (Manage Server)" },
+      {
+        type: 1, name: "setup", description: "Admin roles (Manage Server), and the schedule and statistics channels (admins)",
+        options: [
+          { type: 7, name: "schedule-channel", description: "The channel where the bot keeps the calendar of live and upcoming events", required: false, channel_types: [0, 5] },
+          { type: 7, name: "statistics-channel", description: "The channel where the bot keeps the statistics", required: false, channel_types: [0, 5] },
+          { type: 5, name: "clear-schedule", description: "Stop keeping the calendar and remove its messages", required: false },
+          { type: 5, name: "clear-statistics", description: "Stop keeping the statistics and remove its messages", required: false },
+        ],
+      },
       {
         type: 2,
         name: "preset",

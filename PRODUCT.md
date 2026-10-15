@@ -240,9 +240,9 @@ The party heading reads "Party" (it was "The Company") and the word "Sworn" is r
 status: accepted (owner request 2026-10-15)
 The creator and admins shall be able to remove a signed-up player, fill or waiting member with a **Remove player** button (a private panel with a menu). The waitlist is then served, the roster is refreshed, and the thread gets one line mentioning only the removed member.
 
-### FR-043: Schedule channel
-status: accepted (owner request 2026-10-15)
-An admin shall be able to choose a channel in `/content setup` where the bot keeps one message (a second when more than 12 events) listing the server's live and upcoming events for the next 7 days, grouped as Live now, Next 24 hours and Later this week, each with its start, party count and a link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted.
+### FR-043: Schedule channel (event calendar)
+status: accepted (owner request 2026-10-15; layout changed to a calendar the same day)
+An admin shall be able to choose a channel in `/content setup` where the bot keeps an **event calendar**: one message (a second when more than 12 events) with a section per day for the next 7 days (Today, Tomorrow, then the weekday and date), events already running on top under "Live now", and "Nothing planned" on empty days. Each event shows its start time in UTC as a column, its title, type and category, its party count, its start in the viewer's own time, and an Open link to its roster. The extra message is deleted when events drop. Only messages the bot posted are edited or deleted. Schedule-changing commands (create, edit, cancel, end, reopen) refresh it at once; the scheduled job refreshes it the rest of the time.
 
 ### FR-044: Statistics channel
 status: accepted (owner request 2026-10-15)

@@ -210,10 +210,10 @@ test("runJobs posts the vote result at the start and leaves the started content 
     },
   };
   const out = await runJobs({ sql, rest, now: () => startsAt });
-  assert.deepEqual(out, { ended: 0, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(out, { dashboards: 0, ended: 0, resultsPosted: 1, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
   assert.deepEqual(order, ["edit:open", "post"]);
   assert.equal(await status(sql, id), "open", "the start does not lock the roster any more");
-  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { ended: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
+  assert.deepEqual(await runJobs({ sql, rest, now: () => startsAt }), { dashboards: 0, ended: 0, resultsPosted: 0, remindersSent: 0, attendanceDms: 0, reportsPosted: 0, draftsPurged: 0 });
 });
 
 // cron handler
