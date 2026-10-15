@@ -26,7 +26,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do, on any content, and `/content history` for any member. Saving and deleting presets.",
-  "• `/content setup` chooses the admin roles, the schedule channel and the statistics channel.",
+  "• `/content setup` chooses the admin roles, the calendar channel and the statistics channel.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {
