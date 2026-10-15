@@ -1,3 +1,4 @@
+import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -84,6 +85,7 @@ export async function handleEndCommand(deps: Deps, i: Interaction): Promise<Inte
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
+  await refreshDashboardSoon(deps, a.guildId, "schedule");
   return reply(a.submittedAt ? "Content ended." : "Content ended. The attendance report is posted when the owner submits the attendance form.");
 }
 
@@ -102,6 +104,7 @@ export async function handleReopenCommand(deps: Deps, i: Interaction): Promise<I
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
+  await refreshDashboardSoon(deps, a.guildId, "schedule");
   return reply("Content reopened: signups, edits and every other action work again. It ends by itself 4 hours from now unless you end it with `/content end`.");
 }
 
