@@ -28,7 +28,7 @@ export function parseWeapons(text: string): Weapon[] {
       base,
       name: e.name,
       slot: e.slot,
-      iconTier: e.tiers.includes(4) ? 4 : Math.min(...e.tiers),
+      iconTier: e.tiers.includes(8) ? 8 : Math.max(...e.tiers), // FR-039: the tier 8 icon, else the highest there is
     }))
     .sort((a, b) => a.name.localeCompare(b.name) || a.base.localeCompare(b.base));
 }

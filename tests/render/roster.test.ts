@@ -125,7 +125,7 @@ test("the weapon icon sits inline before the weapon name when its emoji exists, 
   assert.ok(withIds > 100, "run scripts/sync-emoji.ts");
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
   const t = txt(view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
-  assert.ok(t.includes(`1. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
+  assert.ok(t.includes(`1. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
   assert.ok(t.includes("2. Mystery Blade - Open"));
 });
 
@@ -191,7 +191,7 @@ test("the menu uses the weapon's emoji when it exists, and the role icon otherwi
     { id: "s1", position: 1, role: "DPS", weapon: "Longbow", userId: null },
     { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null },
   ] }), "join:")[0]!;
-  assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w_${known.base}` });
+  assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w8_${known.base}` });
   assert.deepEqual(menu.options[2].emoji, { name: "🛡️" });
 });
 
@@ -467,7 +467,7 @@ test("a role-only slot reads Player's choice, then the holder's own weapon with 
   ] });
   const t = raw(v);
   assert.ok(t.includes("1. Player's choice - Open"));
-  assert.ok(t.includes(`2. <:w_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - <@111111111111111111>`));
+  assert.ok(t.includes(`2. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - <@111111111111111111>`));
   assert.ok(t.includes("3. Player's choice - <@222222222222222222>"));
   assert.ok(t.includes("4. Player's choice - Open - 📯 Caller"));
   const menu = byId(v, "join:")[0]!;

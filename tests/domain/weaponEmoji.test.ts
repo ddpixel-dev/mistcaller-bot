@@ -9,7 +9,7 @@ test("every weapon gets a valid, unique Discord emoji name", () => {
   const names = WEAPONS.map((w) => emojiName(w.base));
   for (const n of names) assert.match(n, /^[A-Za-z0-9_]{2,32}$/, n);
   assert.equal(new Set(names).size, names.length);
-  assert.equal(emojiName("2H_AXE"), "w_2H_AXE");
+  assert.equal(emojiName("2H_AXE"), "w8_2H_AXE");
   assert.equal(emojiName("x".repeat(60)).length, 32);
 });
 
@@ -23,19 +23,19 @@ test("only the weapons the app does not own yet are uploaded", () => {
 
 test("an emoji reference needs a real id; the tag is the inline form", () => {
   const map = { MAIN_SWORD: "1234567890123456789", BAD: "abc", SHORT: "12" };
-  assert.deepEqual(emojiFor(map, "MAIN_SWORD"), { id: "1234567890123456789", name: "w_MAIN_SWORD" });
+  assert.deepEqual(emojiFor(map, "MAIN_SWORD"), { id: "1234567890123456789", name: "w8_MAIN_SWORD" });
   assert.equal(emojiFor(map, "BAD"), undefined);
   assert.equal(emojiFor(map, "SHORT"), undefined);
   assert.equal(emojiFor(map, "NOPE"), undefined);
-  assert.equal(emojiTag({ id: "1234567890123456789", name: "w_MAIN_SWORD" }), "<:w_MAIN_SWORD:1234567890123456789>");
+  assert.equal(emojiTag({ id: "1234567890123456789", name: "w8_MAIN_SWORD" }), "<:w8_MAIN_SWORD:1234567890123456789>");
   assert.equal(emojiTag(undefined), "");
 });
 
 test("a weapon is found by its display name, case-insensitively; unknown names have no icon", () => {
   const sword = WEAPONS.find((w) => w.name === "Broadsword")!;
   const map = { [sword.base]: "1234567890123456789" };
-  assert.equal(weaponEmojiByName("broadsword", map)?.name, `w_${sword.base}`);
-  assert.equal(weaponEmojiTag("  Broadsword ", map), `<:w_${sword.base}:1234567890123456789>`);
+  assert.equal(weaponEmojiByName("broadsword", map)?.name, `w8_${sword.base}`);
+  assert.equal(weaponEmojiTag("  Broadsword ", map), `<:w8_${sword.base}:1234567890123456789>`);
   assert.equal(weaponEmojiTag("Some New Weapon", map), "");
   assert.equal(weaponEmojiTag("Greataxe", {}), "");
 });
@@ -45,4 +45,12 @@ test("the generated map only holds known weapons with plausible ids", () => {
     assert.ok(WEAPONS.some((w) => w.base === base), base);
     assert.match(id, /^\d{15,25}$/);
   }
+});
+
+test("emoji names use the tier 8 prefix and fit Discord's 32 characters for every weapon", async () => {
+  const { WEAPONS } = await import("../../src/data/weapons.ts");
+  assert.ok(emojiName("MAIN_SWORD").startsWith("w8_"));
+  for (const w of WEAPONS) assert.ok(emojiName(w.base).length <= 32 && /^[A-Za-z0-9_]{2,32}$/.test(emojiName(w.base)), w.base);
+  const names = WEAPONS.map((w) => emojiName(w.base));
+  assert.equal(new Set(names).size, names.length, "no two weapons share a name once cut to 32 characters");
 });
