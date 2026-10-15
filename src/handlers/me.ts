@@ -95,6 +95,7 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
     const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now(), promoted });
     if (result === "unchanged") return reply("You already hold this position.");
     if (result === "taken") return reply("That position is already taken. Pick another one.");
+    if (result === "reserved") return reply("Every free position is held for fill players who signed up earlier. Join the waitlist from the roster instead.");
     if (result === "locked") return reply("Signups are locked for this content.");
     if (result === "not_found") return reply(NOT_FOUND);
     return await refresh(deps, id, userId, promoted);

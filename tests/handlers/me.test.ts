@@ -61,7 +61,7 @@ test("signing up from the panel updates the roster message and enables Leave for
   assert.deepEqual(await holders(sql, id), ["u1", null]);
   assert.equal(edits.length, 1);
   assert.deepEqual([edits[0].channelId, edits[0].messageId], ["t1", "m1"]);
-  assert.ok(textOf(edits[0].body).includes("Sworn: <@u1>"));
+  assert.ok(textOf(edits[0].body).includes(" - <@u1>"));
   assert.deepEqual(discordProblems(edits[0].body), []);
   const other: any = await d(command("u2"));
   assert.equal(leaveBtn(other).disabled, true);

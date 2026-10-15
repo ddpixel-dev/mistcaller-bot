@@ -3,6 +3,8 @@ import type { Sql } from "./client.ts";
 export type Promotion = { userId: string; slotId: string; position: number; role: string; weapon: string };
 export type WaitResult = "ok" | "already" | "signed" | "open_slot" | "unknown_role" | "locked" | "not_found";
 
+import { canTakePosition } from "../domain/seats.ts";
+
 type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
 
 // FR-007 (per role): every open position goes to the first member waiting for its role. Runs inside the
@@ -15,8 +17,12 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     select s.id, s.position, s.role, s.weapon from slot s
     left join signup su on su.slot_id = s.id and su.status = 'signed'
     where s.content_id = ${contentId} and su.user_id is null order by s.position`;
+  const [k] = await tx`select count(*)::int as fills from signup where content_id = ${contentId} and status = 'fill'`;
+  const fills = k!.fills as number;
+  let free = open.length;
   const out: Promotion[] = [];
   for (const slot of open) {
+    if (free - 1 < fills) break; // every free position left is held for a fill (FR-040)
     const [w] = await tx`
       select user_id from signup
       where content_id = ${contentId} and status = 'waitlist' and lower(wait_role) = lower(${slot.role})
@@ -25,12 +31,13 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     await tx`
       update signup set slot_id = ${slot.id}, status = 'signed', wait_role = null, joined_at = now()
       where content_id = ${contentId} and user_id = ${w.user_id}`;
+    free--;
     out.push({ userId: w.user_id, slotId: slot.id, position: slot.position, role: slot.role, weapon: slot.weapon ?? "" });
   }
   return out;
 }
 
-export type ClaimResult = "claimed" | "moved" | "unchanged" | "taken" | "locked" | "not_found";
+export type ClaimResult = "claimed" | "moved" | "unchanged" | "taken" | "reserved" | "locked" | "not_found";
 export type LeaveResult = "left" | "not_signed" | "unavailable" | "not_found" | "not_yours";
 
 function isSlotTaken(err: unknown): boolean {
@@ -64,7 +71,8 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
   try {
     return await sql.begin(async (tx): Promise<ClaimResult> => {
       if (a.promoted) a.promoted.length = 0; // a retried attempt starts clean
-      const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for share`;
+      // The content row is locked for update: the seat count below must not change under two simultaneous claims.
+      const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
       const [s] = await tx`select id, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
@@ -74,6 +82,16 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
         select slot_id, status, chosen_weapon from signup
         where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
       if (prev && prev.status === "signed" && prev.slot_id === a.slotId) return "unchanged";
+
+      // FR-040: taking a new seat must leave the free positions able to cover the fills. A move changes nothing.
+      if (prev?.status !== "signed") {
+        const [k] = await tx`
+          select (select count(*)::int from slot where content_id = ${a.contentId}) as total,
+            count(*) filter (where status = 'signed')::int as seated, count(*) filter (where status = 'fill')::int as fills
+          from signup where content_id = ${a.contentId}`;
+        const taken = await tx`select 1 from signup where slot_id = ${a.slotId} and status = 'signed'`;
+        if (taken.length === 0 && !canTakePosition(k!.total - k!.seated, k!.fills, prev?.status === "fill")) return "reserved";
+      }
 
       // The player's own weapon stays when moving between role-only slots, and goes otherwise (FR-030).
       const keepWeapon = prev?.status === "signed" && s.weapon === null ? prev.chosen_weapon : null;
@@ -134,9 +152,16 @@ export async function joinWaitlist(
       left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${a.contentId} and lower(s.role) = lower(${a.role})`;
     if (slots.length === 0) return "unknown_role";
-    if (slots.some((s) => s.user_id === null)) return "open_slot";
     const [prev] = await tx`
       select status, wait_role from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+    if (slots.some((s) => s.user_id === null)) {
+      // A free position is only a reason to pick it when it is not held for a fill (FR-040).
+      const [k] = await tx`
+        select (select count(*)::int from slot where content_id = ${a.contentId}) as total,
+          count(*) filter (where status = 'signed')::int as seated, count(*) filter (where status = 'fill')::int as fills
+        from signup where content_id = ${a.contentId}`;
+      if (canTakePosition(k!.total - k!.seated, k!.fills, false)) return "open_slot";
+    }
     if (prev?.status === "signed") return "signed";
     if (prev?.status === "waitlist" && prev.wait_role?.toLowerCase() === a.role.toLowerCase()) return "already";
     const role = slots[0]!.role as string;

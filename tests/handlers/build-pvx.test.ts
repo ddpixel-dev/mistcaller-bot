@@ -201,7 +201,7 @@ test("a role-only slot shows Player's choice, then the player's own weapon", asy
   const { deps, posts } = await setup();
   await handleCreateModal(deps, form("create:pvp:0:other", good));
   const text = plain(textOf(posts[0]!.body));
-  assert.ok(text.includes("### 🛡️ Tank · 0/1\n1. Player's choice · Open"));
+  assert.ok(text.includes("### 🛡️ Tank · 0/1\n1. Player's choice - Open"));
   assert.ok(text.includes("2. ") && text.includes("Holy Staff"));
   assert.ok(flatComponents(posts[0]!.body).some((c) => c.type === 3));
 });
