@@ -1,4 +1,5 @@
 import type { Sql } from "./client.ts";
+import { sortPositions } from "./content.ts";
 import { planSlotEdit } from "../domain/slots.ts";
 import { promoteWaitlist, type Promotion } from "./signup.ts";
 import { needsReminder } from "../domain/vote.ts";
@@ -103,6 +104,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
           (r) => r.user_id as string,
         )
       : [];
+    await sortPositions(tx, id);
     // New or renamed positions may suit members waiting for that role.
     const promoted = await promoteWaitlist(tx, id, now);
     return { result: "ok", startChanged, notify, promoted };

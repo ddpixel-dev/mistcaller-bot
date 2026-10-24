@@ -29,6 +29,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0027 Stats command instead of a channel](decisions/0027-stats-command-instead-of-channel.md): `/content stats`, private; the statistics channel is removed
 - [0028 Compact roster, Manage panel and host sign-up](decisions/0028-compact-roster-manage-panel-host-signup.md): numbered rows, `##` title, no loot line or spacers; Manage panel; Sign up player; no Fill on the waitlist; Catcher duty
 - [0029 Manage replaces the host commands](decisions/0029-manage-replaces-host-commands.md): nine host commands removed; Edit panel; Set weapon; Manage on finished rosters; Add player; title from the post; no party strip
+- [0030 Positions by role, DTank, title icons](decisions/0030-role-order-dtank-title-icons.md): positions numbered Tank, DTank, Healer, Support, DPS (migration 0021); DTank 🧱; one category icon in the title; Scout 🔭
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
 - [Release 0.21.0 plan](plan/2026-10-15-release-0.21.md): eleven owner requests, order and branches
 - [0025 Form retry; build reference](decisions/0025-form-retry-and-build-reference.md): Fix and retry button, one build-reference link option

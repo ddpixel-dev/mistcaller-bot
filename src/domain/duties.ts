@@ -3,7 +3,7 @@ export type DutyDef = { id: string; label: string; icon: string };
 
 export const DUTIES: DutyDef[] = [
   { id: "caller", label: "Caller", icon: "📯" },
-  { id: "scout", label: "Scout", icon: "🏹" },
+  { id: "scout", label: "Scout", icon: "🔭" },
   { id: "rat", label: "Rat", icon: "🐀" },
   { id: "looter", label: "Looter", icon: "💰" },
   { id: "catcher", label: "Catcher", icon: "🪝" },

@@ -2,6 +2,7 @@ import { pingTargets } from "./ping.ts";
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
 import type { ContentStatus, ContentType, RosterView, SlotDef } from "../domain/types.ts";
+import { sortByRole } from "../domain/roles.ts";
 
 export type NewContent = {
   guildId: string;
@@ -62,7 +63,8 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
         ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null})
       returning id`;
     const id: string = row!.id;
-    const rows = input.slots.map((s, i) => ({
+    // Positions are numbered by role (ADR 0030).
+    const rows = sortByRole(input.slots).map((s, i) => ({
       guild_id: input.guildId,
       content_id: id,
       position: i + 1,
@@ -130,4 +132,16 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     voteClosed,
     voteResult: voteClosed && c.has_loot ? tally.result : null,
   };
+}
+
+type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
+
+// Number the positions 1..n by role (ADR 0030) after an edit. Seats, duties and weapons belong to the slot, so they
+// move with it. Two steps (negative, then positive) keep the unique (content, position) pair valid on every row.
+export async function sortPositions(tx: Tx, contentId: string): Promise<void> {
+  const rows = await tx`select id, position, role from slot where content_id = ${contentId} order by position`;
+  const sorted = sortByRole(rows.map((r) => ({ id: r.id as string, position: r.position as number, role: (r.role ?? "") as string })));
+  if (sorted.every((r, i) => r.position === i + 1)) return;
+  for (const [i, r] of sorted.entries()) await tx`update slot set position = ${-(i + 1)} where id = ${r.id}`;
+  await tx`update slot set position = -position where content_id = ${contentId} and position < 0`;
 }

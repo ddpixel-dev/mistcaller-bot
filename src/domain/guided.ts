@@ -4,7 +4,7 @@ import { DUTIES } from "./duties.ts";
 export const MAX_SLOTS = 20;
 
 // Owner decision 2026-10-07: only four roles. Jobs such as Caller or Scout are duties, set per slot.
-export const GUIDED_ROLES = ["Tank", "Healer", "Support", "DPS"] as const;
+export const GUIDED_ROLES = ["Tank", "DTank", "Healer", "Support", "DPS"] as const;
 export const NO_DUTY = "none";
 
 // One card per slot. `step` is the card being filled; role, weapon and duty are its unsaved choices.

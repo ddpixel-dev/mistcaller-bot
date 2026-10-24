@@ -33,7 +33,7 @@ function panel(view: RosterView) {
         type: 1,
         components: [
           button("Edit", "✏️", `mg:e:${id}`, 1),
-          // Green, with a plus (owner request 2026-10-24): Discord has no green plus emoji, so the button is green.
+          // A green button (owner request 2026-10-24); the owner chose the ✍️ icon.
           button("Add player", "✍️", `fa:${id}`, 3),
           button("Remove player", "❌", `rm:${id}`),
           button("Set duty", "📯", `dt:${id}`),
