@@ -97,13 +97,16 @@ async function applyEventForum(deps: Deps, guildId: string, forumId: string, typ
     if (old) await deleteEventForum(deps.sql, guildId, forumId);
     return `I could not create the Create event post in <#${forumId}>, so it is not an event forum.\n${FORUM_PERMISSIONS}\nThen run this again.`;
   }
-  // A pinned post stays at the top of the forum (thread flag PINNED, needs Manage Threads).
-  const pinned = await deps.rest.editChannel?.(postId, { flags: 2 }).then(() => true, () => false);
+  // Pinned, it stays at the top of the forum (thread flag PINNED); locked, only Manage Threads can write in it, while
+  // anyone can still press its button (ADR 0033). Both need Manage Threads.
+  const pinned = await deps.rest.editChannel?.(postId, { flags: 2, locked: true }).then(() => true, () => false);
   await saveEventForum(deps.sql, { guildId, forumId, type, launcherThreadId: postId });
   return [
     `<#${forumId}> is an event forum (${type ? TYPE_LABEL[type] : "any type"}): its **Create event** post is <#${postId}>.`,
-    ...(pinned ? [] : ["⚠️ I could not pin it. Give the bot Manage Threads in the forum, then run this again."]),
+    ...(pinned ? [] : ["⚠️ I could not pin and lock it. Give the bot Manage Threads in the forum, then run this again."]),
     FORUM_PERMISSIONS,
+    "**Optional:** add this line to the forum's **Post Guidelines** (Edit Channel → Overview), so the button is one click away:",
+    `\`To create an event, open <#${postId}>\``,
   ].join("\n");
 }
 

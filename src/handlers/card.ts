@@ -10,9 +10,9 @@ import { DEFAULT_KIND, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
 import { formatSlotLines } from "../domain/slots.ts";
-import { defaultStart } from "../domain/time.ts";
+import { cardStart, withStartPart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
-import { renderCard } from "../render/card.ts";
+import { renderCard, v2Text } from "../render/card.ts";
 import { renderGuidedStep } from "../render/guided.ts";
 import { NOT_HERE, placeProblem, postTakenReply, postTitle, publish } from "./create.ts";
 
@@ -28,13 +28,14 @@ export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<I
   if (!i.guild_id || !userId || !threadId) return reply(NOT_HERE);
   const only = typesFor(o.forumType);
   const id = await startCard(deps.sql, {
-    guildId: i.guild_id, userId, threadId, type: only.length === 1 ? only[0]! : null, title: o.title, startText: defaultStart(deps.now()),
+    guildId: i.guild_id, userId, threadId, type: only.length === 1 ? only[0]! : null, title: o.title, startText: cardStart(deps.now()),
     targetForumId: o.targetForumId,
   });
   if (o.buildRef) await saveCard(deps.sql, id, { buildRef: o.buildRef });
   const d = await getDraft(deps.sql, id, deps.now());
   if (!d) return reply(EXPIRED);
-  return { type: CHANNEL_MESSAGE, data: { ...(await card(deps, d)), flags: EPHEMERAL } };
+  const data = await card(deps, d);
+  return { type: CHANNEL_MESSAGE, data: { ...data, flags: data.flags | EPHEMERAL } };
 }
 
 // lc:create: the Create event button of an event forum's pinned launcher post (FR-053).
@@ -48,7 +49,7 @@ export async function handleLauncher(deps: Deps, i: Interaction): Promise<Intera
 async function card(deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}) {
   const presets = (await listPresets(deps.sql, d.guildId)).map((p) => ({ id: p.id, name: p.name, count: p.slots.length }));
   const forum = d.targetForumId ? await getEventForum(deps.sql, d.guildId, d.targetForumId) : null;
-  return renderCard(d, { presets, forumType: forum?.type ?? null, ...extra });
+  return renderCard(d, { presets, forumType: forum?.type ?? null, now: deps.now(), ...extra });
 }
 
 export const showCard = async (deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}): Promise<InteractionResponse> =>
@@ -99,6 +100,14 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, { slots: preset.slots.slice(0, 20), slotsText: null });
       return await showCard(deps, await reload(deps, d), { note: `📋 Slots from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**.` });
     }
+    case "day":
+    case "hour":
+    case "minute": {
+      const start = value ? withStartPart(d.startText, action, value, deps.now()) : null;
+      if (!start) return reply(EXPIRED);
+      await saveCard(deps.sql, d.id, { startText: start });
+      return await showCard(deps, await reload(deps, d));
+    }
     case "details": return detailsForm(d);
     case "build": {
       return {
@@ -117,13 +126,13 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
     case "create": return await create(deps, i, d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
-      return { type: UPDATE_MESSAGE, data: { content: "Creation cancelled.", embeds: [], components: [] } };
+      return { type: UPDATE_MESSAGE, data: v2Text("Creation cancelled.") };
     }
     default: return reply(EXPIRED);
   }
 }
 
-// Details: the card's text in one form, filled with what is set (Discord allows five fields).
+// Details: the card's text in one form, filled with what is set. The start is set with the card's menus (ADR 0033).
 function detailsForm(d: StoredDraft): InteractionResponse {
   const slots = d.slotsText ?? formatSlotLines(d.slots);
   return {
@@ -133,7 +142,6 @@ function detailsForm(d: StoredDraft): InteractionResponse {
       title: "Event details",
       components: [
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
-        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
           style: 2, required: false, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
@@ -160,7 +168,7 @@ export async function handleCardDetails(deps: Deps, i: Interaction): Promise<Int
   const typed = (v.slots ?? "").trim();
   const parsed = typed ? parseSlots(typed) : null;
   await saveCard(deps.sql, d.id, {
-    title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes),
+    title: clean(v.title), gearTier: clean(v.tier), notes: clean(v.notes),
     ...(parsed === null ? { slots: [], slotsText: null } : parsed.ok ? { slots: parsed.value, slotsText: null } : { slotsText: typed }),
   });
   return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [`Slots: ${parsed.error}`] } : {});
@@ -202,7 +210,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
   const link = `https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`;
-  return { type: UPDATE_MESSAGE, data: { content: `✅ Created: ${link}`, embeds: [], components: [], allowed_mentions: { parse: [] } } };
+  return { type: UPDATE_MESSAGE, data: v2Text(`✅ Created: ${link}`) };
 }
 
 // A form or panel of an earlier version (the first form, the create panel): it no longer exists.

@@ -10,7 +10,7 @@ import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 import { embedColor } from "../../src/render/theme.ts";
-import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
+import { cardIdOf, discordProblems, flatComponents, plain, say, textOf } from "../helpers/discordLimits.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const CH = "123456789012345678", CH2 = "223456789012345678";
@@ -51,25 +51,25 @@ const ref = (value: string) => ({ name: "build-reference", type: 3, value });
 test("create with a build reference shows it on the creation card and keeps it", async () => {
   const { deps, sql } = await setup();
   const r: any = await handleCreateCommand(deps, cmd("create", [ref(link(CH, MSG))]));
-  assert.equal(r.data.flags, 64);
-  assert.ok(r.data.content.includes(`[Build message](${link(CH, MSG)})`));
+  assert.equal(r.data.flags & 64, 64, "private");
+  assert.ok(say(r).includes(`[Build message](${link(CH, MSG)})`));
   assert.equal((await sql`select build_channel_id from slot_draft`)[0]!.build_channel_id, `${CH}/${MSG}`);
 });
 
 test("the card's Build link form sets, replaces and clears the link, and refuses another server's", async () => {
   const { deps, sql, d } = await setup();
   const opened: any = await handleCreateCommand(deps, cmd("create"));
-  const id = opened.data.components.at(-1).components[0].custom_id.split(":")[2];
+  const id = cardIdOf(opened);
   const click = (cid: string): Interaction => ({ id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who("boss"), data: { custom_id: cid, component_type: 2 } });
   const f: any = await d(click(`cc:build:${id}`));
   assert.equal(f.type, 9);
   assert.equal(f.data.custom_id, `ccb:${id}`);
   const set: any = await d(form(`ccb:${id}`, { link: link(CH) }));
   assert.equal(set.type, 7);
-  assert.ok(set.data.content.includes(`<#${CH}>`));
+  assert.ok(say(set).includes(`<#${CH}>`));
   assert.equal((await d(click(`cc:build:${id}`)) as any).data.components[0].components[0].value, link(CH));
   const other: any = await d(form(`ccb:${id}`, { link: link(CH2, undefined, "999999999999999999") }));
-  assert.match(other.data.content, /another server/);
+  assert.match(say(other), /another server/);
   assert.equal((await sql`select build_channel_id from slot_draft`)[0]!.build_channel_id, CH);
   await d(form(`ccb:${id}`, { link: "" }));
   assert.equal((await sql`select build_channel_id from slot_draft`)[0]!.build_channel_id, null);
@@ -82,7 +82,7 @@ test("a build reference must be a link to this server; other servers, other site
     assert.match(content(r), /not a link|another server/, value);
   }
   const ok: any = await handleCreateCommand(deps, cmd("create", [ref(`<${link(CH)}>`)]));
-  assert.equal(ok.data.flags, 64);
+  assert.equal(ok.data.flags & 64, 64);
   assert.ok(ok.data.components, "a link wrapped in <> is accepted");
 });
 
@@ -192,9 +192,9 @@ test("PvX has every PvP and PvE category once, PvP first, and resolveKind accept
 test("the creation card offers PvX with every category", async () => {
   const { deps, d } = await setup();
   const opened: any = await handleCreateCommand(deps, cmd("create"));
-  const id = opened.data.components.at(-1).components[0].custom_id.split(":")[2];
+  const id = cardIdOf(opened);
   const r: any = await d({ id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who("boss"), data: { custom_id: `cc:type:${id}`, component_type: 3, values: ["pvx"] } } as Interaction);
-  const kinds = r.data.components[1].components[0].options;
+  const kinds = flatComponents(r.data).filter((c: any) => c.type === 3)[1].options;
   assert.equal(kinds.length, kindsOf("pvx").length);
 });
 

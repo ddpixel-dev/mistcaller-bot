@@ -8,6 +8,7 @@ import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { WEAPONS } from "../../src/data/weapons.ts";
+import { cardIdOf, flatComponents, rowsOf, say, textOf } from "../helpers/discordLimits.ts";
 import { weaponClass } from "../../src/domain/weapons.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
@@ -33,15 +34,15 @@ const form = (customId: string, fields: Record<string, string>, over: Partial<In
     ...over,
   });
 const create = (over: Partial<Interaction> = {}) => base({ type: 2, data: { name: "content", options: [{ name: "create", type: 1 }] }, ...over });
-const embed = (r: any) => r.data.embeds[0];
-const all = (r: any) => r.data.components.flatMap((row: any) => row.components);
+const embed = (r: any) => ({ description: textOf(r.data), thumbnail: { url: flatComponents(r.data).find((c: any) => c.type === 11)?.media?.url } });
+const all = (r: any): any[] => flatComponents(r.data).filter((c: any) => typeof c.custom_id === "string");
 const find = (r: any, prefix: string) => all(r).find((c: any) => c.custom_id.startsWith(prefix));
-const refused = (r: any) => r.data.flags === 64 && r.data.content.includes("expired or are not yours");
+const refused = (r: any) => r.data.flags === 64 && say(r).includes("expired or are not yours");
 
 // The creation card -> Guided slots -> the number menu -> the first slot card (ADR 0032). The draft id is the card's.
 async function begin(d: any, count: string | null = "5") {
   const opened: any = await d(create());
-  const id = opened.data.components.at(-1).components[0].custom_id.split(":")[2] as string;
+  const id = cardIdOf(opened);
   let card: any = await d(press(`cc:guided:${id}`));
   if (count) card = await d(press(`gs:setcount:${id}`, [count]));
   return { id, card, opened };
@@ -62,7 +63,7 @@ async function fillCard(d: any, id: string, role: string, weapon?: string, duty?
 test("Guided slots on the creation card asks the number with a menu, then shows card 1", async () => {
   const { sql, d } = await setup();
   const opened: any = await d(create());
-  const id = opened.data.components.at(-1).components[0].custom_id.split(":")[2];
+  const id = cardIdOf(opened);
   const pick: any = await d(press(`cc:guided:${id}`));
   assert.equal(pick.type, 7);
   assert.ok(embed(pick).description.includes("Pick a number"));
@@ -89,11 +90,11 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   assert.equal(cls.placeholder, "Weapon class (optional)");
   assert.deepEqual(cls.options.map((o: any) => o.label), ["Sword", "Axe", "Hammer", "Mace", "Spear", "Dagger", "Quarterstaff", "Bow", "Crossbow", "Gloves", "Fire Staff", "Frost Staff", "Holy Staff", "Arcane Staff", "Cursed Staff", "Nature Staff", "Shapeshifter", "Off-hand"]);
   assert.ok(cls.options.every((o: any) => !o.default));
-  assert.equal(card.data.components.length, 5);
+  assert.equal(rowsOf(card.data).length, 5);
   assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher"]);
   assert.deepEqual([duty.min_values, duty.max_values], [0, 1]);
   assert.ok([role, weapon, duty].every((s: any) => s.options.every((o: any) => !o.default)));
-  const buttons = card.data.components[4].components;
+  const buttons = rowsOf(card.data)[4].components;
   assert.deepEqual(buttons.map((b: any) => [b.label, !!b.disabled]), [["Next", true], ["Back", false], ["Same as previous", true], ["Fill the rest", true], ["Cancel", false]]);
   assert.ok(buttons.every((b: any) => b.custom_id.endsWith(id)));
 });
@@ -197,20 +198,25 @@ test("Back goes to the previous card with its saved choices; Same as previous fi
   r = await d(press(`gs:weapon:${id}`, [find(r, "gs:weapon").options[0].value]));
   r = await d(press(`gs:rest:${id}`));
   assert.ok(embed(r).description.includes("All 4 slots are chosen."));
-  assert.deepEqual(r.data.components[0].components.map((b: any) => b.label), ["Use these slots", "Back", "Change number", "Cancel"]);
+  assert.deepEqual(rowsOf(r.data)[0].components.map((b: any) => b.label), ["Use these slots", "Back", "Change number", "Cancel"]);
 });
 
-test("Back on the first card, or Back to the card on the number menu, returns to the creation card", async () => {
-  const { d } = await setup();
+test("Back on the first slot returns to the number menu, which can change the number; Back to the card returns to the creation card", async () => {
+  const { sql, d } = await setup();
   const { id } = await begin(d, "3");
-  const r: any = await d(press(`gs:back:${id}`));
+  const numbers: any = await d(press(`gs:back:${id}`));
+  assert.equal(numbers.type, 7);
+  assert.deepEqual(find(numbers, "gs:setcount").options.filter((o: any) => o.default).map((o: any) => o.value), ["3"]);
+  assert.ok(embed(await d(press(`gs:setcount:${id}`, ["4"]))).description.includes("Slot 1 of 4"));
+  assert.equal((await getDraft(sql, id, NOW))!.count, 4);
+  await d(press(`gs:back:${id}`));
+  const r: any = await d(press(`gs:card:${id}`));
   assert.equal(r.type, 7);
-  assert.ok(r.data.content.includes("Create event"));
-  assert.deepEqual(r.data.embeds, []);
+  assert.ok(say(r).includes("Create event"));
   assert.ok(all(r).some((c: any) => c.custom_id === `cc:create:${id}`));
   const menu: any = await d(press(`gs:count:${id}`));
   const back: any = await d(press(`gs:card:${id}`));
-  assert.ok(find(menu, "gs:setcount") && back.data.content.includes("Create event"));
+  assert.ok(find(menu, "gs:setcount") && say(back).includes("Create event"));
 });
 
 test("Change number shows the number menu with the current value; a new number trims or extends", async () => {
@@ -232,14 +238,14 @@ test("Use these slots returns to the creation card with them; Details and Create
   assert.ok(embed(done).description.includes("All 2 slots are chosen."));
   const back: any = await d(press(`gs:done:${id}`));
   assert.equal(back.type, 7);
-  assert.ok(back.data.content.includes("1. 🛡️ Tank - Greataxe · 📯 Caller") && back.data.content.includes("2. 💚 Healer - Holy Staff"));
+  assert.ok(say(back).includes("1. 🛡️ Tank - Greataxe · 📯 Caller") && say(back).includes("2. 💚 Healer - Holy Staff"));
   await d(press(`cc:type:${id}`, ["pvp"]));
   const details: any = await d(press(`cc:details:${id}`));
   const slots = details.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots").value;
   assert.equal(slots, "Tank - Greataxe (Caller)\nHealer - Holy Staff");
-  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots, notes: "" }));
+  await d(form(`ccd:${id}`, { title: "Raid", tier: "T6.0", slots, notes: "" }));
   const made: any = await d(press(`cc:create:${id}`));
-  assert.ok(made.data.content.startsWith("✅ Created"), made.data.content);
+  assert.ok(say(made).startsWith("✅ Created"), say(made));
   const [{ duty }] = await sql`select duty from slot where position = 1`;
   assert.equal(duty, "caller");
 });
@@ -248,8 +254,8 @@ test("Cancel on a card discards the draft; a create panel from an earlier versio
   const { sql, d } = await setup();
   const { id } = await begin(d, "3");
   const gone: any = await d(press(`gs:cancel:${id}`));
-  assert.equal(gone.data.content, "Creation cancelled.");
-  assert.deepEqual(gone.data.components, []);
+  assert.equal(say(gone), "Creation cancelled.");
+  assert.equal(rowsOf(gone.data).length, 0);
   assert.equal(await getDraft(sql, id, NOW), null);
   assert.ok(((await d(form("cf", {}))) as any).data.content.includes("earlier version"), "the 0.25.0 first form");
   for (const cid of ["cpx", "cpgo:pvp:1:zvz:-", "cp:type:-:-:-:-"]) {
@@ -284,14 +290,14 @@ test("Create and the command are refused while the post already has content", as
   await fillCard(d, id, "Tank", "Mace");
   await d(press(`gs:done:${id}`));
   await d(press(`cc:type:${id}`, ["pvp"]));
-  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
+  await d(form(`ccd:${id}`, { title: "Raid", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
   await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "x", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
     tier: "T8.0", hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
   });
   for (const r of [await d(press(`cc:create:${id}`)), await d(create())] as any[]) {
     assert.equal(r.data.flags, 64);
-    assert.ok(r.data.content.includes("already has content"), r.data.content);
+    assert.ok(say(r).includes("already has content"), say(r));
   }
 });
 
@@ -303,7 +309,7 @@ test("every private message in the create and guided flow stays inside Discord's
   const seen: any[] = [];
   const run = async (i: Interaction) => { const r: any = await d(i); if (r.data?.components || r.data?.embeds) seen.push(r.data); return r; };
   const opened: any = await run(create());
-  const id = opened.data.components.at(-1).components[0].custom_id.split(":")[2];
+  const id = cardIdOf(opened);
   await run(press(`cc:type:${id}`, ["pvx"]));
   await run(press(`cc:kind:${id}`, ["avalonian-dungeon"]));
   await run(press(`cc:loot:${id}`, ["1"]));

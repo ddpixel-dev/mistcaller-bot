@@ -1,6 +1,6 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { discordProblems, flatComponents, modalProblems, textOf } from "../helpers/discordLimits.ts";
+import { discordProblems, flatComponents, modalProblems, rowsOf as rowsOfMsg, say, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
@@ -102,28 +102,30 @@ test("command without a guild, or in a place that cannot hold a roster, is an ep
   assert.match(content(b), /server channel/);
 });
 
-const cardMenus = (r: any) => r.data.components.filter((row: any) => row.components[0].type === 3).map((row: any) => row.components[0]);
+const cardMenus = (r: any) => flatComponents(r.data).filter((c: any) => c.type === 3);
 
 test("the command opens the creation card: summary, Type and Category menus, Loot vote, and the buttons (ADR 0032)", async () => {
   const { deps } = await setup();
   const r: any = await handleCreateCommand(deps, command());
   assert.equal(r.type, 4);
-  assert.equal(r.data.flags, 64);
+  assert.equal(r.data.flags, 64 | (1 << 15), "private, Components V2");
   assert.deepEqual(discordProblems(r.data), []);
-  assert.ok(r.data.content.includes("Create event"));
+  assert.ok(say(r).includes("Create event"));
   const [type, kind, loot] = cardMenus(r);
   assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
   assert.equal(kind.disabled, true, "the category waits for the type");
   assert.deepEqual(loot.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]]);
-  assert.deepEqual(r.data.components.at(-1).components.map((b: any) => b.label), ["Details", "Guided slots", "Build link", "Create", "Cancel"]);
-  assert.equal(cardMenus(r).length, 3, "no preset menu while the server has none");
+  assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
+  assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
+  assert.deepEqual(cardMenus(r).slice(3, 6).map((m: any) => m.custom_id.split(":")[1]), ["day", "hour", "minute"], "the start as three menus");
+  assert.equal(cardMenus(r).length, 6, "no preset menu while the server has none");
 });
 
 test("with saved presets the card has a Preset menu", async () => {
   const { deps, sql } = await setup();
   await sql`insert into slot_preset (guild_id, name, slots, created_by) values ('g1', 'Ava', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
   const r: any = await handleCreateCommand(deps, command());
-  const preset = cardMenus(r)[3];
+  const preset = cardMenus(r)[6];
   assert.deepEqual(preset.options.map((o: any) => [o.label, o.description]), [["Ava", "1 positions"]]);
   assert.deepEqual(discordProblems(r.data), []);
 });
@@ -350,7 +352,7 @@ test("after cancelling, a new content can be created in the same post", async ()
   const { deps, sql } = await setup();
   await handleCreateModal(deps, modal(good));
   await sql`update content set status = 'cancelled'`;
-  assert.equal(((await handleCreateCommand(deps, command(true))).data as any).flags, 64, "the creation card opens");
+  assert.equal(((await handleCreateCommand(deps, command(true))).data as any).flags & 64, 64, "the creation card opens");
   assert.equal(content(await handleCreateModal(deps, modal({ ...good, title: "Second" }))), "Created");
 });
 

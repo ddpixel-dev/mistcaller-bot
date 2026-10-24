@@ -73,6 +73,9 @@ function walk(c: C, out: string[], ids: string[], texts: string[], where: string
     if (c.accent_color !== undefined && !(Number.isInteger(c.accent_color) && c.accent_color >= 0 && c.accent_color <= 0xffffff)) {
       out.push(`${where}: bad accent_color`);
     }
+  } else if (c.type === 11) {
+    // A thumbnail, as a section's accessory: one image by URL.
+    if (typeof c.media?.url !== "string" || !/^https:\/\//.test(c.media.url)) out.push(`${where}: a thumbnail needs an https media url`);
   } else if (c.type === 18) {
     // A Label in a form: a title (45), an optional description (100), and one text input or menu.
     if (!c.label || Array.from(String(c.label)).length > 45) out.push(`${where}: label empty or over 45`);
@@ -168,3 +171,10 @@ export const flatComponents = (body: C): C[] => {
   (body.components ?? []).forEach(visit);
   return out;
 };
+
+// What a reply says, whether a classic message (content) or a Components V2 one (its text blocks).
+export const say = (r: { data?: C }): string => String(r.data?.content ?? textOf(r.data ?? {}));
+// The rows of buttons and menus of a message, wherever they sit (inside a V2 container or at the top).
+export const rowsOf = (body: C): C[] => flatComponents(body).filter((c) => c.type === 1);
+// The creation card's draft id, from its Create button (ADR 0032, 0033).
+export const cardIdOf = (r: { data: C }): string => String(flatComponents(r.data).find((c) => String(c.custom_id ?? "").startsWith("cc:create:"))!.custom_id).split(":")[2]!;

@@ -12,7 +12,7 @@ export const HELP_TEXT = [
   "• **Fill:** choose Fill if you can play any position. You hold a seat until the owner places you.",
   "• **Leave** takes you off the roster. **Waitlist:** when a role is full, join its waitlist and you are seated when a spot frees up.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
-  "• **Create event** (pinned in event forums) or `/content create` (in a channel or post) opens your creation card: menus, **Details**, **Guided slots**, then **Create**.",
+  "• **Create event** (pinned in event forums) or `/content create` (in a channel or post) opens your creation card: menus and start, **Details**, **Roles** for the slots, then **Create**.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
   "• `/content stats` shows this server's numbers, only to you. `/content history` shows your own attendance.",
   "• `/content help` shows this message.",
