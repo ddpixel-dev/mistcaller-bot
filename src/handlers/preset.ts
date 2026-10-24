@@ -9,8 +9,6 @@ import { MAX_PRESETS, deletePreset, listPresets, savePreset, searchPresetNames }
 import { canManagePresets } from "../domain/permissions.ts";
 import { parsePresetName } from "../domain/presets.ts";
 import { escapeText } from "../render/roster.ts";
-import { WEAPONS } from "../data/weapons.ts";
-import { searchWeapons } from "../domain/weapons.ts";
 
 const NOT_ALLOWED = "Only members with Manage Server or an admin role can manage presets.";
 
@@ -58,14 +56,10 @@ export async function handlePresetCommand(deps: Deps, i: Interaction): Promise<I
   return reply(`Preset "${escapeText(name.value)}" saved with ${view.slots.length} slots.`);
 }
 
-// Autocomplete for preset names ("/content preset delete") and weapon names ("/content weapon").
+// Autocomplete for preset names ("/content preset delete").
 export async function handleAutocomplete(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const focused = focusedOption(i);
   const path = commandPath(i);
-  if (focused && ((focused.name === "name" && path[0] === "weapon") || (focused.name === "weapon" && path[0] === "slot"))) {
-    const found = searchWeapons(WEAPONS, focused.value, 25);
-    return { type: 8, data: { choices: found.map((w) => ({ name: w.name, value: w.name })) } };
-  }
   const isPresetField = focused && focused.name === "name" && path[0] === "preset" && path[1] === "delete";
   const names = i.guild_id && isPresetField ? await searchPresetNames(deps.sql, i.guild_id, focused.value) : [];
   return { type: 8, data: { choices: names.map((n) => ({ name: n, value: n })) } };

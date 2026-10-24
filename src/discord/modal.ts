@@ -12,16 +12,30 @@ export function textInput(
   };
 }
 
+type Field = { custom_id?: string; value?: string; values?: unknown[] };
+
+// The fields of a submitted form: in an action row (the older layout) or in a Label (type 18), which can also hold a menu.
+function modalFields(i: Interaction): Field[] {
+  const rows = ((i.data as { components?: unknown[] } | undefined)?.components ?? []) as { components?: Field[]; component?: Field }[];
+  return rows.map((row) => row.component ?? row.components?.[0]).filter((c): c is Field => !!c && typeof c.custom_id === "string");
+}
+
 export function modalValues(i: Interaction): Record<string, string> {
-  const rows = ((i.data as { components?: unknown[] } | undefined)?.components ?? []) as {
-    components?: { custom_id?: string; value?: string }[];
-  }[];
   const out: Record<string, string> = {};
-  for (const row of rows) {
-    const c = row.components?.[0];
-    if (c && typeof c.custom_id === "string") out[c.custom_id] = typeof c.value === "string" ? c.value : "";
-  }
+  for (const c of modalFields(i)) if (!Array.isArray(c.values)) out[c.custom_id!] = typeof c.value === "string" ? c.value : "";
   return out;
+}
+
+// The picks of the menus of a submitted form (a menu left empty gives []).
+export function modalPicks(i: Interaction): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const c of modalFields(i)) if (Array.isArray(c.values)) out[c.custom_id!] = c.values.filter((v): v is string => typeof v === "string");
+  return out;
+}
+
+// A form field with a label above it (Discord's Label component, type 18): a text input or a menu.
+export function labelled(label: string, component: Record<string, unknown>, description?: string) {
+  return { type: 18, label, ...(description ? { description } : {}), component };
 }
 
 type Opt = { name?: unknown; type?: number; value?: unknown; focused?: boolean; options?: Opt[] };

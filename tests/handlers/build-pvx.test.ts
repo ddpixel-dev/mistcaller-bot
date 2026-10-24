@@ -4,7 +4,6 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId } from "../../src/db/content.ts";
 import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
 import { handleEditModal } from "../../src/handlers/manage.ts";
-import { encode, type CreateDraft } from "../../src/handlers/create-panel.ts";
 import { packRef } from "../../src/domain/buildref.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
@@ -49,15 +48,13 @@ const MSG = "323456789012345678";
 const link = (channelId: string, message?: string, guild = GUILD) => `https://discord.com/channels/${guild}/${channelId}${message ? `/${message}` : ""}`;
 const ref = (value: string) => ({ name: "build-reference", type: 3, value });
 
-test("create with a build reference carries it through the panel, and shows it in the panel text", async () => {
+test("create with a build reference carries it in the first form's id", async () => {
   const { deps } = await setup();
   const r: any = await handleCreateCommand(deps, cmd("create", [ref(link(CH))]));
-  assert.equal(r.type, 4);
-  assert.ok(r.data.content.includes(`Build reference: <#${CH}>`));
-  assert.equal(r.data.components[0].components[0].custom_id, `cp:type:-:-:-:-:${packRef(CH)}`);
-  assert.deepEqual(r.data.allowed_mentions, { parse: [] });
+  assert.equal(r.type, 9);
+  assert.equal(r.data.custom_id, `cf:${packRef(CH)}`);
   const m: any = await handleCreateCommand(deps, cmd("create", [ref(link(CH, MSG))]));
-  assert.ok(m.data.content.includes(`[Build message](${link(CH, MSG)})`));
+  assert.equal(m.data.custom_id, `cf:${packRef(`${CH}/${MSG}`)}`);
 });
 
 test("a build reference must be a link to this server; other servers, other sites and text are refused", async () => {
@@ -67,25 +64,18 @@ test("a build reference must be a link to this server; other servers, other site
     assert.match(content(r), /not a link|another server/, value);
   }
   const ok: any = await handleCreateCommand(deps, cmd("create", [ref(`<${link(CH)}>`)]));
-  assert.ok(ok.data.components, "a link wrapped in <> is accepted");
+  assert.equal(ok.type, 9, "a link wrapped in <> is accepted");
 });
 
-test("the longest panel, button and form ids stay within Discord's 100 characters with a message reference", async () => {
+test("the longest form and button ids stay within Discord's 100 characters with a message reference", async () => {
   const worstRef = `${"9".repeat(20)}/${"9".repeat(20)}`;
-  const worst: CreateDraft = { type: "pvx", loot: true, kind: "avalonian-dungeon", presetId: "123e4567-e89b-12d3-a456-426614174000", buildRef: worstRef };
-  const suffix = encode(worst);
-  for (const prefix of ["cp:type:", "cp:kind:", "cp:loot:", "cp:preset:", "cpgo:"]) assert.ok((prefix + suffix).length <= 100, prefix + suffix);
+  assert.ok(`cf:${packRef(worstRef)}`.length <= 100);
   assert.ok(`create:pvx:1:avalonian-dungeon:${packRef(worstRef)}`.length <= 100);
   assert.ok(`edit:123e4567-e89b-12d3-a456-426614174000:k:avalonian-dungeon:b${packRef(worstRef)}`.length <= 100);
 });
 
 test("the form id carries the build reference, and the created roster shows it and stores it", async () => {
   const { deps, sql, posts } = await setup();
-  const r: any = await createDispatch(deps)({
-    id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who("boss"),
-    data: { custom_id: `cpgo:pvp:0:other:-:${CH}`, component_type: 2 },
-  } as Interaction);
-  assert.equal(r.type, 9, "a panel made before this release (plain channel id) still works");
   const made: any = await handleCreateModal(deps, form(`create:pvp:0:other:${packRef(`${CH}/${MSG}`)}`, good));
   assert.match(content(made), /Created|created/);
   const [row] = await sql`select build_channel_id from content`;
@@ -180,19 +170,12 @@ test("PvX has every PvP and PvE category once, PvP first, and resolveKind accept
   assert.notEqual(embedColor("pvx", "open"), embedColor("pve", "open"));
 });
 
-test("the create panel offers PvX, lists all its categories, and keeps a kind that fits it", async () => {
+test("the first form offers plain PvX; Manage, then Edit, then offers every category for PvX content", async () => {
   const { d } = await setup();
-  const press = (customId: string, values: unknown[]) => d({ id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who("boss"), data: { custom_id: customId, component_type: 3, values } } as Interaction) as Promise<any>;
-  const panel = await press("cp:type:-:-:-:-:-", ["pvx"]);
-  const menus = panel.data.components.map((r: any) => r.components[0]);
-  assert.deepEqual(menus[0].options.map((o: any) => !!o.default), [false, false, true]);
-  assert.equal(menus[1].options.length, kindsOf("pvx").length);
-  const kind = await press("cp:kind:pvx:-:-:-:-", ["avalonian-dungeon"]);
-  assert.equal(kind.data.components.at(-1).components[0].custom_id, "cpgo:pvx:-:avalonian-dungeon:-:-");
-  const swapped = await press("cp:type:pvx:-:zvz:-:-", ["pve"]);
-  assert.equal(swapped.data.components.at(-1).components[0].custom_id, "cpgo:pve:-:-:-:-", "a PvP-only kind no longer fits PvE");
-  const keeps = await press("cp:type:pve:-:world-boss:-:-", ["pvx"]);
-  assert.equal(keeps.data.components.at(-1).components[0].custom_id, "cpgo:pvx:-:world-boss:-:-", "PvX keeps a PvE category");
+  const r: any = await d(cmd("create"));
+  const kinds = r.data.components[0].component.options;
+  assert.deepEqual(kinds.filter((o: any) => o.value.startsWith("pvx:")).map((o: any) => [o.label, o.value]), [["PvX", "pvx:other"]]);
+  assert.equal(kindsOf("pvx").length, 20, "the Edit panel's category menu for PvX content");
 });
 
 test("a PvX content is stored as pvx and shows PvX with its category in the header", async () => {

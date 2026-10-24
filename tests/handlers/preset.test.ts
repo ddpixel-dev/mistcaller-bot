@@ -88,7 +88,7 @@ test("presets are per guild", async () => {
   assert.ok(text(await handlePresetCommand(deps, { ...preset("list"), guild_id: "g2" } as Interaction)).includes("No presets"));
 });
 
-test("the create panel lists presets; picking one fills the slots box; clearing it empties the choice", async () => {
+test("the first form lists presets; picking one loads its slots into the final form; a deleted one is refused", async () => {
   const { deps, sql, id } = await setup();
   await handlePresetCommand(deps, preset("save", { name: "Ava" }));
   await sql`update content set status = 'cancelled' where id = ${id}`;
@@ -98,26 +98,26 @@ test("the create panel lists presets; picking one fills the slots box; clearing 
     channel: { id: "t1", type: 11, parent_id: "fp" }, member: who("u1"),
     data: { name: "content", options: [{ name: "create", type: 1 }] },
   };
-  const panel: any = await handleCreateCommand(deps, base);
-  const presetMenu = panel.data.components[3].components[0];
-  assert.equal(presetMenu.custom_id, "cp:preset:-:-:-:-:-");
-  assert.equal(presetMenu.min_values, 0);
+  const first: any = await handleCreateCommand(deps, base);
+  const presetMenu = first.data.components.find((l: any) => l.component.custom_id === "preset").component;
   assert.deepEqual(presetMenu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
-  const press = (customId: string, values?: unknown[]): Interaction => ({
-    ...base, type: 3, data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) },
+  const submit = (picked: string): Interaction => ({
+    ...base, type: 5, data: { custom_id: "cf", components: [
+      { type: 18, component: { type: 3, custom_id: "kind", values: ["pvp:other"] } },
+      { type: 18, component: { type: 3, custom_id: "preset", values: [picked] } },
+      { type: 18, component: { type: 4, custom_id: "tier", value: "T8" } },
+      { type: 18, component: { type: 3, custom_id: "loot", values: ["0"] } },
+    ] },
   });
   const d = createDispatch(deps);
-  const picked: any = await d(press("cp:preset:pvp:0:other:-", [presetId]));
-  assert.equal(picked.data.components[4].components[0].custom_id, `cpgo:pvp:0:other:${presetId}:-`);
-  const form: any = await d(press(`cpgo:pvp:0:other:${presetId}:-`));
+  const loaded: any = await d(submit(presetId));
+  const open = loaded.data.components[0].components[0];
+  const form: any = await d({ ...base, type: 3, data: { custom_id: open.custom_id, component_type: 2 } });
   assert.equal(form.type, 9);
   const slotsInput = form.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots");
   assert.equal(slotsInput.value, "Tank - Mace\nHealer - Holy");
-  const cleared: any = await d(press(`cp:preset:pvp:0:other:${presetId}`, []));
-  assert.equal(cleared.data.components[4].components[0].custom_id, "cpgo:pvp:0:other:-:-");
-  assert.ok(text(await d(press("cp:preset:pvp:0:other:-", ["00000000-0000-4000-8000-000000000000"]))).includes("out of date"));
   await handlePresetCommand(deps, preset("delete", { name: "Ava" }));
-  assert.ok(text(await d(press(`cpgo:pvp:0:other:${presetId}:-`))).includes("no longer exists"));
+  assert.ok(text(await d(submit(presetId))).includes("no longer exists"));
 });
 
 test("autocomplete filters the guild's names and answers with type 8", async () => {

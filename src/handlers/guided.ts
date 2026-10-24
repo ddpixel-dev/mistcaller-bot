@@ -1,20 +1,18 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { leafOption, modalValues, textInput } from "../discord/modal.ts";
+import { MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { modalValues, textInput } from "../discord/modal.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { deleteDraft, findDraft, getDraft, saveDraft, startDraft, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, getDraft, saveDraft, type StoredDraft } from "../db/draft.ts";
 import {
-  GUIDED_ROLES, NO_DUTY, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon,
-  type GuidedDraft,
+  NO_DUTY, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon, type GuidedDraft,
 } from "../domain/guided.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
-import type { ContentType } from "../domain/types.ts";
 import { NOT_HERE, createForm, placeProblem, postTakenReply, postTitle } from "./create.ts";
-import { createPanel } from "./create-panel.ts";
+import { firstForm } from "./first-form.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
@@ -36,20 +34,6 @@ const countForm = (d: StoredDraft): InteractionResponse => ({
     components: [textInput("count", "Players (1 to 20)", 3, { placeholder: "10", ...(d.count ? { value: String(d.count) } : {}) })],
   },
 });
-
-// Continue in the create panel (no preset): start this member's draft and ask how many players.
-export async function startGuided(
-  deps: Deps,
-  i: Interaction,
-  draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null },
-): Promise<InteractionResponse> {
-  const userId = i.member?.user?.id;
-  const threadId = i.channel?.id;
-  if (!i.guild_id || !userId || !threadId) return reply(EXPIRED);
-  const id = await startDraft(deps.sql, { guildId: i.guild_id, userId, threadId, type: draft.type, loot: draft.loot, kind: draft.kind, buildRef: draft.buildRef ?? null });
-  const d = await getDraft(deps.sql, id, deps.now());
-  return d ? countForm(d) : reply(EXPIRED);
-}
 
 async function owned(deps: Deps, i: Interaction, id: string | undefined): Promise<StoredDraft | null> {
   if (!id || !UUID.test(id)) return null;
@@ -97,9 +81,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     case "count": return countForm(d);
     case "back": {
       if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
-      // On the first card, Back returns to the create panel with the choices kept.
+      // On the first card, Back reopens the first form with the choices kept (ADR 0031).
       if (!i.guild_id) return reply(EXPIRED);
-      return await createPanel(deps, i.guild_id, { type: d.type, loot: d.loot, kind: d.kind, presetId: null, buildRef: d.buildRef }, "update");
+      return await firstForm(deps, i.guild_id, d.buildRef, { type: d.type, kind: d.kind, count: d.count, gearTier: d.gearTier, loot: d.loot });
     }
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
@@ -114,7 +98,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now(), postTitle(i));
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now(), { title: postTitle(i), tier: d.gearTier });
     }
     default: return reply(EXPIRED);
   }
@@ -132,29 +116,4 @@ export async function handleGuidedModal(deps: Deps, i: Interaction): Promise<Int
   const count = parseCount(values.count ?? "");
   if (!count.ok) return reply(count.error);
   return update(await store(deps, d, setCount(d, count.value)));
-}
-
-// "/content slot role:<> weapon:<type to search> duty:<>": fill the current card in one command and move on.
-export async function handleSlotCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const userId = i.member?.user?.id;
-  const threadId = i.channel?.id;
-  if (!i.guild_id || !userId || !threadId) return reply("Use this command inside a content post.");
-  const d = await findDraft(deps.sql, { guildId: i.guild_id, threadId, userId }, deps.now());
-  if (!d) return reply("Start the guided steps first: `/content create`, pick the type, then Continue.");
-  if (d.count === null) return reply("Set the number of players first, with Set number on the guided card.");
-  if (isComplete(d)) return reply("All slots are chosen. Press Continue to form on the guided card.");
-
-  const role = leafOption(i, "role");
-  const rawWeapon = leafOption(i, "weapon");
-  const duty = leafOption(i, "duty");
-  if (typeof role !== "string" || !(GUIDED_ROLES as readonly string[]).includes(role)) return reply("Pick a role from the list.");
-  const typed = typeof rawWeapon === "string" ? rawWeapon.trim() : "";
-  if (typed.length > 40) return reply("That weapon name is too long (max 40 characters).");
-  const known = WEAPONS.find((w) => w.name.toLowerCase() === typed.toLowerCase());
-
-  // The weapon is optional: without one the slot is a role alone.
-  let draft: GuidedDraft = typed ? setWeapon(setRole(picked(d), role), known ? known.name : typed) : { ...setRole(picked(d), role), weapon: null };
-  if (typeof duty === "string") draft = setDuty(draft, duty);
-  const saved = await store(deps, d, next(draft), null);
-  return { type: CHANNEL_MESSAGE, data: { ...renderGuidedStep(saved), flags: EPHEMERAL } };
 }
