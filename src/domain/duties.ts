@@ -1,4 +1,4 @@
-// A duty is a job a manager gives a player in the party on top of the role (Albion: call, scout, rat, loot).
+// A duty is a job a manager gives a player in the party on top of the role (Albion: call, scout, rat, loot, catch).
 export type DutyDef = { id: string; label: string; icon: string };
 
 export const DUTIES: DutyDef[] = [
@@ -6,6 +6,7 @@ export const DUTIES: DutyDef[] = [
   { id: "scout", label: "Scout", icon: "🏹" },
   { id: "rat", label: "Rat", icon: "🐀" },
   { id: "looter", label: "Looter", icon: "💰" },
+  { id: "catcher", label: "Catcher", icon: "🪝" },
 ];
 
 export const DUTY_WORD = "Duty";

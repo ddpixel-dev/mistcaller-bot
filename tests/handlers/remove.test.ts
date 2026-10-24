@@ -69,7 +69,7 @@ test("only the creator and admins may use it; strangers, old rosters and an empt
   assert.ok(text(await d(click(`rm:${id}`, STRANGER))).includes("Only the creator"));
   assert.ok(text(await d(click(`rm:p:${id}`, STRANGER, [A]))).includes("Only the creator"));
   assert.equal(((await d(click(`rm:${id}`, ADMIN, undefined, { member: who(ADMIN, ["admins"]) }))) as any).type, 4);
-  assert.ok(text(await d(click(`rm:${id}`, OWNER, undefined, { message: { id: "m0", flags: 0 } }))).includes("older layout"));
+  assert.equal(((await d(click(`rm:${id}`, OWNER, undefined, { message: { id: "p1", flags: 64 } }))) as any).type, 4, "opened from the private Manage panel");
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.userId, A, "nothing was removed");
 });
 
@@ -104,20 +104,13 @@ test("a fill and a waiting member can be removed too, and someone no longer on t
   assert.ok(text(await d(click("rm:nope", OWNER))).includes("out of date"));
 });
 
-test("the roster shows the Remove player button only while someone is on it, in a second row when the first is full, within the limits", async () => {
+test("the roster has no Remove player button; it lives in the Manage panel (ADR 0028)", async () => {
   const { sql, id, slots } = await setup();
-  const render = async () => renderRosterMessage((await getRosterView(sql, id, NOW))!);
-  const button = async () => flatComponents(await render()).find((c) => c.custom_id === `rm:${id}`);
-  assert.equal(await button(), undefined, "nobody on the roster");
   await seat(sql, id, slots[0]!, A);
   await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW });
-  assert.equal((await button())!.label, "Remove player");
   await sql`update content set has_loot = true`;
-  const msg: any = await render();
-  const rows = msg.components[0].components.filter((c: any) => c.type === 1);
-  assert.ok(rows.every((r: any) => r.components.length <= 5), "no row holds more than five buttons");
+  const msg: any = renderRosterMessage((await getRosterView(sql, id, NOW))!);
+  assert.equal(flatComponents(msg).find((c) => c.custom_id === `rm:${id}`), undefined);
   assert.deepEqual(discordProblems(msg), []);
   assert.ok(plain(textOf(msg)).length > 0);
-  await sql`update content set status = 'done'`;
-  assert.equal(await button(), undefined, "finished content has no Remove button");
 });

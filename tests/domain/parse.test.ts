@@ -126,8 +126,15 @@ test("parseSlots reads an optional duty in brackets at the end of a line", () =>
   ]);
   const bad = parseSlots("Tank - Axe (Captain)");
   assert.equal(bad.ok, false);
-  assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat, Looter\./);
+  assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat, Looter, Catcher\./);
   assert.deepEqual(ok(parseSlots("Tank - (Caller)")), [{ role: "Tank", weapon: "", duty: "caller" }]);
+});
+
+test("Catcher is a duty, typed as (Catcher) in any case, with the hook icon", async () => {
+  const r = parseSlots("DPS - Spear (Catcher)\nDPS - Bow ( catcher )");
+  assert.deepEqual((r as { ok: true; value: { duty?: string }[] }).value.map((s) => s.duty), ["catcher", "catcher"]);
+  const { dutyDef } = await import("../../src/domain/duties.ts");
+  assert.deepEqual(dutyDef("catcher"), { id: "catcher", label: "Catcher", icon: "🪝" });
 });
 
 test("Looter is a duty, typed as (Looter) in any case", () => {

@@ -18,6 +18,8 @@ import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handl
 import { handleVote } from "../handlers/vote.ts";
 import { handleRetryComponent } from "../handlers/retry.ts";
 import { handleRemoveComponent } from "../handlers/remove.ts";
+import { handleManageComponent } from "../handlers/manage-panel.ts";
+import { handleDutyComponent } from "../handlers/duty.ts";
 
 export type Deps = { sql: Sql; rest: Rest; now: () => Date };
 export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionResponse>;
@@ -27,7 +29,7 @@ const commandHandlers: Record<string, Handler> = { content: handleContentCommand
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, leaveslot: handleLeaveSlot, leave: handleLeave, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent,
+  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");

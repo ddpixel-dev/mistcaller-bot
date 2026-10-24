@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IS_COMPONENTS_V2, SPACER, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
+import { IS_COMPONENTS_V2, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
 import { fillBar, roleIcon } from "../../src/render/theme.ts";
 import type { RosterSlot, RosterView } from "../../src/domain/types.ts";
 import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
@@ -56,43 +56,31 @@ test("a roster is a Components V2 message: flag, one coloured container, no embe
   assert.deepEqual(m.allowed_mentions, { parse: [] });
 });
 
-test("header lines: category, tier and loot vote each on their own line with an icon, then UTC and your time", () => {
+test("header lines: category and tier each on their own line with an icon, then UTC and your time; no loot vote line", () => {
   const lines = txt(view({ kind: "zvz" })).split("\n");
   assert.ok(lines.includes("⚔️ **Type** **PvP · ZvZ**"));
   assert.ok(lines.includes("⚙️ **Gear tier** T5.3–T7.0"));
-  assert.ok(lines.some((l) => l.startsWith("💰 **Loot vote** On")));
+  assert.ok(!lines.some((l) => l.includes("Loot vote")), "the loot vote lives on its buttons only (ADR 0028)");
   assert.ok(lines.includes("🕰️ **UTC** Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** <t:1791396000:f> · <t:1791396000:R>"));
   assert.ok(lines.some((l) => l.startsWith("**Party (1/2)**")));
-  assert.ok(lines[0]!.startsWith("# 📜 ⚜ Ava roam ⚜"), "the title is a level-1 heading");
+  assert.ok(lines[0]!.startsWith("## 📜 ⚜ Ava roam ⚜"), "the title is a level-2 heading");
+  assert.ok(lines[1]!.includes("**Type**"), "no gap after the title");
 });
 
 test("no loot and single tier", () => {
   const t = txt(view({ hasLoot: false, tier: "T5.3" }));
-  assert.ok(t.includes("💰 **Loot vote** Off"));
+  assert.ok(!t.includes("Loot vote"));
   assert.ok(t.includes("⚙️ **Gear tier** T5.3\n"));
   assert.ok(!t.includes("T5.3–"));
 });
 
-test("the loot vote line carries the tally and closing time while open, and the result on the same line after", () => {
-  const open = txt(view({ votes: { split: 3, regear: 2 } })).split("\n").find((l) => l.includes("Loot vote"))!;
-  assert.equal(open, "💰 **Loot vote** On · Split 3 · Regear 2 · closes <t:1791395700:R>");
-  const cases: [Partial<RosterView>, string][] = [
-    [{ votes: { split: 3, regear: 2 }, voteResult: "split" }, "Result: Split won 3-2"],
-    [{ votes: { split: 2, regear: 3 }, voteResult: "regear" }, "Result: Regear won 3-2"],
-    [{ votes: { split: 2, regear: 2 }, voteResult: "tie" }, "Result: Tie 2-2"],
-    [{ votes: { split: 0, regear: 0 }, voteResult: "none" }, "Result: no votes"],
-  ];
-  for (const [over, expected] of cases) {
-    const line = txt(view({ voteClosed: true, ...over })).split("\n").find((l) => l.includes("Loot vote"))!;
-    assert.equal(line, `💰 **Loot vote** On · ${expected}`);
-    assert.ok(!line.includes("closes"));
-  }
-  assert.equal(txt(view({ voteClosed: true, votes: { split: 1, regear: 0 }, voteResult: "split" })).split("Loot vote").length, 2);
+test("the vote result line posted in the thread is unchanged, and the roster text never shows the vote", () => {
+  assert.ok(!txt(view({ voteClosed: true, votes: { split: 1, regear: 0 }, voteResult: "split" })).includes("Split won"));
   assert.equal(voteLine(view({ voteClosed: true, votes: { split: 2, regear: 1 }, voteResult: "split" })), "💰 Loot vote result: Split won 2-1");
 });
 
-test("rows sit under a heading per role and read: number, weapon icon, weapon - player - duty (Open for an empty position)", () => {
+test("one numbered line per position: number, role icon and role, weapon - player - duty (Open for an empty position)", () => {
   // Weapons without an icon (not in the list) show only their name, so the text format is easy to read here.
   const t = txt(view({ slots: [
     { id: "s1", position: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
@@ -100,24 +88,19 @@ test("rows sit under a heading per role and read: number, weapon icon, weapon - 
     { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: "222" },
     { id: "s4", position: 4, role: "Support", weapon: "Mystery Orb", userId: null },
   ] }));
-  assert.ok(t.includes("### 🛡️ Tank · 1/1\n1. Mystery Axe - <@111> - 📯 Caller"));
-  assert.ok(t.includes("### 💚 Healer · 0/1\n2. Mystery Staff - Open - 🏹 Scout"));
-  assert.ok(t.includes("### ⚔️ DPS · 1/1\n3. Mystery Bow - <@222>"));
-  assert.ok(t.includes("### 🤝 Support · 0/1\n4. Mystery Orb - Open"));
+  assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - <@111> - 📯 Caller\n2. 💚 Healer - Mystery Staff - Open - 🏹 Scout\n3. ⚔️ DPS - Mystery Bow - <@222>\n4. 🤝 Support - Mystery Orb - Open"));
 });
 
-test("slots of one role share a heading with its count, even when they are not next to each other; groups follow first appearance", () => {
+test("positions keep their order and numbers with no role headings, even when a role repeats apart", () => {
   const t = txt(view({ slots: [
     { id: "s1", position: 1, role: "DPS", weapon: "Bow", userId: "111" },
     { id: "s2", position: 2, role: "Tank", weapon: "Mace", userId: null },
     { id: "s3", position: 3, role: "dps", weapon: "Axe", userId: null },
-    { id: "s4", position: 4, role: "DPS", weapon: "Spear", userId: "222" },
   ] }));
   const lines = t.split("\n");
-  assert.deepEqual(lines.filter((l) => l.startsWith("### ")), ["### ⚔️ DPS · 2/3", "### 🛡️ Tank · 0/1"]);
-  const dps = lines.indexOf("### ⚔️ DPS · 2/3");
-  assert.ok(/^1\. /.test(lines[dps + 1]!) && /^3\. /.test(lines[dps + 2]!) && /^4\. /.test(lines[dps + 3]!));
-  assert.ok(/^2\. /.test(lines[lines.indexOf("### 🛡️ Tank · 0/1") + 1]!));
+  assert.ok(!lines.some((l) => l.startsWith("### ")));
+  const rows = lines.filter((l) => /^\d+\. /.test(l));
+  assert.deepEqual(rows.map((l) => l.split(" - ")[0]), ["1. ⚔️ DPS", "2. 🛡️ Tank", "3. ⚔️ dps"]);
 });
 
 test("the weapon icon sits inline before the weapon name when its emoji exists, and not when it does not", () => {
@@ -125,22 +108,21 @@ test("the weapon icon sits inline before the weapon name when its emoji exists, 
   assert.ok(withIds > 100, "run scripts/sync-emoji.ts");
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
   const t = txt(view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
-  assert.ok(t.includes(`1. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
-  assert.ok(t.includes("2. Mystery Blade - Open"));
+  assert.ok(t.includes(`1. 🛡️ Tank - <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
+  assert.ok(t.includes("2. 🛡️ Tank - Mystery Blade - Open"));
 });
 
 test("user text is escaped in the title, notes, role and weapon, and nothing can ping", () => {
   const t = txt(view({ title: "@everyone **x**", notes: "@here *hi*", slots: [{ id: "s", position: 1, role: "_R_", weapon: "@W", userId: null }] }));
   assert.ok(t.includes("@​everyone \\*\\*x\\*\\*"));
   assert.ok(t.includes("@​here \\*hi\\*"));
-  assert.ok(t.includes("\\_R\\_ · 0/1"));
-  assert.ok(t.includes("1. @​W - Open"));
+  assert.ok(t.includes("1. 🔹 \\_R\\_ - @​W - Open"));
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
-  // a role like "# big" cannot break out of its heading into another one
+  // a role like "# big" cannot break out of its row into a heading
   const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
-  const headings = h.split("\n").filter((l) => l.startsWith("# "));
-  const own = headings.filter((l) => l.slice(2).replace(/<a?:\w+:\d+>/g, "").trim() !== "");
-  assert.equal(own.length, 1, "only the title is a level-1 heading made of text; the other is the icon strip");
+  const headings = h.split("\n").filter((l) => /^#{1,3} /.test(l));
+  const own = headings.filter((l) => l.replace(/^#+ /, "").replace(/<a?:\w+:\d+>/g, "").trim() !== "");
+  assert.deepEqual(own.map((l) => l.split(" ")[0]), ["##"], "only the title is a heading made of text; the other is the icon strip");
 });
 
 test("notes get a Notes: label and a different icon than the title", () => {
@@ -159,7 +141,7 @@ test("colour comes from the category, grey when cancelled or done", () => {
 });
 
 test("status shows in the text: cancelled title and banner, closed roll, concluded", () => {
-  assert.ok(txt(view({ status: "cancelled" })).startsWith("# ✖ CANCELLED — Ava roam"));
+  assert.ok(txt(view({ status: "cancelled" })).startsWith("## ✖ CANCELLED — Ava roam"));
   assert.ok(txt(view({ status: "cancelled" })).includes("Cancelled."));
   assert.ok(txt(view({ status: "done" })).includes("Concluded."));
   assert.ok(txt(view({ status: "locked" })).includes("The roll is closed."));
@@ -233,7 +215,7 @@ test("all rows sit in one text block; Leave and the vote buttons share the last 
   assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
   const rows = comps(v).filter((c) => c.type === 1);
   const last = rows[rows.length - 1]!;
-  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "rm:c1"]);
+  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "mg:c1"]);
   assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
@@ -300,9 +282,9 @@ test("a menu to join the waitlist lists only the roles with no open position", (
   ], waitlist: [{ userId: "9", role: "DPS" }] });
   const menu = byId(mixed, "wait:")[0]!;
   assert.equal(menu.custom_id, "wait:c1");
-  assert.deepEqual(menu.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"]);
-  assert.deepEqual(menu.options.map((o: any) => o.description), [undefined, "0 waiting", "1 waiting"]);
-  assert.ok(menu.options[1].label.startsWith("Tank (all taken)"));
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["Tank", "DPS"]);
+  assert.deepEqual(menu.options.map((o: any) => o.description), ["0 waiting", "1 waiting"]);
+  assert.ok(menu.options[0].label.startsWith("Tank (all taken)"));
   assert.equal(byId(view({ slots: slots(4, 2) }), "wait:").length, 0);
   assert.equal(byId(view({ slots: slots(4, 4), startsAt: new Date("2020-01-01T00:00:00Z") }), "wait:").length, 1, "started but open");
   for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }] as const) {
@@ -329,24 +311,22 @@ test("the waitlist text and the menus stay inside Discord's limits with 20 posit
 test("header labels are followed by the measured number of en spaces, so the values share a column", () => {
   const lines = raw(view({ kind: "zvz" })).split("\n");
   const pad = (name: string) => lines.find((l) => l.includes(`**${name}**`))!.split(`**${name}**`)[1]!.match(/^\u2002*/)![0].length;
-  assert.deepEqual(["Type", "Gear tier", "Loot vote", "UTC", "Your time"].map(pad), [6, 3, 2, 7, 2]);
+  assert.deepEqual(["Type", "Gear tier", "UTC", "Your time"].map(pad), [6, 3, 7, 2]);
   // the shortest labels get the most padding
-  assert.ok(pad("UTC") > pad("Gear tier") && pad("Type") > pad("Loot vote"));
+  assert.ok(pad("UTC") > pad("Gear tier") && pad("Type") > pad("Your time"));
 });
 
-test("a full roster of long names still fits Discord's limits, and a cut never ends on a heading", () => {
+test("a full roster of long names still fits Discord's limits", () => {
   const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role number ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
   assert.deepEqual(discordProblems(msg(v)), []);
   const lines = raw(v).split("\n");
   assert.ok(lines.length > 10);
-  assert.ok(!lines.filter((l) => l !== "").at(-1)!.startsWith("### "));
 });
 
-test("all 20 slots show, grouped, when the roles repeat", () => {
+test("all 20 slots show, numbered in order, when the roles repeat", () => {
   const v = view({ slots: [...slots(8, 3, "Tank", "Mace"), ...slots(7, 7, "DPS", "Bow").map((s, i) => ({ ...s, id: `d${i}`, position: 9 + i })), ...slots(5, 0, "Healer", "Holy").map((s, i) => ({ ...s, id: `h${i}`, position: 16 + i }))] });
-  const lines = raw(v).split("\n");
-  assert.equal(lines.filter((l) => /^\d+\. /.test(l)).length, 20);
-  assert.deepEqual(lines.filter((l) => l.startsWith("### ")), ["### 🛡️ Tank · 3/8", "### ⚔️ DPS · 7/7", "### 💚 Healer · 0/5"]);
+  const rows = raw(v).split("\n").filter((l) => /^\d+\. /.test(l));
+  assert.deepEqual(rows.map((l) => Number(l.split(".")[0])), Array.from({ length: 20 }, (_, i) => i + 1));
 });
 
 test("a live roster ends with small tips for the owner; finished or cancelled ones do not", () => {
@@ -369,94 +349,46 @@ test("the tips still fit when the roster text is at Discord's limit", () => {
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
-// ---- Spacing (owner decision 2026-10-08, level A) ----
+// ---- Spacing (ADR 0028: every gap removed) ----
 
-test("small gaps sit after the title, after the header facts, and between role groups; not before the first group or at the end", () => {
-  const lines = raw(view({ slots: [
-    { id: "a", position: 1, role: "Tank", weapon: "Mace", userId: null },
-    { id: "b", position: 2, role: "Healer", weapon: "Holy", userId: null },
-    { id: "c", position: 3, role: "DPS", weapon: "Bow", userId: null },
-  ] })).split("\n");
-  const at = lines.map((l, n) => (l === SPACER ? n : -1)).filter((n) => n >= 0);
-  assert.equal(at.length, 4, "title, facts, and two between three groups");
-  assert.ok(lines[0]!.startsWith("# ") && lines[at[0]!] === SPACER && lines[at[0]! + 1]!.includes("**Type**"), "gap right after the title");
-  assert.ok(lines[at[1]! - 1]!.includes("**Your time**"), "gap right after the last header fact");
-  for (const n of at.slice(2)) {
-    assert.ok(/^\d+\. /.test(lines[n - 1]!) && lines[n + 1]!.startsWith("### "), "a gap between a group's last row and the next heading");
-  }
-  assert.ok(lines[lines.indexOf("### 🛡️ Tank · 0/1") - 1] !== SPACER, "no gap before the first group heading");
-  assert.notEqual(lines.at(-1), SPACER, "no gap at the very end");
-});
+const SPACER = "-# \u200B"; // the gap line used before 0.22.0
 
-test("the facts themselves stay tight: no gap between two header facts or two rows of a group", () => {
-  const lines = raw(view({ slots: slots(3, 0, "DPS", "Bow") })).split("\n");
-  const i = lines.findIndex((l) => l.includes("**Type**"));
-  for (let k = 0; k < 4; k++) assert.ok(lines[i + k]!.includes("**") && lines[i + k] !== SPACER, `fact ${k}`);
-  const h = lines.findIndex((l) => l.startsWith("### "));
-  assert.deepEqual(lines.slice(h + 1, h + 4).map((l) => /^\d\. /.test(l)), [true, true, true]);
-});
-
-test("the gaps are dropped first when the text is too long, and the message still fits", () => {
-  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
-  assert.deepEqual(discordProblems(msg(v)), []);
-  const small = raw(view());
-  assert.ok(small.includes(SPACER));
-});
-
-test("a gap separates the Fill and Waitlist lines from the last role and from each other; none at the end or when both are empty", () => {
-  const both = raw(view({ slots: slots(3, 1), fills: ["111111111111111111"], waitlist: [{ userId: "901", role: "DPS" }] })).split("\n");
-  const f = both.findIndex((l) => l.startsWith("🔁 **Fill"));
-  const w = both.findIndex((l) => l.startsWith("🕒 **Waitlist"));
-  assert.ok(/^\d+\. /.test(both[f - 2]!) && both[f - 1] === SPACER, "gap between the last row and Fill");
-  assert.equal(both[w - 1], SPACER, "gap between Fill and Waitlist");
-  assert.equal(w, f + 2);
-  assert.notEqual(both.at(-1), SPACER);
-  const onlyWait = raw(view({ slots: slots(3, 1), waitlist: [{ userId: "901", role: "DPS" }] })).split("\n");
-  const ow = onlyWait.findIndex((l) => l.startsWith("🕒 **Waitlist"));
-  assert.ok(/^\d+\. /.test(onlyWait[ow - 2]!) && onlyWait[ow - 1] === SPACER, "gap before a lone Waitlist");
-  const onlyFill = raw(view({ slots: slots(3, 1), fills: ["111111111111111111"] })).split("\n");
-  const of = onlyFill.findIndex((l) => l.startsWith("🔁 **Fill"));
-  assert.ok(/^\d+\. /.test(onlyFill[of - 2]!) && onlyFill[of - 1] === SPACER, "gap before a lone Fill");
-  const gaps = (t: string) => t.split("\n").filter((l) => l === SPACER).length;
-  assert.equal(gaps(raw(view({ slots: slots(3, 1) }))), gaps(onlyFill.join("\n")) - 1, "no extra gap when there is no Fill or Waitlist");
-});
-
-test("the Fill and Waitlist gaps are dropped with the other gaps when the text is too long, and the message still fits", () => {
-  const v = view({
-    slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })),
-    notes: "x".repeat(900), fills: ["111111111111111111", "222222222222222222"], waitlist: [{ userId: "901", role: "Role 1 with a long name" }],
-  });
-  assert.deepEqual(discordProblems(msg(v)), []);
-  if (!raw(v).includes(SPACER)) assert.ok(raw(v).includes("🔁 **Fill"));
+test("there are no gap lines: not after the title or the header, not between rows, not above Fill or Waitlist", () => {
+  const v = view({ notes: "bring food", slots: slots(3, 1), fills: ["111111111111111111"], waitlist: [{ userId: "901", role: "DPS" }] });
+  const lines = raw(v).split("\n");
+  assert.ok(!lines.includes(SPACER));
+  assert.ok(!lines.some((l) => l.trim() === "" || l.replace(/[-#\s\u200B]/g, "") === ""), "no blank or invisible line");
+  const f = lines.findIndex((l) => l.startsWith("🔁 **Fill"));
+  assert.ok(/^\d+\. /.test(lines[f - 1]!) && lines[f + 1]!.startsWith("🕒 **Waitlist"));
 });
 
 // ---- Fill, role-only slots and the build line ----
 
-test("fills are listed under the rows; Assign fill shows only while a fill exists; Leave and Ping count a fill", () => {
+test("fills are listed under the rows; Leave and Ping count a fill; there is no Assign fill button", () => {
   const none = view({ slots: slots(3, 0) });
   assert.ok(!raw(none).includes("🔁"));
-  assert.ok(!byId(none, "fa:").length);
   const v = view({ slots: slots(3, 0), fills: ["111111111111111111", "222222222222222222"] });
   assert.ok(raw(v).includes("🔁 **Fill (2):** <@111111111111111111> · <@222222222222222222>"));
-  assert.equal(byId(v, "fa:").length, 1);
-  assert.equal(byId(v, "fa:")[0]!.label, "Assign fill");
+  assert.equal(byId(v, "fa:").length, 0, "Sign up player lives in the Manage panel (ADR 0028)");
   assert.equal(byId(v, "leave:")[0]!.disabled, false, "Leave is enabled by a fill alone");
   assert.equal(byId(v, "ping:")[0]!.disabled, false, "Ping is enabled by a fill alone");
   assert.equal(byId(view({ slots: slots(3, 0) }), "leave:")[0]!.disabled, true);
-  assert.equal(byId(view({ ...v, status: "done" }), "fa:").length, 0, "finished content has no Assign fill");
   // the waitlist line follows the fill line
   const both = raw(view({ slots: slots(2, 0), fills: ["111111111111111111"], waitlist: [{ userId: "333333333333333333", role: "DPS" }] }));
   assert.ok(both.indexOf("🔁") < both.indexOf("🕒"));
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
-test("the buttons row never holds more than five buttons, even with the loot vote and a fill", () => {
-  const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"] });
-  const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1);
-  assert.ok(rows.every((r: any) => r.components.length <= 5));
-  assert.deepEqual(rows.at(-2).components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Assign fill"]);
-  assert.deepEqual(rows.at(-1).components.map((c: any) => c.label), ["Remove player"], "the sixth button starts a second row");
-  assert.deepEqual(discordProblems(msg(v)), []);
+test("one row of buttons at most: Leave, Split, Regear, Ping players, Manage; Manage only on live content", () => {
+  const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"], waitlist: [{ userId: "901", role: "DPS" }] });
+  const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1 && c.components[0].type === 2);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Manage"]);
+  assert.equal(byId(v, "mg:")[0]!.custom_id, "mg:c1");
+  assert.equal(byId(view({ slots: slots(3, 0), hasLoot: false }), "mg:").length, 1, "Manage shows on an empty roster too");
+  assert.equal(byId(view({ status: "locked" }), "mg:").length, 1);
+  for (const status of ["done", "cancelled"] as const) assert.equal(byId(view({ status }), "mg:").length, 0, status);
+  assert.equal(byId(v, "rm:").length, 0, "Remove player lives in the Manage panel");
 });
 
 test("a role-only slot reads Player's choice, then the holder's own weapon with its icon; its menu entry is the role", () => {
@@ -468,10 +400,10 @@ test("a role-only slot reads Player's choice, then the holder's own weapon with 
     { id: "d", position: 4, role: "DPS", weapon: "", duty: "caller", userId: null },
   ] });
   const t = raw(v);
-  assert.ok(t.includes("1. Player's choice - Open"));
-  assert.ok(t.includes(`2. <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - <@111111111111111111>`));
-  assert.ok(t.includes("3. Player's choice - <@222222222222222222>"));
-  assert.ok(t.includes("4. Player's choice - Open - 📯 Caller"));
+  assert.ok(t.includes("1. 🛡️ Tank - Player's choice - Open"));
+  assert.ok(t.includes(`2. 🛡️ Tank - <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - <@111111111111111111>`));
+  assert.ok(t.includes("3. 💚 Healer - Player's choice - <@222222222222222222>"));
+  assert.ok(t.includes("4. ⚔️ DPS - Player's choice - Open - 📯 Caller"));
   const menu = byId(v, "join:")[0]!;
   assert.deepEqual(menu.options.map((o: any) => o.label), ["Fill (play any position)", "1. Tank", "4. DPS - Caller"]);
   assert.deepEqual(menu.options[1].emoji, { name: "🛡️" });
@@ -520,7 +452,7 @@ test("the join menu closes when every free position is held for a fill; the wait
   const held = view({ slots: two, fills: ["9001", "9002"] }); // 2 open positions, 2 fills: both held
   assert.equal(byId(held, "join:").length, 0, "no menu: nothing is left to pick");
   const wait = byId(held, "wait:")[0]!;
-  assert.deepEqual(wait.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"], "a role with a position that is held can be waited for");
+  assert.deepEqual(wait.options.map((o: any) => o.value), ["Tank", "DPS"], "no Fill on the waitlist menu (ADR 0028); a role with a position that is held can be waited for");
   const spare = view({ slots: two, fills: ["9001"] });
   assert.equal(byId(spare, "join:").length, 1, "2 open positions, 1 fill: one can still be picked");
   assert.deepEqual(byId(spare, "wait:").length, 0);
