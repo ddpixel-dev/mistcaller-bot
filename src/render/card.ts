@@ -5,7 +5,8 @@ import { buildRefText } from "../domain/buildref.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { parseUtcStart } from "../domain/parse.ts";
 import type { ContentType } from "../domain/types.ts";
-import { escapeText, formatUtc } from "./roster.ts";
+import { IS_COMPONENTS_V2, escapeText, formatUtc } from "./roster.ts";
+import { START_MINUTES, dayChoices, startParts } from "../domain/time.ts";
 import { roleIcon } from "./theme.ts";
 
 export type CardContext = {
@@ -13,7 +14,12 @@ export type CardContext = {
   forumType: "pvp" | "pve" | null; // the event forum's type, when the card was opened from its launcher
   problems?: string[];
   note?: string;
+  now: Date;
 };
+
+// A Components V2 message (ADR 0033): a classic message holds five rows, and the card needs more for the start menus.
+// The flag stays on the message, so every later change to it, the slot cards included, is a V2 message too.
+export const v2Text = (content: string) => ({ flags: IS_COMPONENTS_V2, components: [{ type: 10, content }], allowed_mentions: { parse: [] as [] } });
 
 const btn = (label: string, emoji: string, custom_id: string, style = 2) => ({ type: 2, style, label, emoji: { name: emoji }, custom_id });
 const NONE = "—";
@@ -28,9 +34,10 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     : d.slots.map((s, n) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`);
   const lines = [
     `## ${d.type ? kindIcon(d.type, d.kind) : "🛠️"} Create event`,
-    `-# Only you see this. Set the menus, then **Details** for the text, then **Create**.`,
+    `-# Only you see this. Set the menus and the start, then **Details** for the title and gear tier, then **Create**.`,
+    `-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.`,
     `📝 **Title** ${d.title ? escapeText(d.title) : NONE}`,
-    `🕰️ **Start** ${start?.ok ? formatUtc(start.value) : d.startText ? escapeText(d.startText) : NONE}`,
+    `🕰️ **Start** ${start?.ok ? `${formatUtc(start.value)} · <t:${Math.floor(start.value.getTime() / 1000)}:f> your time` : d.startText ? escapeText(d.startText) : NONE}`,
     `⚙️ **Gear tier** ${d.gearTier ? escapeText(d.gearTier) : NONE}`,
     `🗒️ **Notes** ${d.notes ? escapeText(d.notes).slice(0, 300) : NONE}`,
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
@@ -70,6 +77,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         ],
       }],
     },
+    ...startRows(d, ctx.now),
     ...(ctx.presets.length ? [{
       type: 1,
       components: [{
@@ -81,24 +89,42 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
       type: 1,
       components: [
         btn("Details", "✏️", `cc:details:${id}`, 1),
-        btn("Guided slots", "🧩", `cc:guided:${id}`),
+        btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
         btn("Build link", "🧰", `cc:build:${id}`),
         btn("Create", "✅", `cc:create:${id}`, 3),
         btn("Cancel", "✖️", `cc:cancel:${id}`),
       ],
     },
   ];
-  return { content: lines.join("\n").slice(0, 2000), embeds: [], components: rows, allowed_mentions: { parse: [] as [] } };
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [{ type: 17, components: [{ type: 10, content: lines.join("\n").slice(0, 3000) }, ...rows] }],
+    allowed_mentions: { parse: [] as [] },
+  };
 }
 
-// The pinned launcher post of an event forum (FR-053).
-export const LAUNCHER_NAME = "📌 Create an event";
+// The start as three menus (ADR 0033): the day (today and the next 13), the hour and the quarter hour, in UTC.
+function startRows(d: StoredDraft, now: Date): unknown[] {
+  const p = startParts(d.startText);
+  const menu = (part: string, placeholder: string, options: { label: string; value: string }[], chosen: string | undefined) => ({
+    type: 1,
+    components: [{ type: 3, custom_id: `cc:${part}:${d.id}`, placeholder, options: options.map((o) => ({ ...o, default: o.value === chosen })) }],
+  });
+  return [
+    menu("day", "Start day (UTC)", dayChoices(now, p?.day ?? null), p?.day),
+    menu("hour", "Start hour (UTC)", Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, "0")}:xx UTC`, value: String(h).padStart(2, "0") })), p?.hour),
+    menu("minute", "Start minute", START_MINUTES.map((m) => ({ label: `xx:${m}`, value: m })), p?.minute),
+  ];
+}
+
+// The pinned launcher post of an event forum (FR-053). The forum's list shows only a post's title and the start of
+// its first message, never its buttons, so both say what to do (owner request 2026-10-24, ADR 0033).
+export const LAUNCHER_NAME = "📌 Create an event: click here";
 export function renderLauncher() {
   return {
     content: [
-      "## 📌 Create an event",
-      "Press **Create event** to set up a roster. Pick the type and category, add the details and the slots, then **Create**.",
-      "The bot makes the event's own post in this forum, so posts here are always rosters.",
+      "👉 Press **Create event** below to set up your event.",
+      "Pick the type and category, the start, the details and the slots, then **Create**. The bot makes the event's own post in this forum.",
     ].join("\n"),
     components: [{ type: 1, components: [{ type: 2, style: 3, label: "Create event", emoji: { name: "✨" }, custom_id: "lc:create" }] }],
     allowed_mentions: { parse: [] as [] },

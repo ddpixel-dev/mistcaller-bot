@@ -32,6 +32,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0030 Positions by role, DTank, title icons](decisions/0030-role-order-dtank-title-icons.md): positions numbered Tank, DTank, Healer, Support, DPS (migration 0021); DTank 🧱; one category icon in the title; Scout 🔭
 - [0031 The first create form](decisions/0031-first-create-form.md): one form (type and category, players, preset, gear tier, loot), then slot cards, then the final form; `weapon` and `slot` removed; 🏷️ Type line
 - [0032 Creation card and bot-made forum posts](decisions/0032-creation-card-and-forum-posts.md): one creation card with reacting menus; launcher posts in event forums; the bot creates each event's post
+- [0033 Start menus, Roles, locked launcher](decisions/0033-card-start-menus-locked-launcher.md): start as Day/Hour/Minute menus on a V2 card; Roles button; launcher "click here", locked, guidelines line
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
 - [Creation card and bot-made forum posts](plan/2026-10-24-creation-card-and-forum-posts-design.md): design and plan (FR-053, FR-054)
 - [Release 0.21.0 plan](plan/2026-10-15-release-0.21.md): eleven owner requests, order and branches

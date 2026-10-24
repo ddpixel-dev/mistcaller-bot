@@ -1,3 +1,4 @@
+import { flatComponents, say } from "../helpers/discordLimits.ts";
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
@@ -99,14 +100,14 @@ test("the creation card lists presets; picking one fills the slots; a deleted on
     data: { name: "content", options: [{ name: "create", type: 1 }] },
   };
   const card: any = await handleCreateCommand(deps, base);
-  const menu = card.data.components.map((r: any) => r.components[0]).find((c: any) => String(c.custom_id).startsWith("cc:preset:"));
+  const menu = flatComponents(card.data).find((c: any) => String(c.custom_id).startsWith("cc:preset:"))!;
   assert.deepEqual(menu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
   const pick = (v: string): Interaction => ({ ...base, type: 3, data: { custom_id: menu.custom_id, component_type: 3, values: [v] } });
   const d = createDispatch(deps);
   const filled: any = await d(pick(presetId));
   assert.equal(filled.type, 7);
-  assert.ok(filled.data.content.includes("1. 🛡️ Tank - Mace") && filled.data.content.includes("2. 💚 Healer - Holy"));
-  assert.ok(filled.data.content.includes("Slots from the preset **Ava**"));
+  assert.ok(say(filled).includes("1. 🛡️ Tank - Mace") && say(filled).includes("2. 💚 Healer - Holy"));
+  assert.ok(say(filled).includes("Slots from the preset **Ava**"));
   await handlePresetCommand(deps, preset("delete", { name: "Ava" }));
   assert.ok(text(await d(pick(presetId))).includes("no longer exists"));
 });

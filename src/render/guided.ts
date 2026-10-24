@@ -5,7 +5,7 @@ import { DUTIES, dutyDef } from "../domain/duties.ts";
 import {
   SLOT_LABEL, WEAPON_CLASSES, isWeaponClass, weaponClass, weaponIconUrl, weaponsOfClass, type Weapon, type WeaponClass,
 } from "../domain/weapons.ts";
-import { escapeText } from "./roster.ts";
+import { IS_COMPONENTS_V2, escapeText } from "./roster.ts";
 
 const btn = (label: string, id: string, extra: Record<string, unknown> = {}) => ({
   type: 2, style: 2, label, custom_id: id, ...extra,
@@ -38,7 +38,7 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
   const id = d.id;
   const count = d.count ?? 0;
   const done = isComplete(d);
-  const embed: Record<string, unknown> = { title: "Guided slots" };
+  const embed = { title: "Roles" };
   const body: string[] = [];
   if (d.count === null || pickCount) {
     body.push("How many players are needed? Pick a number from 1 to 20.");
@@ -52,9 +52,12 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
       body.push("", `This slot: ${here.length ? here.join(" · ") : "nothing chosen yet"}`);
     }
   }
-  embed.description = body.join("\n");
+  const text = [`### ${embed.title}`, ...body].join("\n");
   const shown = d.weapon ? WEAPONS.find((w) => w.name === d.weapon) : undefined;
-  if (shown && !done) embed.thumbnail = { url: weaponIconUrl(shown, 128) };
+  // The card is a Components V2 message (ADR 0033), so the weapon's picture is a thumbnail beside the text.
+  const head = shown && !done
+    ? { type: 9, components: [{ type: 10, content: text }], accessory: { type: 11, media: { url: weaponIconUrl(shown, 128) } } }
+    : { type: 10, content: text };
 
   const rows: unknown[] = [];
   if (d.count === null || pickCount) {
@@ -129,5 +132,5 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
       ],
     });
   }
-  return { content: "", embeds: [embed], components: rows, allowed_mentions: { parse: [] as [] } };
+  return { flags: IS_COMPONENTS_V2, components: [{ type: 17, components: [head, ...rows] }], allowed_mentions: { parse: [] as [] } };
 }

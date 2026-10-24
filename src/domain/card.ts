@@ -35,7 +35,7 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
     if (typed.ok) slots = typed.value;
     else problems.push(`Slots: ${typed.error}`);
   } else if (slots.length === 0) {
-    problems.push("Add the slots: type them in Details, use Guided slots, or pick a preset.");
+    problems.push("Add the slots: press Roles, type them in Details, or pick a preset.");
   } else if (slots.length > MAX_SLOTS) {
     problems.push(`There can be at most ${MAX_SLOTS} slots.`);
   }
