@@ -5,7 +5,7 @@ import { getDraft } from "../../src/db/draft.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
-import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
+import { cardIdOf, discordProblems, flatComponents, plain, say, textOf } from "../helpers/discordLimits.ts";
 import { handleEditModal } from "../../src/handlers/manage.ts";
 
 const NOW = new Date("2026-10-24T12:00:00Z");
@@ -42,7 +42,7 @@ const form = (customId: string, fields: Record<string, string>, over: Partial<In
 const command = (sub: string, options: unknown[] = [], over: Partial<Interaction> = {}, resolved?: unknown) =>
   base({ type: 2, data: { name: "content", options: [{ name: sub, type: 1, options }], ...(resolved ? { resolved } : {}) }, ...over });
 const menus = (r: any) => flatComponents(r.data).filter((c) => c.type === 3);
-const idOf = (r: any) => r.data.components.at(-1).components[0].custom_id.split(":")[2] as string;
+const idOf = (r: any) => cardIdOf(r);
 const details = { title: "Ava roam", start: "2026-10-25 18:00", tier: "T8", slots: "Tank - Mace\nHealer", notes: "" };
 
 async function open(d: any, over: Partial<Interaction> = {}) {
@@ -61,7 +61,7 @@ test("the Category menu follows the Type: only that type's categories, and a cat
   assert.equal(kind.disabled, false);
   assert.ok(kind.options.some((o: any) => o.value === "zvz") && !kind.options.some((o: any) => o.value === "mists"));
   r = await d(press(`cc:kind:${id}`, ["zvz"]));
-  assert.ok(r.data.content.startsWith("## 🏰"), "the card's heading shows the category's icon");
+  assert.ok(say(r).startsWith("## 🏰"), "the card's heading shows the category's icon");
   r = await d(press(`cc:type:${id}`, ["pve"]));
   kind = menus(r)[1];
   assert.ok(kind.options.some((o: any) => o.value === "mists") && !kind.options.some((o: any) => o.value === "zvz"));
@@ -80,15 +80,14 @@ test("Details opens one form filled from the card; what is typed is kept, and sl
   const f: any = await d(press(`cc:details:${id}`));
   assert.equal(f.type, 9);
   const inputs = f.data.components.map((row: any) => row.components[0]);
-  assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "start", "tier", "slots", "notes"]);
-  assert.equal(inputs[1].value, "2026-10-24 13:00", "the start is prefilled");
+  assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "tier", "slots", "notes"], "the start is set with the card's menus");
   const r: any = await d(form(`ccd:${id}`, { ...details, slots: "Tank - Mace (Captain)" }));
   assert.equal(r.type, 7);
-  assert.ok(r.data.content.includes("Ava roam") && r.data.content.includes("Unknown duty"));
+  assert.ok(say(r).includes("Ava roam") && say(r).includes("Unknown duty"));
   let stored = (await getDraft(sql, id, NOW))!;
-  assert.deepEqual([stored.title, stored.startText, stored.gearTier, stored.notes, stored.slotsText], ["Ava roam", "2026-10-25 18:00", "T8", null, "Tank - Mace (Captain)"]);
+  assert.deepEqual([stored.title, stored.startText, stored.gearTier, stored.notes, stored.slotsText], ["Ava roam", "2026-10-24 13:00", "T8", null, "Tank - Mace (Captain)"]);
   const again: any = await d(press(`cc:details:${id}`));
-  assert.equal(again.data.components[3].components[0].value, "Tank - Mace (Captain)", "the typed slots come back to be fixed");
+  assert.equal(again.data.components[2].components[0].value, "Tank - Mace (Captain)", "the typed slots come back to be fixed");
   await d(form(`ccd:${id}`, details));
   stored = (await getDraft(sql, id, NOW))!;
   assert.deepEqual([stored.slots.length, stored.slotsText], [2, null]);
@@ -99,7 +98,7 @@ test("Create lists every problem on the card and creates nothing; only the membe
   const { id } = await open(d);
   const r: any = await d(press(`cc:create:${id}`));
   assert.equal(r.type, 7);
-  for (const p of ["Pick the type", "Add a title", "gear tier", "Add the slots"]) assert.ok(r.data.content.includes(p), p);
+  for (const p of ["Pick the type", "Add a title", "gear tier", "Add the slots"]) assert.ok(say(r).includes(p), p);
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.equal(calls.length, 0);
   const stranger = { member: { user: { id: OTHER }, roles: [] } };
@@ -114,7 +113,7 @@ test("Create in a channel posts the roster there, removes the draft and links it
   await d(press(`cc:type:${id}`, ["pvp"]));
   await d(form(`ccd:${id}`, details));
   const r: any = await d(press(`cc:create:${id}`));
-  assert.equal(r.data.content, `✅ Created: https://discord.com/channels/${GUILD}/c1/m1`);
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/c1/m1`);
   assert.equal(calls.filter((c) => c.op === "createMessage").length, 1);
   const [row] = await sql`select thread_id, message_id, own_post, title from content`;
   assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.title], ["c1", "m1", false, "Ava roam"]);
@@ -135,9 +134,11 @@ test("setup event-forum posts and pins a Create event post, remembers the forum 
   assert.ok(r.data.content.includes("Create Posts") && r.data.content.includes("Manage Threads"));
   const post = calls.find((c) => c.op === "createForumPost")!;
   assert.equal(post.args[0], FORUM);
-  assert.equal(post.args[1].name, "📌 Create an event");
+  assert.equal(post.args[1].name, "📌 Create an event: click here");
+  assert.ok(post.args[1].message.content.startsWith("👉 Press **Create event**"), "the forum list shows what to do");
+  assert.ok(r.data.content.includes("Post Guidelines") && r.data.content.includes("<#post1>"));
   assert.deepEqual(flatComponents(post.args[1].message).find((c) => c.type === 2)!.custom_id, "lc:create");
-  assert.deepEqual(calls.find((c) => c.op === "editChannel")!.args, ["post1", { flags: 2 }], "pinned");
+  assert.deepEqual(calls.find((c) => c.op === "editChannel")!.args, ["post1", { flags: 2, locked: true }], "pinned and locked");
   const [row] = await sql`select forum_id, type, launcher_thread_id from event_forum`;
   assert.deepEqual([row!.forum_id, row!.type, row!.launcher_thread_id], [FORUM, "pvp", "post1"]);
   await setupForum(d);
@@ -168,7 +169,7 @@ test("Create event opens the card in the launcher post; a PvP forum offers PvP a
   const { d } = await setup();
   const { r, inPost } = await launcherCard(d, "pvp");
   assert.equal(r.type, 4);
-  assert.equal(r.data.flags, 64);
+  assert.equal(r.data.flags & 64, 64, "private");
   assert.deepEqual(menus(r)[0].options.map((o: any) => o.value), ["pvp", "pvx"]);
   assert.ok(((await d(command("create", [], inPost))) as any).data.content.includes("Create event"));
   assert.ok(((await d(press("lc:create", undefined, { channel: { id: "elsewhere", type: 11 } }))) as any).data.content.includes("no longer set up"));
@@ -181,7 +182,7 @@ test("Create from a launcher makes a new post named after the title, with matchi
   await d(press(`cc:kind:${id}`, ["zvz"], inPost));
   await d(form(`ccd:${id}`, details, inPost));
   const r: any = await d(press(`cc:create:${id}`, undefined, inPost));
-  assert.equal(r.data.content, `✅ Created: https://discord.com/channels/${GUILD}/post2/post2`);
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/post2/post2`);
   const post = calls.filter((c) => c.op === "createForumPost").at(-1)!;
   assert.deepEqual([post.args[0], post.args[1].name, post.args[1].applied_tags], [FORUM, "Ava roam", ["tag-pvp", "tag-zvz"]]);
   const edit = calls.filter((c) => c.op === "editMessage").at(-1)!;

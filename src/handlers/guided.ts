@@ -10,6 +10,7 @@ import {
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
 import { showCard } from "./card.ts";
+import { v2Text } from "../render/card.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
@@ -75,12 +76,15 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     }
     case "back": {
       if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
-      return await showCard(deps, d); // Back on the first card returns to the creation card (ADR 0032)
+      // Back on the first slot shows the number menu, so the number can change (owner request 2026-10-24); from there
+      // Back to the card returns to the creation card.
+      if (d.count !== null) return { type: UPDATE_MESSAGE, data: renderGuidedStep(d, true) };
+      return await showCard(deps, d);
     }
     case "card": return await showCard(deps, d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
-      return { type: UPDATE_MESSAGE, data: { content: "Creation cancelled.", embeds: [], components: [] } };
+      return { type: UPDATE_MESSAGE, data: v2Text("Creation cancelled.") };
     }
     // Use these slots: back to the creation card, which now shows them (typed slots that did not parse are replaced).
     case "done": {
