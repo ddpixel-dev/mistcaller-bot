@@ -136,7 +136,7 @@ phase: MVP
 priority: should
 satisfies: FR-027
 
-A slot carries a duty (Caller, Scout, Rat, Looter (added 2026-10-09)), set while defining the slots or later by a manager; it appears on the roster line.
+A slot carries a duty (Caller, Scout, Rat, Looter (added 2026-10-09), Catcher 🪝 (added 2026-10-24)), set while defining the slots or later by a manager; it appears on the roster line.
 
 ### FT-015: Slot builder and presets
 status: all three phases built (presets, weapon data and `/content weapon`, guided steps); guided steps need migration 0005 (see docs/plan/2026-10-07-ft-015-slot-builder-design.md)
@@ -161,7 +161,7 @@ status: accepted
 Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, or a role alone (FR-030), optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
-status: accepted
+status: accepted; layout superseded 2026-10-24 by ADR 0028 (level-2 title, no Loot vote line, no spacers, no role headings)
 The roster message shall show its title as a level-1 heading, the largest text Discord allows (owner request 2026-10-08), and the start time as plain UTC text and as Discord timestamps (local time and relative time), the gear tier or range on its own line (with a gear icon), the loot vote on its own line (with the tally and closing time while open, and the result on the same line after the cutoff), and the slots grouped under a heading per role, such as `🛡️ Tank · 1/1` (owner decision 2026-10-08, layout E, ADR 0021). Each row reads `n. WeaponIcon Weapon - DutyIcon Duty · Sworn: Player` (or `Open`), where the weapon icon is the actual icon (ADR 0017) and the duty appears only when set; position numbers do not change. The header labels (Type, Gear tier, Loot vote, UTC, Your time) are followed by a measured number of en spaces so the values start in one column; Discord's font is proportional, so this is accurate to a few pixels, not exact. Small gaps (a subtext line holding an invisible character, about three-quarters of a normal line) sit after the title, after the header facts and between role groups (owner decision 2026-10-08, level A); the gaps are dropped first when a very full roster needs the room. The Fill line and the Waitlist line each get the same gap above them, so they sit apart from the last role and from each other (owner request 2026-10-09).
 
 ### FR-005: Sign up, move, leave
@@ -233,7 +233,7 @@ status: accepted (owner request 2026-10-15)
 A fill shall hold a seat from the moment they sign up, so they cannot be left without a place: the party count shows seated players plus reserved fills (`min(fills, open positions)`), a position can be picked only while open positions outnumber fills, and the waitlist is promoted under the same rule. A fill beyond the free positions waits as a standby fill.
 
 ### FR-041: Roster wording and rows
-status: accepted (owner request 2026-10-15; supersedes the wording of FR-005 and the row format of ADR 0021)
+status: accepted (owner request 2026-10-15; supersedes the wording of FR-005 and the row format of ADR 0021); row format superseded 2026-10-24 by ADR 0028: `n. RoleIcon Role - WeaponIcon Weapon - @Player - DutyIcon Duty`, one numbered line per position, no role headings
 The party heading reads "Party" (it was "The Company") and the word "Sworn" is removed. A row reads `n. WeaponIcon Weapon - @Player - DutyIcon Duty`, with "Open" in place of the player when the position is empty.
 
 ### FR-042: Remove player
@@ -256,6 +256,14 @@ Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `crea
 status: accepted (owner request 2026-10-15, option B; changed to a level-1 heading the same day because the plain line was still small)
 Under the header, the roster shall show a **level-1 heading** of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out). Discord draws an emoji as big as the text around it and cannot draw the extra-large "jumbo" size in this kind of message, so the largest text style is what makes the icons bigger (about one and a half times the inline size). It is the first thing dropped when a very full roster needs the room. If the owner still finds the icons too small, the next options are larger text on each row or an image gallery of the real weapon pictures.
 
+### FR-047: Host signs up a player
+status: accepted (owner request 2026-10-20, agreed 2026-10-24, ADR 0028; replaces the Assign fill button of FR-032)
+The creator and admins shall be able to sign up any member in an open position with **Sign up player** (in the Manage panel): a private panel showing the players waiting as fills first, then a member picker for anyone else, then the open positions. A member already on the roster is moved, never listed twice; the freed position goes to the waitlist. The host may use a position held for a fill (FR-040); the extra fill becomes a standby fill. Bots are refused. The thread gets `📝 @Host signed up @Player for position n (Role)`, which pings only the player. `/content assign position member` does the same. Works while the content is open or locked.
+
+### FR-048: Manage panel
+status: accepted (owner request 2026-10-24, ADR 0028)
+The roster bar shall hold at most Leave, Split, Regear, Ping players and **Manage**. Manage opens a private panel for the creator and admins with Edit, Sign up player, Remove player, Set duty (position, then duty or Clear), Lock or Unlock, End, Cancel and Attendance, each behaving as its command. Others are refused when they press it.
+
 ### FR-029: Help and owner tips
 status: accepted
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
@@ -273,7 +281,7 @@ status: accepted (ADR 0025)
 When the create or edit form has mistakes, the bot shall answer privately with every mistake at once and a **Fix and retry** button that opens the same form again with the text the member typed (Discord cannot validate inside an open form). Nothing is created or changed meanwhile. The typed text is kept for an hour for that member only (`form_retry`, migration 0018) and a new failure replaces it.
 
 ### FR-032: Fill
-status: accepted (ADR 0023)
+status: accepted (ADR 0023); changed 2026-10-24 by ADR 0028: the waitlist menu no longer offers Fill, and Assign fill is replaced by Sign up player (FR-047)
 A member may choose **Fill** in the join menu (and in the waitlist menu when the roster is full) to say they can play any position. A fill is signed up without a position, listed on the roster as `🔁 Fill (n)`, and counts for leaving, voting, Ping players, the reminder, attendance, history and the edit and cancel notices. The creator and admins place a fill in an **open** position with the **Assign fill** button (a private panel: the fill, then the position) or `/content assign position member`; the thread gets a line naming the position and only that member is mentioned. Fills are never seated automatically and nobody is swapped out.
 
 ### FR-033: PvX content type

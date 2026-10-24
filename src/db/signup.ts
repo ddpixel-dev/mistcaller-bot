@@ -203,31 +203,52 @@ export async function joinFill(
 
 export type AssignResult =
   | { result: "ok"; position: number; role: string }
-  | { result: "unavailable" | "not_found" | "not_fill" | "no_slot" | "taken" };
+  | { result: "unavailable" | "not_found" | "no_slot" | "taken" | "unchanged" };
 
-// FR-032: the owner or an admin places a fill in an open position, in one transaction. A taken position is refused;
-// nobody is swapped out. Allowed while the content is open or locked.
-export async function assignFill(
-  sql: Sql,
-  a: { contentId: string; guildId: string; userId: string; slotId?: string; position?: number },
-): Promise<AssignResult> {
+type AssignArgs = { contentId: string; guildId: string; userId: string; slotId?: string; position?: number; now: Date; promoted?: Promotion[] };
+
+// FR-047 (ADR 0028): the creator or an admin signs up any member in an open position, in one transaction. A member
+// already on the roster (fill, waitlist or another position) is moved, never listed twice; a freed position goes to
+// the waitlist. The host may use a position held for a fill (FR-040 does not bind the host). A taken position is
+// refused; nobody is swapped out. Allowed while the content is open or locked.
+export async function assignPlayer(sql: Sql, a: AssignArgs): Promise<AssignResult> {
+  try {
+    return await assignOnce(sql, a);
+  } catch (err) {
+    if (!isRetryable(err)) throw err;
+  }
+  try {
+    return await assignOnce(sql, a);
+  } catch (err) {
+    if (isRetryable(err)) return { result: "taken" };
+    throw err;
+  }
+}
+
+async function assignOnce(sql: Sql, a: AssignArgs): Promise<AssignResult> {
   try {
     return await sql.begin(async (tx): Promise<AssignResult> => {
+      if (a.promoted) a.promoted.length = 0; // a retried attempt starts clean
       const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
       if (!c || c.guild_id !== a.guildId) return { result: "not_found" };
       if (c.status !== "open" && c.status !== "locked") return { result: "unavailable" };
-      const [fill] = await tx`
-        select user_id from signup where content_id = ${a.contentId} and user_id = ${a.userId} and status = 'fill' for update`;
-      if (!fill) return { result: "not_fill" };
       const [slot] = a.slotId
-        ? await tx`select id, position, role from slot where id = ${a.slotId} and content_id = ${a.contentId}`
-        : await tx`select id, position, role from slot where position = ${a.position ?? -1} and content_id = ${a.contentId}`;
+        ? await tx`select id, position, role, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`
+        : await tx`select id, position, role, weapon from slot where position = ${a.position ?? -1} and content_id = ${a.contentId}`;
       if (!slot) return { result: "no_slot" };
       const [holder] = await tx`select user_id from signup where slot_id = ${slot.id} and status = 'signed'`;
-      if (holder) return { result: "taken" };
+      if (holder) return { result: holder.user_id === a.userId ? "unchanged" : "taken" };
+      const [prev] = await tx`
+        select status, chosen_weapon from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+      // The player's own weapon stays when moving between role-only slots, and goes otherwise (FR-030).
+      const keepWeapon = prev?.status === "signed" && slot.weapon === null ? prev.chosen_weapon : null;
       await tx`
-        update signup set slot_id = ${slot.id}, status = 'signed', wait_role = null, chosen_weapon = null, joined_at = now()
-        where content_id = ${a.contentId} and user_id = ${a.userId}`;
+        insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon)
+        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${slot.id}, 'signed', ${keepWeapon})
+        on conflict (content_id, user_id)
+        do update set slot_id = excluded.slot_id, status = 'signed', wait_role = null, joined_at = now(),
+          chosen_weapon = excluded.chosen_weapon`;
+      if (prev?.status === "signed" && a.promoted) a.promoted.push(...(await promoteWaitlist(tx, a.contentId, a.now)));
       return { result: "ok", position: slot.position, role: slot.role };
     });
   } catch (err) {

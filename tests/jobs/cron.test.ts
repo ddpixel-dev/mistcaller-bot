@@ -10,6 +10,7 @@ import { AUTO_END_MS, endStale, isAuthorized, postVoteResults, runJobs, sendRemi
 import * as cronRoute from "../../api/cron.ts";
 import { handleCron } from "../../src/jobs/cron-handler.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
+import { flatComponents } from "../helpers/discordLimits.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
 
 const startsAt = new Date("2026-12-01T18:00:00Z");
@@ -87,7 +88,7 @@ test("postVoteResults at the cutoff: one edit, one thread message, marked, secon
   const deps: Deps = { sql, rest, now: () => CUTOFF };
   assert.equal(await postVoteResults(deps), 1);
   assert.equal(calls.edits.length, 1);
-  assert.ok(JSON.stringify(calls.edits[0]!.body).includes("Result: Split won 2-1"));
+  assert.ok(flatComponents(calls.edits[0]!.body).filter((c) => String(c.custom_id ?? "").startsWith("vote:")).every((c) => c.disabled === true), "the roster's vote buttons are dimmed");
   assert.equal(calls.posts.length, 1);
   assert.equal(calls.posts[0]!.channel, "t1");
   assert.equal(calls.posts[0]!.body.content, "💰 Loot vote result: Split won 2-1");

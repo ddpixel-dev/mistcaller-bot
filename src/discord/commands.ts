@@ -136,10 +136,10 @@ export const commands = [
       {
         type: 1,
         name: "assign",
-        description: "Place a fill player in an open position (creator, admin roles, Manage Server)",
+        description: "Sign up any member in an open position (creator, admin roles, Manage Server)",
         options: [
           { type: 4, name: "position", description: "The open position number", required: true, min_value: 1, max_value: 20 },
-          { type: 6, name: "member", description: "The member who is waiting as a fill", required: true },
+          { type: 6, name: "member", description: "The member to sign up", required: true },
         ],
       },
       { type: 1, name: "help", description: "What the bot does and every command" },
