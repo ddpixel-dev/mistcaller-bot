@@ -73,6 +73,9 @@ function walk(c: C, out: string[], ids: string[], texts: string[], where: string
     if (c.accent_color !== undefined && !(Number.isInteger(c.accent_color) && c.accent_color >= 0 && c.accent_color <= 0xffffff)) {
       out.push(`${where}: bad accent_color`);
     }
+  } else if (c.type === 14) {
+    // A separator: an optional divider line and a small (1) or large (2) gap.
+    if (c.spacing !== undefined && c.spacing !== 1 && c.spacing !== 2) out.push(`${where}: separator spacing is 1 or 2`);
   } else if (c.type === 11) {
     // A thumbnail, as a section's accessory: one image by URL.
     if (typeof c.media?.url !== "string" || !/^https:\/\//.test(c.media.url)) out.push(`${where}: a thumbnail needs an https media url`);

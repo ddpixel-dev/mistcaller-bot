@@ -243,7 +243,7 @@ test("Use these slots returns to the creation card with them; Details and Create
   const details: any = await d(press(`cc:details:${id}`));
   const slots = details.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots").value;
   assert.equal(slots, "Tank - Greataxe (Caller)\nHealer - Holy Staff");
-  await d(form(`ccd:${id}`, { title: "Raid", tier: "T6.0", slots, notes: "" }));
+  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots, notes: "" }));
   const made: any = await d(press(`cc:create:${id}`));
   assert.ok(say(made).startsWith("✅ Created"), say(made));
   const [{ duty }] = await sql`select duty from slot where position = 1`;
@@ -290,7 +290,7 @@ test("Create and the command are refused while the post already has content", as
   await fillCard(d, id, "Tank", "Mace");
   await d(press(`gs:done:${id}`));
   await d(press(`cc:type:${id}`, ["pvp"]));
-  await d(form(`ccd:${id}`, { title: "Raid", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
+  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
   await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pvp", title: "x", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
     tier: "T8.0", hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
