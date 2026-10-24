@@ -1,18 +1,15 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { modalValues, textInput } from "../discord/modal.ts";
+import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { modalValues } from "../discord/modal.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { deleteDraft, getDraft, saveDraft, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, getDraft, saveCard, saveDraft, type StoredDraft } from "../db/draft.ts";
 import {
   NO_DUTY, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon, type GuidedDraft,
 } from "../domain/guided.ts";
-import { resolveKind } from "../domain/kinds.ts";
-import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
-import { NOT_HERE, createForm, placeProblem, postTakenReply, postTitle } from "./create.ts";
-import { firstForm } from "./first-form.ts";
+import { showCard } from "./card.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
@@ -25,15 +22,6 @@ async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, weaponClass:
   await saveDraft(deps.sql, d.id, out);
   return out;
 }
-
-const countForm = (d: StoredDraft): InteractionResponse => ({
-  type: MODAL,
-  data: {
-    custom_id: `gsc:${d.id}`,
-    title: "How many players needed?",
-    components: [textInput("count", "Players (1 to 20)", 3, { placeholder: "10", ...(d.count ? { value: String(d.count) } : {}) })],
-  },
-});
 
 async function owned(deps: Deps, i: Interaction, id: string | undefined): Promise<StoredDraft | null> {
   if (!id || !UUID.test(id)) return null;
@@ -78,33 +66,33 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!isWeaponClass(cls)) return reply(EXPIRED);
       return update(await store(deps, d, d, cls));
     }
-    case "count": return countForm(d);
+    // Change number: the number menu over the cards. Picking a number keeps the slots that still fit.
+    case "count": return { type: UPDATE_MESSAGE, data: renderGuidedStep(d, true) };
+    case "setcount": {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 1 || n > 20) return reply(EXPIRED);
+      return update(await store(deps, d, setCount(d, n)));
+    }
     case "back": {
       if (d.count !== null && d.step > 0) return update(await store(deps, d, back(d), null));
-      // On the first card, Back reopens the first form with the choices kept (ADR 0031).
-      if (!i.guild_id) return reply(EXPIRED);
-      return await firstForm(deps, i.guild_id, d.buildRef, { type: d.type, kind: d.kind, count: d.count, gearTier: d.gearTier, loot: d.loot });
+      return await showCard(deps, d); // Back on the first card returns to the creation card (ADR 0032)
     }
+    case "card": return await showCard(deps, d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
       return { type: UPDATE_MESSAGE, data: { content: "Creation cancelled.", embeds: [], components: [] } };
     }
+    // Use these slots: back to the creation card, which now shows them (typed slots that did not parse are replaced).
     case "done": {
       if (!isComplete(d)) return update(d);
-      if (!i.guild_id) return reply(NOT_HERE);
-      const problem = placeProblem(i);
-      if (problem) return reply(problem);
-      const kind = resolveKind(d.type, d.kind);
-      if (!kind.ok) return reply(kind.error);
-      const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
-      if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now(), { title: postTitle(i), tier: d.gearTier });
+      await saveCard(deps.sql, d.id, { slotsText: null });
+      return await showCard(deps, (await getDraft(deps.sql, d.id, deps.now())) ?? d);
     }
     default: return reply(EXPIRED);
   }
 }
 
-// The form for the number of players ("gsc").
+// The number form of an earlier version ("gsc"); the number is a menu now.
 export async function handleGuidedModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];

@@ -56,6 +56,25 @@ test("editMessage PATCHes the message", async () => {
   assert.equal(seen!.init.method, "PATCH");
 });
 
+test("forum posts: create a post, read the forum's tags, rename and delete a channel (ADR 0032)", async () => {
+  const seen: { url: string; method: string; body: unknown }[] = [];
+  const replies = [res(201, { id: "p1" }), res(200, { available_tags: [{ id: "t1", name: "PvP" }, { id: "t2", name: "ZvZ" }] }), res(200, {}), res(404, {}), res(500, {})];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    seen.push({ url, method: String(init.method), body: init.body ? JSON.parse(init.body as string) : undefined });
+    return replies.shift()!;
+  }) as unknown as typeof fetch;
+  const rest = createRest("T", fetchFn);
+  assert.deepEqual(await rest.createForumPost!("f1", { name: "Raid", message: { content: "x" }, applied_tags: ["t1"] }), { id: "p1" });
+  assert.deepEqual(await rest.forumTags!("f1"), [{ id: "t1", name: "PvP" }, { id: "t2", name: "ZvZ" }]);
+  await rest.editChannel!("p1", { name: "Raid 2" });
+  await rest.deleteChannel!("p1"); // 404: already gone, not an error
+  assert.deepEqual(await rest.forumTags!("f1"), [], "tags are optional: a failure gives none");
+  assert.deepEqual(seen.map((c) => [c.method, c.url.replace("https://discord.com/api/v10", "")]), [
+    ["POST", "/channels/f1/threads"], ["GET", "/channels/f1"], ["PATCH", "/channels/p1"], ["DELETE", "/channels/p1"], ["GET", "/channels/f1"],
+  ]);
+  assert.deepEqual(seen[0]!.body, { name: "Raid", message: { content: "x" }, applied_tags: ["t1"] });
+});
+
 test("buildRegisterRequest builds URL, headers and body", () => {
   const r = buildRegisterRequest({ appId: "A1", token: "SECRET" });
   assert.equal(r.url, "https://discord.com/api/v10/applications/A1/commands");
@@ -71,8 +90,10 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.deepEqual(create.options!.map((o) => o.name), ["build-reference"]);
   assert.equal(create.options![0]!.type, 3);
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["clear-event-forum", 7],
   ]);
+  const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
+  assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
   assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
 });
 

@@ -32,15 +32,16 @@ export function weaponChoices(d: StoredDraft): Weapon[] {
 const slotLine = (s: { role: string; weapon: string; duty?: string | null }, n: number) =>
   `${n}. ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
 
-// One screen of the guided steps, rebuilt from the stored draft after every click.
-export function renderGuidedStep(d: StoredDraft) {
+// One screen of the guided steps, rebuilt from the stored draft after every click. `pickCount` shows the number menu
+// (Change number) over the cards; without a number it shows anyway. The steps return to the creation card (ADR 0032).
+export function renderGuidedStep(d: StoredDraft, pickCount = false) {
   const id = d.id;
   const count = d.count ?? 0;
   const done = isComplete(d);
   const embed: Record<string, unknown> = { title: "Guided slots" };
   const body: string[] = [];
-  if (d.count === null) {
-    body.push("How many players are needed? Press **Set number** and type a number from 1 to 20.");
+  if (d.count === null || pickCount) {
+    body.push("How many players are needed? Pick a number from 1 to 20.");
   } else {
     const dots = Array.from({ length: count }, (_, i) => (i < d.slots.length && i !== d.step ? "●" : i === d.step ? "◉" : "○")).join("");
     body.push(done ? `All ${count} slots are chosen.` : `**Slot ${d.step + 1} of ${count}**`, dots);
@@ -56,13 +57,20 @@ export function renderGuidedStep(d: StoredDraft) {
   if (shown && !done) embed.thumbnail = { url: weaponIconUrl(shown, 128) };
 
   const rows: unknown[] = [];
-  if (d.count === null) {
-    rows.push({ type: 1, components: [btn("Set number", `gs:count:${id}`, { style: 1 }), btn("Back", `gs:back:${id}`), btn("Cancel", `gs:cancel:${id}`)] });
+  if (d.count === null || pickCount) {
+    rows.push({
+      type: 1,
+      components: [{
+        type: 3, custom_id: `gs:setcount:${id}`, placeholder: "Players needed",
+        options: Array.from({ length: 20 }, (_, n) => ({ label: String(n + 1), value: String(n + 1), default: n + 1 === d.count })),
+      }],
+    });
+    rows.push({ type: 1, components: [btn("Back to the card", `gs:card:${id}`), btn("Cancel", `gs:cancel:${id}`)] });
   } else if (done) {
     rows.push({
       type: 1,
       components: [
-        btn("Continue to form", `gs:done:${id}`, { style: 3 }),
+        btn("Use these slots", `gs:done:${id}`, { style: 3 }),
         btn("Back", `gs:back:${id}`),
         btn("Change number", `gs:count:${id}`),
         btn("Cancel", `gs:cancel:${id}`),

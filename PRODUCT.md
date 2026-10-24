@@ -277,8 +277,16 @@ status: accepted (owner request 2026-10-24, ADR 0030)
 Positions shall be numbered by role: Tank, DTank, Healer, Support, DPS, then any other role in the order it was written. Content is sorted when created and after each edit (migration 0021 sorted the existing content); seats, duties and weapons stay with their position, whose number may change.
 
 ### FR-052: First create form
-status: accepted (owner request 2026-10-24, ADR 0031)
+status: superseded 2026-10-24 by FR-054 (creation card, ADR 0032)
 `/content create` shall open a form at once with Type and category (one menu), Players needed (1 to 20), Preset (when the server has presets), Gear tier (free text) and Loot vote. Then the slot cards start, sized to the number of players (or a preset's slots are loaded with an Open form button), then the final form, whose Gear Tier starts as typed in the first form.
+
+### FR-053: Bot-made forum posts
+status: accepted (owner request 2026-10-24, ADR 0032; resolves Q23)
+An admin shall register an event forum with `/content setup event-forum forum-type` (PvP, PvE or Any, default Any); the bot posts and pins a "📌 Create an event" post with a Create event button, and `clear-event-forum` removes it. Members, who lose Create Posts there by the owner's permissions, press Create event; the bot creates the event's post, named after the title, with the roster as its first message and the forum tags matching the type or category. Editing the title renames the post. `/content create` still works in existing posts and channels, but not in a launcher post.
+
+### FR-054: Creation card
+status: accepted (owner request 2026-10-24, ADR 0032)
+Creation shall happen on one private card: a summary of the title, start, gear tier, notes and slots; Type, Category (only the chosen type's), Loot vote and Preset menus; Details (one form with Title, Start, Gear tier, Slots and Notes, prefilled), Guided slots (the slot cards, count as a menu, returning to the card) and Create (every problem listed on the card, nothing typed lost) and Cancel. A forum's type limits the Type menu.
 
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"

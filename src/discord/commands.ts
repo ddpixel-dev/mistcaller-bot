@@ -36,10 +36,16 @@ export const commands = [
         options: [buildReferenceOption()],
       },
       {
-        type: 1, name: "setup", description: "Admin roles (Manage Server), and the Events Calendar channel (admins)",
+        type: 1, name: "setup", description: "Admin roles (Manage Server); the Events Calendar channel and event forums (admins)",
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
+          { type: 7, name: "event-forum", description: "A forum where the bot makes each event's post from a pinned Create event post", required: false, channel_types: [15] },
+          {
+            type: 3, name: "forum-type", description: "With event-forum: the content types it takes (default Any)", required: false,
+            choices: [{ name: "Any", value: "any" }, { name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
+          },
+          { type: 7, name: "clear-event-forum", description: "Stop using a forum for events and remove its Create event post", required: false, channel_types: [15] },
         ],
       },
       {
