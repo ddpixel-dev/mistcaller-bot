@@ -1,12 +1,11 @@
 import type { StoredDraft } from "../db/draft.ts";
-import { typesFor } from "../domain/card.ts";
+import { typesFor, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindsOf, kindIcon, typeIcon } from "../domain/kinds.ts";
 import { buildRefText } from "../domain/buildref.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { parseUtcStart } from "../domain/parse.ts";
 import type { ContentType } from "../domain/types.ts";
 import { IS_COMPONENTS_V2, escapeText, formatUtc } from "./roster.ts";
-import { START_MINUTES, dayChoices, startParts } from "../domain/time.ts";
 import { roleIcon } from "./theme.ts";
 
 export type CardContext = {
@@ -17,8 +16,8 @@ export type CardContext = {
   now: Date;
 };
 
-// A Components V2 message (ADR 0033): a classic message holds five rows, and the card needs more for the start menus.
-// The flag stays on the message, so every later change to it, the slot cards included, is a V2 message too.
+// A Components V2 message (ADR 0033): it can hold the tips under the buttons. The flag stays on the message, so every
+// later change to it, the slot cards included, is a V2 message too.
 export const v2Text = (content: string) => ({ flags: IS_COMPONENTS_V2, components: [{ type: 10, content }], allowed_mentions: { parse: [] as [] } });
 
 const btn = (label: string, emoji: string, custom_id: string, style = 2) => ({ type: 2, style, label, emoji: { name: emoji }, custom_id });
@@ -29,13 +28,15 @@ const NONE = "—";
 export function renderCard(d: StoredDraft, ctx: CardContext) {
   const id = d.id;
   const start = d.startText ? parseUtcStart(d.startText, new Date(0)) : null;
+  // Create is dimmed until the card passes the same checks as creation (owner request 2026-10-24, ADR 0034); the card
+  // says what is still needed. Problems from the last action (a slot line that did not parse) come first.
+  const checked = validateCard(d, ctx.now);
+  const needed = [...new Set([...(ctx.problems ?? []), ...(checked.ok ? [] : checked.problems)])];
   const slotLines = d.slotsText !== null
     ? ["⚠️ The typed slots could not be read; fix them in **Details**."]
     : d.slots.map((s, n) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`);
   const lines = [
     `## ${d.type ? kindIcon(d.type, d.kind) : "🛠️"} Create event`,
-    `-# Only you see this. Set the menus and the start, then **Details** for the title and gear tier, then **Create**.`,
-    `-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.`,
     `📝 **Title** ${d.title ? escapeText(d.title) : NONE}`,
     `🕰️ **Start** ${start?.ok ? `${formatUtc(start.value)} · <t:${Math.floor(start.value.getTime() / 1000)}:f> your time` : d.startText ? escapeText(d.startText) : NONE}`,
     `⚙️ **Gear tier** ${d.gearTier ? escapeText(d.gearTier) : NONE}`,
@@ -43,7 +44,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
     `👥 **Slots (${d.slotsText !== null ? "?" : d.slots.length})**`,
     ...(slotLines.length ? slotLines : [NONE]),
-    ...(ctx.problems?.length ? ["", "**Before creating, fix:**", ...ctx.problems.map((p) => `⚠️ ${p}`)] : []),
+    ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
     ...(ctx.note ? ["", ctx.note] : []),
   ];
 
@@ -77,7 +78,6 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         ],
       }],
     },
-    ...startRows(d, ctx.now),
     ...(ctx.presets.length ? [{
       type: 1,
       components: [{
@@ -91,32 +91,28 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         btn("Details", "✏️", `cc:details:${id}`, 1),
         btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
         btn("Build link", "🧰", `cc:build:${id}`),
-        btn("Create", "✅", `cc:create:${id}`, 3),
+        { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 },
         btn("Cancel", "✖️", `cc:cancel:${id}`),
       ],
     },
   ];
   return {
     flags: IS_COMPONENTS_V2,
-    components: [{ type: 17, components: [{ type: 10, content: lines.join("\n").slice(0, 3000) }, ...rows] }],
+    components: [{
+      type: 17,
+      components: [{ type: 10, content: lines.join("\n").slice(0, 3000) }, ...rows, { type: 14, divider: true, spacing: 2 }, { type: 10, content: CARD_TIPS }],
+    }],
     allowed_mentions: { parse: [] as [] },
   };
 }
 
-// The start as three menus (ADR 0033): the day (today and the next 13), the hour and the quarter hour, in UTC.
-function startRows(d: StoredDraft, now: Date): unknown[] {
-  const p = startParts(d.startText);
-  const menu = (part: string, placeholder: string, options: { label: string; value: string }[], chosen: string | undefined) => ({
-    type: 1,
-    components: [{ type: 3, custom_id: `cc:${part}:${d.id}`, placeholder, options: options.map((o) => ({ ...o, default: o.value === chosen })) }],
-  });
-  return [
-    menu("day", "Start day (UTC)", dayChoices(now, p?.day ?? null), p?.day),
-    menu("hour", "Start hour (UTC)", Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, "0")}:xx UTC`, value: String(h).padStart(2, "0") })), p?.hour),
-    menu("minute", "Start minute", START_MINUTES.map((m) => ({ label: `xx:${m}`, value: m })), p?.minute),
-  ];
-}
-
+// The tips sit under the buttons, one per line (owner request 2026-10-24, ADR 0034).
+export const CARD_TIPS = [
+  "-# 💡 Only you see this card.",
+  "-# 💡 Set the type, category and loot vote above, then press **Details** for the title, start time, gear tier and notes.",
+  "-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
+  "-# 💡 **Create** lights up once everything needed is set.",
+].join("\n");
 // The pinned launcher post of an event forum (FR-053). The forum's list shows only a post's title and the start of
 // its first message, never its buttons, so both say what to do (owner request 2026-10-24, ADR 0033).
 export const LAUNCHER_NAME = "📌 Create an event: click here";

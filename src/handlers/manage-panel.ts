@@ -35,7 +35,7 @@ function panel(view: RosterView) {
           button("Edit", "✏️", `mg:e:${id}`, 1),
           // A green button (owner request 2026-10-24); the owner chose the ✍️ icon.
           button("Add player", "✍️", `fa:${id}`, 3),
-          button("Remove player", "❌", `rm:${id}`),
+          button("Remove player", "👢", `rm:${id}`), // a kick (owner request 2026-10-24)
           button("Set duty", "📯", `dt:${id}`),
           // Only while a position has no weapon (ADR 0029).
           ...(view.slots.some((s) => !s.weapon) ? [button("Set weapon", "🗡️", `sw:${id}`)] : []),
