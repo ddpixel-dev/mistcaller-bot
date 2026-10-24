@@ -1,6 +1,4 @@
 import { USER_AGENT } from "./rest.ts";
-import { DUTIES, DUTY_WORD } from "../domain/duties.ts";
-import { GUIDED_ROLES } from "../domain/guided.ts";
 
 const buildReferenceOption = (): CommandOption => ({
   type: 3, name: "build-reference", description: "A link to the build: a channel, post or message of this server (optional)",
@@ -60,35 +58,7 @@ export const commands = [
           },
         ],
       },
-      {
-        type: 1,
-        name: "weapon",
-        description: "Find a weapon and see its icon",
-        options: [{
-          type: 3, name: "name", description: "Part of the weapon name", required: true,
-          autocomplete: true, max_length: 50,
-        }],
-      },
       { type: 1, name: "me", description: "Your own place in this content: sign up, move or leave" },
-      {
-        type: 1,
-        name: "slot",
-        description: "Guided slots: fill the current slot (role, weapon with search, duty)",
-        options: [
-          {
-            type: 3, name: "role", description: "The slot's role", required: true,
-            choices: GUIDED_ROLES.map((r) => ({ name: r, value: r })),
-          },
-          {
-            type: 3, name: "weapon", description: "Type part of the weapon name and pick it (optional: leave it to the player)", required: false,
-            autocomplete: true, max_length: 50,
-          },
-          {
-            type: 3, name: "duty", description: `The slot's ${DUTY_WORD.toLowerCase()} (optional)`, required: false,
-            choices: DUTIES.map((d) => ({ name: d.label, value: d.id })),
-          },
-        ],
-      },
       { type: 1, name: "list", description: "Live and upcoming content in this server, with links" },
       { type: 1, name: "stats", description: "This server's statistics, shown only to you" },
       {

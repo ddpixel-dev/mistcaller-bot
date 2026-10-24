@@ -73,9 +73,42 @@ function walk(c: C, out: string[], ids: string[], texts: string[], where: string
     if (c.accent_color !== undefined && !(Number.isInteger(c.accent_color) && c.accent_color >= 0 && c.accent_color <= 0xffffff)) {
       out.push(`${where}: bad accent_color`);
     }
+  } else if (c.type === 18) {
+    // A Label in a form: a title (45), an optional description (100), and one text input or menu.
+    if (!c.label || Array.from(String(c.label)).length > 45) out.push(`${where}: label empty or over 45`);
+    if (c.description && Array.from(String(c.description)).length > 100) out.push(`${where}: label description over 100`);
+    const k = c.component;
+    if (!k || ![3, 4, 5, 6, 7, 8].includes(k.type)) out.push(`${where}: a label holds one text input or menu`);
+    else walk(k, out, ids, texts, `${where}.in`);
+  } else if (c.type === 4) {
+    ids.push(c.custom_id);
+    if (!c.custom_id || c.custom_id.length > 100) out.push(`${where}: text input custom_id missing or over 100`);
+    if (c.style !== 1 && c.style !== 2) out.push(`${where}: text input style must be 1 or 2`);
+    const max = c.max_length ?? 4000;
+    if (max < 1 || max > 4000) out.push(`${where}: text input max_length not 1 to 4000`);
+    if (c.placeholder && Array.from(String(c.placeholder)).length > 100) out.push(`${where}: placeholder over 100`);
+    if (c.value !== undefined && Array.from(String(c.value)).length > max) out.push(`${where}: value longer than max_length`);
+    if (c.label !== undefined && Array.from(String(c.label)).length > 45) out.push(`${where}: text input label over 45`);
   } else {
     out.push(`${where}: unknown component type ${c.type}`);
   }
+}
+
+// A form (modal): a title of 45 at most, 1 to 5 fields, each in a Label or (the older layout) an action row.
+export function modalProblems(data: C): string[] {
+  const out: string[] = [];
+  const ids: string[] = [];
+  if (!data.custom_id || String(data.custom_id).length > 100) out.push("form custom_id missing or over 100");
+  if (!data.title || Array.from(String(data.title)).length > 45) out.push("form title empty or over 45");
+  const comps: C[] = data.components ?? [];
+  if (comps.length < 1 || comps.length > 5) out.push(`a form holds 1 to 5 fields (has ${comps.length})`);
+  comps.forEach((c, i) => {
+    if (c.type !== 18 && c.type !== 1) out.push(`f${i}: a form field is a label or a row`);
+    if (c.type === 1 && (c.components?.length !== 1 || c.components[0].type !== 4)) out.push(`f${i}: a row in a form holds one text input`);
+    walk(c, out, ids, [], `f${i}`);
+  });
+  if (new Set(ids).size !== ids.length) out.push("duplicate custom_id in one form");
+  return out;
 }
 
 // Returns the problems found (empty when the message is fine). `body` is what we send or answer with.

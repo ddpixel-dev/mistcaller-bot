@@ -89,7 +89,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   const lines = [
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
-    fact("⚔️", "Type", `**${kind}**`),
+    fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),

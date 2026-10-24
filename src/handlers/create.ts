@@ -11,7 +11,7 @@ import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from
 import { renderRosterMessage } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType } from "../domain/types.ts";
-import { DEFAULT_DRAFT, createPanel } from "./create-panel.ts";
+import { firstForm } from "./first-form.ts";
 import { formProblems } from "./retry.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { defaultStart } from "../domain/time.ts";
@@ -68,7 +68,8 @@ function takenMessage(status: string, link: string): string {
     : `This post already has content.${link} Cancel it first to create a new one.`;
 }
 
-// Step 1 of creation: a private panel to pick the type, kind, loot vote and preset. Step 2 is the form.
+// Step 1 of creation: the first form (type and category, players, preset, gear tier, loot vote; ADR 0031). Then the
+// slot cards (or a preset), then the final form.
 export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (!i.guild_id) return reply(NOT_HERE);
   const problem = placeProblem(i);
@@ -79,7 +80,7 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   }
   const build = readBuildReference(i, "create");
   if (!build.ok) return reply(build.error);
-  return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildRef: build.id ?? null }, "new");
+  return await firstForm(deps, i.guild_id, build.id ?? null);
 }
 
 // The title starts as the name of the forum post or thread the form is opened in (owner request 2026-10-24, ADR 0029).
@@ -89,8 +90,10 @@ export function postTitle(i: Interaction): string | null {
   return name ? Array.from(name).slice(0, 100).join("") : null;
 }
 
+// The final form. The title starts as the post's name and the gear tier as typed in the first form (ADR 0029, 0031).
 export function createForm(
-  draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null, now: Date, title: string | null = null,
+  draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null, now: Date,
+  prefill: { title?: string | null; tier?: string | null } = {},
 ): InteractionResponse {
   return {
     type: MODAL,
@@ -98,9 +101,9 @@ export function createForm(
       custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}${draft.buildRef ? `:${packRef(draft.buildRef)}` : ""}`,
       title: "Create content",
       components: [
-        textInput("title", "Title", 100, title ? { value: title } : {}),
+        textInput("title", "Title", 100, prefill.title ? { value: prefill.title } : {}),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00", value: defaultStart(now) }),
-        textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3" }),
+        textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3", ...(prefill.tier ? { value: prefill.tier } : {}) }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
           style: 2, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(presetLines ? { value: presetLines } : {}),
         }),

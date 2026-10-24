@@ -14,6 +14,7 @@ export type StoredDraft = GuidedDraft & {
   kind: string;
   buildRef: string | null;
   weaponClass: string | null;
+  gearTier: string | null;
 };
 
 const toDraft = (r: Record<string, any>): StoredDraft => ({
@@ -32,19 +33,28 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   weapon: r.weapon ?? null,
   duty: r.duty ?? null,
   weaponClass: r.weapon_class ?? null,
+  gearTier: r.gear_tier ?? null,
 });
 
-// One draft per member per post: starting again replaces the old one.
+// One draft per member per post: starting again replaces the old one. The first create form (ADR 0031) gives the
+// number of players (or a preset's slots, which make the draft complete) and the gear tier.
 export async function startDraft(
   sql: Sql,
-  a: { guildId: string; userId: string; threadId: string; type: ContentType; loot: boolean; kind: string; buildRef?: string | null },
+  a: {
+    guildId: string; userId: string; threadId: string; type: ContentType; loot: boolean; kind: string; buildRef?: string | null;
+    count?: number | null; slots?: SlotDef[]; gearTier?: string | null;
+  },
 ): Promise<string> {
+  const slots = a.slots ?? [];
+  const count = a.slots ? a.slots.length : a.count ?? null;
   const [row] = await sql`
-    insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, build_channel_id, slots)
-    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, ${a.buildRef ?? null}, '[]'::jsonb)
+    insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, build_channel_id, count, slots, step, gear_tier)
+    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, ${a.loot}, ${a.kind}, ${a.buildRef ?? null}, ${count},
+      ${sql.json(slots as never)}, ${slots.length}, ${a.gearTier ?? null})
     on conflict (guild_id, thread_id, user_id) do update set
-      type = excluded.type, loot = excluded.loot, kind = excluded.kind, build_channel_id = excluded.build_channel_id, count = null, counts = null,
-      slots = '[]'::jsonb, step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, created_at = now()
+      type = excluded.type, loot = excluded.loot, kind = excluded.kind, build_channel_id = excluded.build_channel_id,
+      count = excluded.count, counts = null, slots = excluded.slots, step = excluded.step, gear_tier = excluded.gear_tier,
+      role = null, weapon = null, duty = null, query = null, weapon_class = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -60,19 +70,6 @@ export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { weaponC
     update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)}, step = ${d.step},
       role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, weapon_class = ${d.weaponClass}
     where id = ${id}`;
-}
-
-// The member's draft for this post, used by "/content slot".
-export async function findDraft(
-  sql: Sql,
-  a: { guildId: string; threadId: string; userId: string },
-  now: Date,
-): Promise<StoredDraft | null> {
-  const [r] = await sql`
-    select * from slot_draft
-    where guild_id = ${a.guildId} and thread_id = ${a.threadId} and user_id = ${a.userId}
-      and created_at > ${new Date(now.getTime() - DRAFT_TTL_MS)}`;
-  return r ? toDraft(r) : null;
 }
 
 export async function deleteDraft(sql: Sql, id: string): Promise<void> {

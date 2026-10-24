@@ -7,22 +7,18 @@ import { handleCreateCommand } from "./create.ts";
 import { handleHelpCommand } from "./help.ts";
 import { handleSetupCommand } from "./setup.ts";
 import { handlePresetCommand } from "./preset.ts";
-import { handleWeaponCommand } from "./weapon.ts";
 import { handleMeCommand } from "./me.ts";
-import { handleSlotCommand } from "./guided.ts";
 import { handleListCommand } from "./manage.ts";
 import { handleHistoryCommand } from "./attendance.ts";
 
 // The host's actions (edit, lock, unlock, end, reopen, cancel, attendance, duty, add player) are buttons of the
-// Manage panel on the roster, not commands (ADR 0029).
+// Manage panel on the roster, not commands (ADR 0029). `weapon` and `slot` were removed in 0.25.0 (ADR 0031).
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
     case "create": return await handleCreateCommand(deps, i);
     case "setup": return await handleSetupCommand(deps, i);
     case "preset": return await handlePresetCommand(deps, i);
-    case "weapon": return await handleWeaponCommand(deps, i);
     case "me": return await handleMeCommand(deps, i);
-    case "slot": return await handleSlotCommand(deps, i);
     case "list": return await handleListCommand(deps, i);
     case "help": return await handleHelpCommand(deps, i);
     case "history": return await handleHistoryCommand(deps, i);
