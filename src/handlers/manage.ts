@@ -1,9 +1,8 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { modalValues, subOption, textInput } from "../discord/modal.ts";
-import { readBuildReference } from "./create.ts";
-import { packRef, unpackRef } from "../domain/buildref.ts";
+import { modalValues, textInput } from "../discord/modal.ts";
+import { unpackRef } from "../domain/buildref.ts";
 import { formProblems } from "./retry.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { utcInput } from "../domain/time.ts";
@@ -64,31 +63,20 @@ export async function announce(deps: Deps, threadId: string, text: string, users
 }
 
 const mentions = (users: string[]) => users.map((u) => `<@${u}>`).join(" ");
-function lootOption(i: Interaction): "1" | "0" | "k" {
-  const v = subOption(i, "edit", "loot-vote");
-  return v === true ? "1" : v === false ? "0" : "k";
-}
 
-export async function handleEditCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+// Edit details (the Manage panel's Edit, then Edit details): the form with the event's current text. The category,
+// loot vote and build reference are changed in the Edit panel (ADR 0029), so the form id keeps them ("k").
+export async function openEditForm(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   if (checked.target.status !== "open") return reply("Only open content can be edited. Locked, finished or cancelled content cannot.");
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view) return reply(NO_CONTENT);
-  const kindOpt = subOption(i, "edit", "category");
-  const kind = typeof kindOpt === "string" ? resolveKind(view.type, kindOpt) : null;
-  if (kind && !kind.ok) return reply(kind.error);
-  // The build reference (FR-031, ADR 0025): a link sets it, clear-build removes it, neither keeps it. The choice travels in the form's id.
-  const build = readBuildReference(i, "edit");
-  if (!build.ok) return reply(build.error);
-  const clear = subOption(i, "edit", "clear-build") === true;
-  if (clear && build.id) return reply("Give a build reference or clear it, not both.");
-  const marker = clear ? "bx" : build.id ? `b${packRef(build.id)}` : null;
   return {
     type: MODAL,
     data: {
-      custom_id: `edit:${view.id}:${lootOption(i)}${kind || marker ? `:${kind ? kind.value : "-"}` : ""}${marker ? `:${marker}` : ""}`,
+      custom_id: `edit:${view.id}:k`,
       title: "Edit content",
       components: [
         textInput("title", "Title", 100, { value: view.title }),
@@ -101,6 +89,7 @@ export async function handleEditCommand(deps: Deps, i: Interaction): Promise<Int
   };
 }
 
+// The form id may still carry a category and a build marker from forms opened before 0.23.0.
 export async function handleEditModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const customId = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof customId === "string" ? customId.split(":") : [];
@@ -156,7 +145,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   return reply(refreshed ? "Content updated." : "Content updated, but the roster message could not be refreshed. It will update on the next change.");
 }
 
-export async function handleCancelCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleCancel(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
@@ -212,7 +201,7 @@ export async function handleCancelButton(deps: Deps, i: Interaction): Promise<In
 }
 
 // "/content lock": close signups now (FR-009). Players can still leave.
-export async function handleLockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleLock(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
@@ -225,7 +214,7 @@ export async function handleLockCommand(deps: Deps, i: Interaction): Promise<Int
 }
 
 // "/content unlock": reopen a roster that was locked by hand. Works before and after the start.
-export async function handleUnlockCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleUnlock(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;

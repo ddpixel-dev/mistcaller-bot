@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KINDS, kindChoices, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
+import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
 test("the lists match ADR 0010: 12 PvP and 9 PvE kinds, Other in each", () => {
   assert.equal(KINDS.filter((k) => k.type === "pvp").length, 12);
@@ -16,16 +16,6 @@ test("ids are unique within a type", () => {
     const ids = KINDS.filter((k) => k.type === type).map((k) => k.id);
     assert.equal(new Set(ids).size, ids.length);
   }
-});
-
-test("command choices are distinct, within Discord's 25 limit, and name the type", () => {
-  const c = kindChoices();
-  assert.equal(c.length, 20);
-  assert.ok(c.length <= 25);
-  assert.equal(new Set(c.map((x) => x.value)).size, c.length);
-  assert.ok(c.every((x) => x.name.length <= 100));
-  assert.ok(c.some((x) => x.name === "Gank Squad (PvP)") && c.some((x) => x.name === "Bomb Squad (PvP)"));
-  assert.ok(c.some((x) => x.name === "ZvZ (PvP)") && c.some((x) => x.name === "World boss (PvE)"));
 });
 
 test("resolveKind defaults to Other, accepts matching kinds and refuses others", () => {
@@ -65,5 +55,4 @@ test("Ava Gank is a PvP category and Ava Gold a PvE one, each before Other, and 
   assert.equal(resolveKind("pve", "ava-gank").ok, false, "a PvP category on PvE content is refused");
   assert.equal(resolveKind("pve", "ava-gold").ok, true);
   assert.equal(resolveKind("pvp", "ava-gold").ok, false);
-  assert.ok(kindChoices().length <= 25, "a slash command choice list holds 25 at most");
 });

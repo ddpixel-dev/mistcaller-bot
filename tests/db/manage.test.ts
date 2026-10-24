@@ -2,7 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
-import { cancelContent, editContent, getManageTarget, getManageTargetById, type EditInput } from "../../src/db/manage.ts";
+import { cancelContent, editContent, getManageTarget, getManageTargetById, setSlotWeapon, updateContentSettings, type EditInput } from "../../src/db/manage.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const starts = new Date("2026-12-01T18:00:00Z");
@@ -179,4 +179,38 @@ test("slots created or edited with a duty store it; dropping it from the line cl
   assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), [null, null, null, "rat"]);
   const made = await createContent(sql, { ...base, threadId: "t2", slots: [{ role: "Tank", weapon: "Mace", duty: "caller" }] });
   assert.equal((await getRosterView(sql, made, NOW))!.slots[0]!.duty, "caller");
+});
+
+test("updateContentSettings changes only what it is given, and only while the content is open", async () => {
+  const { sql, id } = await setup();
+  assert.equal(await updateContentSettings(sql, id, { kind: "zvz" }), "ok");
+  assert.equal(await updateContentSettings(sql, id, { hasLoot: true }), "ok");
+  assert.equal(await updateContentSettings(sql, id, { buildRef: "123456789/987654321" }), "ok");
+  let [c] = await sql`select kind, has_loot, build_channel_id, title from content`;
+  assert.deepEqual([c!.kind, c!.has_loot, c!.build_channel_id, c!.title], ["zvz", true, "123456789/987654321", "Ganking"]);
+  assert.equal(await updateContentSettings(sql, id, { buildRef: null }), "ok");
+  [c] = await sql`select kind, has_loot, build_channel_id from content`;
+  assert.deepEqual([c!.kind, c!.has_loot, c!.build_channel_id], ["zvz", true, null]);
+  await sql`update content set status = 'locked'`;
+  assert.equal(await updateContentSettings(sql, id, { kind: "other" }), "unavailable");
+  assert.equal(await updateContentSettings(sql, "00000000-0000-0000-0000-000000000000", { kind: "other" }), "unavailable");
+});
+
+test("setSlotWeapon gives a role-only position its weapon and replaces the holder's own pick", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, slots: [{ role: "Tank", weapon: "" }, { role: "DPS", weapon: "Bow" }] });
+  const v = (await getRosterView(sql, id, NOW))!;
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon) values ('g1', ${id}, 'u9', ${v.slots[0]!.id}, 'signed', 'Mace')`;
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 1, weapon: "Great Axe" }), { result: "ok", holder: "u9", replaced: "Mace" });
+  assert.equal((await sql`select weapon from slot where position = 1 and content_id = ${id}`)[0]!.weapon, "Great Axe");
+  assert.equal((await sql`select chosen_weapon from signup where user_id = 'u9'`)[0]!.chosen_weapon, null);
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 1, weapon: "Mace" }), { result: "has_weapon" }, "only a position without a weapon");
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 2, weapon: "Mace" }), { result: "has_weapon" });
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 9, weapon: "Mace" }), { result: "no_slot" });
+  await sql`update slot set weapon = null where position = 1 and content_id = ${id}`;
+  await sql`update content set status = 'locked'`;
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 1, weapon: "Mace" }), { result: "ok", holder: "u9", replaced: null }, "allowed while locked");
+  await sql`update slot set weapon = null where position = 1 and content_id = ${id}`;
+  await sql`update content set status = 'done'`;
+  assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 1, weapon: "Mace" }), { result: "unavailable" });
 });

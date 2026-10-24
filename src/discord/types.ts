@@ -5,7 +5,7 @@ export interface Interaction {
   token: string;
   guild_id?: string;
   channel_id?: string;
-  channel?: { id: string; type: number; parent_id?: string };
+  channel?: { id: string; type: number; parent_id?: string; name?: string };
   member?: { user: { id: string }; permissions?: string; roles: string[] };
   user?: { id: string };
   // What the bot may do where the interaction happened (a permission bit set), and where the app is installed:

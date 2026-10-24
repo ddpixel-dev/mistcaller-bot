@@ -43,21 +43,6 @@ export function kindDef(type: ContentType, id: string): KindDef | null {
   return kindsOf(type).find((k) => k.id === id) ?? null;
 }
 
-// Distinct choices for the slash command. "Other" is shared by both types.
-export function kindChoices(): { name: string; value: string }[] {
-  const seen = new Set<string>();
-  const out: { name: string; value: string }[] = [];
-  for (const k of KINDS) {
-    if (seen.has(k.id)) continue;
-    seen.add(k.id);
-    out.push({
-      name: k.id === DEFAULT_KIND ? "Other" : `${k.label} (${k.type === "pvp" ? "PvP" : "PvE"})`,
-      value: k.id,
-    });
-  }
-  return out;
-}
-
 // A missing kind means Other. A kind from the other type is refused.
 export function resolveKind(type: ContentType, id: string | null): Result<string> {
   if (id === null || id === "") return { ok: true, value: DEFAULT_KIND };

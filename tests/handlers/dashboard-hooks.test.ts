@@ -6,6 +6,7 @@ import { setDashboardChannel } from "../../src/db/dashboard.ts";
 import { refreshDashboard } from "../../src/jobs/dashboards.ts";
 import { runJobs } from "../../src/jobs/cron.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
+import { withHostActions } from "../helpers/host.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 
@@ -35,7 +36,7 @@ async function setup(withDashboard = true) {
     await refreshDashboard(deps, GUILD, "schedule");
     dash.created.length = 0;
   }
-  return { sql, deps, d: createDispatch(deps), id, dash, now };
+  return { sql, deps, d: withHostActions(createDispatch(deps), deps), id, dash, now };
 }
 const who = { user: { id: "boss" }, roles: [] as string[], permissions: "0" };
 const cmd = (sub: string): Interaction => ({

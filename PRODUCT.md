@@ -157,7 +157,7 @@ status: accepted
 `/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019). Before anything is saved, the bot checks the install type and its own permissions that Discord sends with the interaction, and explains the problem instead of a vague failure: it is not added to the server (only to an account), or it lacks View Channel and Send Messages (Send Messages in Threads for threads and forum posts) in that place.
 
 ### FR-003: Creation input
-status: accepted
+status: accepted; the title is prefilled from the post since 2026-10-24 (FR-050)
 Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, or a role alone (FR-030), optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
@@ -249,27 +249,35 @@ status: accepted (owner request 2026-10-15; changed from a statistics channel to
 Anyone shall be able to use `/content stats` to see the server's statistics as a **private** message: contents created, finished and cancelled, by type and by category, participants and sign-ups, the average fill rate of finished events, the busiest day and hour (UTC), the top hosts and the 10 most joined players, for all time and the last 30 days. Each number is on its own line. It counts only the server it is used in. Cancelled events and players who left a roster are not counted, there is no no-show board, and unknown attendance is never counted as a no-show (NFR-004). There is no statistics channel.
 
 ### FR-045: Permission levels
-status: accepted (owner request 2026-10-15)
+status: accepted (owner request 2026-10-15); changed 2026-10-24 by ADR 0029: the host commands `edit`, `cancel`, `lock`, `unlock`, `end`, `reopen`, `attendance`, `duty` and `assign` are removed, their actions are Manage panel buttons with the same rights
 Commands belong to three levels. Everyone: `list`, `me`, `weapon`, `help`, `create`, `stats`, their own `history` and the roster controls. Host (the content's creator): `edit`, `lock`, `unlock`, `cancel`, `end`, `reopen`, `attendance`, `duty`, `assign`, Ping and Remove player. Admin (admin role, Manage Server or Administrator): everything a host can do on any content, any member's `history`, `setup`, preset save and delete, and the calendar channel. Refusals are explained in the reply. There is no host role.
 
 ### FR-046: Party strip
-status: accepted (owner request 2026-10-15, option B; changed to a level-1 heading the same day because the plain line was still small)
+status: dropped 2026-10-24 (owner request, ADR 0029): the weapon icon on each position line is enough
 Under the header, the roster shall show a **level-1 heading** of only the party's weapon icons, one per position in order (the holder's own weapon for a role-only slot; positions without a known icon are left out). Discord draws an emoji as big as the text around it and cannot draw the extra-large "jumbo" size in this kind of message, so the largest text style is what makes the icons bigger (about one and a half times the inline size). It is the first thing dropped when a very full roster needs the room. If the owner still finds the icons too small, the next options are larger text on each row or an image gallery of the real weapon pictures.
 
 ### FR-047: Host signs up a player
-status: accepted (owner request 2026-10-20, agreed 2026-10-24, ADR 0028; replaces the Assign fill button of FR-032)
+status: accepted (owner request 2026-10-20, agreed 2026-10-24, ADR 0028; replaces the Assign fill button of FR-032); changed the same day by ADR 0029: the button is **Add player** (green, ➕), `/content assign` is removed, and a host move clears the player's own weapon pick (the post line then asks them to pick again)
 The creator and admins shall be able to sign up any member in an open position with **Sign up player** (in the Manage panel): a private panel showing the players waiting as fills first, then a member picker for anyone else, then the open positions. A member already on the roster is moved, never listed twice; the freed position goes to the waitlist. The host may use a position held for a fill (FR-040); the extra fill becomes a standby fill. Bots are refused. The thread gets `📝 @Host signed up @Player for position n (Role)`, which pings only the player. `/content assign position member` does the same. Works while the content is open or locked.
 
 ### FR-048: Manage panel
-status: accepted (owner request 2026-10-24, ADR 0028)
+status: accepted (owner request 2026-10-24, ADR 0028); changed the same day by ADR 0029: Edit opens a panel (Category and Loot vote menus, Edit details, Build link), Set weapon (FR-049) is added, and a finished roster keeps Manage with Attendance and Reopen
 The roster bar shall hold at most Leave, Split, Regear, Ping players and **Manage**. Manage opens a private panel for the creator and admins with Edit, Sign up player, Remove player, Set duty (position, then duty or Clear), Lock or Unlock, End, Cancel and Attendance, each behaving as its command. Others are refused when they press it.
 
+### FR-049: Set weapon
+status: accepted (owner request 2026-10-24, ADR 0029)
+While a position has no weapon, the Manage panel shall offer **Set weapon**: the position (only those without a weapon), the weapon class, then the weapon. The roster shows it with its icon. The holder keeps the seat; if they had picked their own weapon, it is replaced and the post tells them, pinging only them. Allowed while open or locked.
+
+### FR-050: Title from the post
+status: accepted (owner request 2026-10-24, ADR 0029)
+When `/content create` is used in a forum post or thread, the create form's Title shall start as the post's name (at most 100 characters), which the member can change. In an ordinary channel it starts empty.
+
 ### FR-029: Help and owner tips
-status: accepted
+status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
 
 ### FR-030: Optional weapon
-status: accepted (ADR 0023)
+status: accepted (ADR 0023); changed 2026-10-24 by ADR 0029: a host move (FR-047) always clears the player's own pick
 A slot may be a role alone: typed as `Tank` or `Tank (Caller)`, or chosen in the guided steps with the weapon class and weapon left empty (they are optional), or with `/content slot` without a weapon. The roster shows "Player's choice". A player who joins such a slot gets a private picker (weapon class, then weapon) and the roster then shows the weapon with its icon; `/content me` offers **Change weapon**. The choice is kept when moving between such slots and cleared when moving to a slot that has a weapon or leaving. Relaxes FR-003.
 
 ### FR-031: Build reference
@@ -317,7 +325,7 @@ status: accepted
 The same managers shall be able to cancel an open or locked content with `/content cancel`, after a private confirmation step. Cancelling sets the status to `cancelled`, re-renders the roster as cancelled with all buttons disabled, and pings the signed-up members.
 
 ### FR-022: Medieval Banner roster style
-status: accepted
+status: accepted; changed 2026-10-24 by ADR 0029: a finished roster keeps an enabled Manage button
 The roster message shall use the Medieval Banner theme chosen by the owner on 2026-10-07: royal blue and gold container colours by content type and category, scroll and fleur-de-lis marks in the title, an icon per role, a roster-fill bar, double-line rules and the words "company" and "sworn". Since the roster became a Components V2 message (ADR 0018) there is no embed: the colour bar is the container's accent colour and the text lives in text blocks within Discord's 4,000-character limit. Status shows as a text line (closed, cancelled, concluded) and cancelled or finished content is greyed with every control dimmed. The owner supplies the bot icon and banner art; the theme file `src/render/theme.ts` is where they will be set. No third-party game art is used without the owner's decision (ADR 0017 for the weapon icons).
 
 ### FR-023: Content kinds

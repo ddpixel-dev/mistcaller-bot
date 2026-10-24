@@ -532,3 +532,18 @@ test("the create form's Start field is prefilled with the current UTC time plus 
   const title = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "title");
   assert.equal("value" in title, false, "only the start is prefilled");
 });
+
+test("the create form's title starts as the name of the forum post or thread it is opened in, not a channel name", async () => {
+  const { createForm, postTitle } = await import("../../src/handlers/create.ts");
+  const at = (type: number, name?: string) => ({ channel: { id: "c", type, ...(name !== undefined ? { name } : {}) } }) as Interaction;
+  assert.equal(postTitle(at(11, "  Ava roam Friday ")), "Ava roam Friday");
+  assert.equal(postTitle(at(12, "Private thread")), "Private thread");
+  assert.equal(postTitle(at(0, "pvp-content")), null, "an ordinary channel");
+  assert.equal(postTitle(at(11)), null);
+  assert.equal(postTitle(at(11, "   ")), null);
+  assert.equal(Array.from(postTitle(at(11, "x".repeat(150)))!).length, 100);
+  const now = new Date("2026-10-15T13:20:00Z");
+  const title = (r: any) => r.data.components[0].components[0].value;
+  assert.equal(title(createForm({ type: "pvp", loot: false, kind: "other" }, null, now, "Ava roam Friday")), "Ava roam Friday");
+  assert.equal(title(createForm({ type: "pvp", loot: false, kind: "other" }, null, now)), undefined);
+});

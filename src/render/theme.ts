@@ -47,7 +47,7 @@ const ROLE_ICONS: [RegExp, string][] = [
   [/heal|cleric|holy/i, "💚"],
   [/scout|ranged|archer|bow/i, "🏹"],
   [/call|shot/i, "📯"],
-  [/mage|arcane|fire|frost|curse|dps|damage|assassin|dagger|melee/i, "⚔️"],
+  [/mage|arcane|fire|frost|curse|dps|damage|assassin|dagger|melee/i, "🗡️"],
 ];
 
 export function roleIcon(role: string): string {

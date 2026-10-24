@@ -239,12 +239,12 @@ async function assignOnce(sql: Sql, a: AssignArgs): Promise<AssignResult> {
       const [holder] = await tx`select user_id from signup where slot_id = ${slot.id} and status = 'signed'`;
       if (holder) return { result: holder.user_id === a.userId ? "unchanged" : "taken" };
       const [prev] = await tx`
-        select status, chosen_weapon from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
-      // The player's own weapon stays when moving between role-only slots, and goes otherwise (FR-030).
-      const keepWeapon = prev?.status === "signed" && slot.weapon === null ? prev.chosen_weapon : null;
+        select status from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+      // A host move always clears the player's own weapon (owner decision 2026-10-24, ADR 0029): the new position's
+      // weapon applies, or the player picks again. A move the player makes keeps the FR-030 rule (claimSlot).
       await tx`
         insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon)
-        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${slot.id}, 'signed', ${keepWeapon})
+        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${slot.id}, 'signed', null)
         on conflict (content_id, user_id)
         do update set slot_id = excluded.slot_id, status = 'signed', wait_role = null, joined_at = now(),
           chosen_weapon = excluded.chosen_weapon`;
