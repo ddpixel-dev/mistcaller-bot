@@ -7,13 +7,12 @@ import { leaveContent, type Promotion } from "../db/signup.ts";
 import { announce, authorize, refreshRoster } from "./manage.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { names } from "./fill.ts";
-import { isOldRoster, OLD_LAYOUT } from "./signup.ts";
 import { escapeText } from "../render/roster.ts";
 import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
-const INVALID = "That panel is out of date. Press **Remove player** on the roster again.";
+const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Remove player**, again.";
 
 type Entry = { userId: string; where: string };
 
@@ -47,13 +46,12 @@ async function panel(deps: Deps, view: RosterView, list: Entry[]) {
   };
 }
 
-// rm:<content> (the button), rm:p:<content> (a player chosen). The creator and admins only; checked on every click.
+// rm:<content> (the button on the private Manage panel), rm:p:<content> (a player chosen). The creator and admins only;
+// checked on every click.
 export async function handleRemoveComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const parts = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
   const isButton = parts.length === 2 && UUID.test(parts[1] ?? "");
-  // Only the button sits on the roster; the menu sits on the private panel, which is never a roster.
-  if (isButton && isOldRoster(i)) return reply(OLD_LAYOUT);
   const id = isButton ? parts[1]! : parts[2];
   if (parts[0] !== "rm" || !id || !UUID.test(id) || !(isButton || (parts[1] === "p" && parts.length === 3)) || !i.guild_id || !i.member?.user?.id) return reply(INVALID);
   const checked = await authorize(deps, i, await getManageTargetById(deps.sql, id));

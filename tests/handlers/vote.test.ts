@@ -54,7 +54,7 @@ test("signed user votes Split: type 7 with updated count", async () => {
   const r: any = await handleVote(deps, click(`vote:${contentId}:split`));
   assert.equal(r.type, 7);
   assert.deepEqual(labels(r), ["Split (1)", "Regear (0)"]);
-  assert.ok(plain(textOf(r.data)).includes("💰 **Loot vote** On · Split 1 · Regear 0"));
+  assert.ok(!plain(textOf(r.data)).includes("Loot vote"), "the counts live on the buttons (ADR 0028)");
   assert.deepEqual(discordProblems(r.data), []);
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
@@ -99,7 +99,7 @@ test("one millisecond before the cutoff is accepted", async () => {
   assert.equal(((await handleVote(deps, click(`vote:${contentId}:split`))) as any).type, 7);
 });
 
-test("response after the cutoff shows the result line and disabled buttons", async () => {
+test("response after the cutoff dims the vote buttons", async () => {
   const { deps, contentId, sign, setNow } = await setup();
   await sign("u1", 0);
   await handleVote(deps, click(`vote:${contentId}:split`));
@@ -110,7 +110,6 @@ test("response after the cutoff shows the result line and disabled buttons", asy
   const { getRosterView: g } = await import("../../src/db/content.ts");
   const { renderRosterMessage } = await import("../../src/render/roster.ts");
   const m: any = renderRosterMessage((await g(deps.sql, contentId, CUTOFF))!);
-  assert.ok(plain(textOf(m)).includes("💰 **Loot vote** On · Result: Split won 1-0"));
   assert.ok(voteButtons(m).length === 2 && voteButtons(m).every((b: any) => b.disabled === true));
 });
 

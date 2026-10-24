@@ -50,28 +50,28 @@ const assignCmd = (user: string, options: unknown[], member = who(user)): Intera
 const text = (r: any) => String(r.data.content ?? "");
 const rosterText = (body: any) => plain(textOf(body));
 
-test("choosing Fill in the join menu lists the member as a fill and shows the Assign fill button", async () => {
+test("choosing Fill in the join menu lists the member as a fill; the roster has Manage, not Assign fill", async () => {
   const { d, id } = await setup();
   const r: any = await d(click(`join:${id}`, A, ["fill"]));
   assert.equal(r.type, 7);
   assert.ok(rosterText(r.data).includes(`🔁 **Fill (1):** <@${A}>`));
   const buttons = flatComponents(r.data).filter((c) => c.type === 2).map((c) => c.label);
-  assert.ok(buttons.includes("Assign fill"));
+  assert.ok(buttons.includes("Manage") && !buttons.includes("Assign fill"));
   assert.equal(flatComponents(r.data).find((c) => c.custom_id === `leave:${id}`)!.disabled, false, "Leave works for a fill");
   assert.deepEqual(discordProblems(r.data), []);
   assert.ok(text(await d(click(`join:${id}`, A, ["fill"]))).includes("already listed as a fill"));
 });
 
-test("with no fills the Assign fill button is not shown, and the waitlist menu offers Fill when the roster is full", async () => {
+test("the waitlist menu no longer offers Fill, but a Fill choice from a roster rendered before still works", async () => {
   const { d, id, slots, sql } = await setup();
-  const none: any = await d(click(`join:${id}`, A, [slots[0]!]));
-  assert.ok(!flatComponents(none.data).some((c) => c.label === "Assign fill"));
-  for (const [n, s] of slots.slice(1).entries()) await claimSlot(sql, { contentId: id, slotId: s, userId: [B, C, STRANGER][n]!, guildId: "g1", now: NOW });
+  for (const [n, s] of slots.entries()) await claimSlot(sql, { contentId: id, slotId: s, userId: [A, B, C, STRANGER][n]!, guildId: "g1", now: NOW });
+  const full = await getRosterView(sql, id, NOW);
+  const { renderRosterMessage } = await import("../../src/render/roster.ts");
+  const wait = flatComponents(renderRosterMessage(full!)).find((c) => String(c.custom_id).startsWith("wait:"))!;
+  assert.ok(!wait.options.some((o: any) => o.value === "~fill"));
   const r: any = await d(click(`wait:${id}`, ADMIN, ["~fill"]));
   assert.equal(r.type, 7);
-  assert.ok(rosterText(r.data).includes(`<@${ADMIN}>`));
-  const full = (await getRosterView(sql, id, NOW))!;
-  assert.deepEqual(full.fills, [ADMIN]);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.fills, [ADMIN]);
 });
 
 test("joining a slot without a weapon answers with a private weapon picker, after the roster is updated", async () => {
@@ -158,28 +158,36 @@ test("/content me shows a fill, and offers Change weapon only to the holder of a
   assert.equal(opened.data.flags, 64);
 });
 
-test("Assign fill: only the owner or an admin; then a fill, then an open position; the thread is told and the roster refreshed", async () => {
+const PANEL = { message: { id: "p1", flags: 64 } }; // the private Manage panel, which is never a roster
+const userPick = (customId: string, actor: string, picked: string, bot = false, over: Partial<Interaction> = {}): Interaction => ({
+  ...click(customId, actor, [picked], { ...PANEL, ...over }),
+  data: { custom_id: customId, component_type: 5, values: [picked], resolved: { users: { [picked]: { id: picked, ...(bot ? { bot: true } : {}) } } } },
+} as Interaction);
+
+test("Sign up player: only the owner or an admin; fills first, then any member; then an open position; the thread is told who signed whom", async () => {
   const { d, id, sql, edits, posts } = await setup();
-  assert.ok(text(await d(click(`fa:${id}`, OWNER))).includes("Nobody is waiting"));
   await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
   await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW });
-  assert.ok(text(await d(click(`fa:${id}`, STRANGER))).includes("Only the creator"));
+  assert.ok(text(await d(click(`fa:${id}`, STRANGER, undefined, PANEL))).includes("Only the creator"));
 
-  const panel: any = await d(click(`fa:${id}`, OWNER));
+  const panel: any = await d(click(`fa:${id}`, OWNER, undefined, PANEL));
   assert.equal(panel.type, 4);
   assert.equal(panel.data.flags, 64);
-  const picker = panel.data.components[0].components[0];
-  assert.equal(picker.custom_id, `fa:p:${id}`);
-  assert.deepEqual(picker.options.map((o: any) => [o.label, o.value]), [["Name-2", A], ["Name-3", B]]);
+  const [fillRow, memberRow] = panel.data.components;
+  assert.equal(fillRow.components[0].custom_id, `fa:p:${id}`);
+  assert.deepEqual(fillRow.components[0].options.map((o: any) => [o.label, o.value]), [["Name-2", A], ["Name-3", B]]);
+  assert.equal(memberRow.components[0].type, 5, "a member picker for anyone else");
+  assert.equal(memberRow.components[0].custom_id, `fa:u:${id}`);
+  assert.deepEqual(discordProblems({ ...panel.data, flags: 0 }), []);
 
-  const chosen: any = await d(click(`fa:p:${id}`, ADMIN.length ? OWNER : OWNER, [A]));
+  const chosen: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
   assert.equal(chosen.type, 7);
-  const positions = chosen.data.components[1].components[0];
+  const positions = chosen.data.components.at(-1).components[0];
   assert.equal(positions.custom_id, `fa:s:${id}:${A}`);
   assert.equal(positions.options.length, 4);
   assert.equal(chosen.data.components[0].components[0].options.find((o: any) => o.value === A).default, true);
 
-  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [positions.options[2].value]));
+  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [positions.options[2].value], PANEL));
   assert.equal(done.type, 7);
   assert.ok(done.data.content.includes(`<@${A}>`) && done.data.content.includes("position 3"));
   const v = (await getRosterView(sql, id, NOW))!;
@@ -187,42 +195,71 @@ test("Assign fill: only the owner or an admin; then a fill, then an open positio
   assert.deepEqual(v.fills, [B]);
   assert.ok(rosterText(edits.at(-1)).includes(` - <@${A}>`));
   assert.equal(posts.length, 1);
-  assert.ok(posts[0]!.body.content.includes("position 3") && posts[0]!.body.content.includes(`<@${A}>`));
-  assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] });
+  assert.equal(posts[0]!.body.content, `📝 <@${OWNER}> signed up <@${A}> for position 3 (⚔️ DPS).`);
+  assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] }, "only the player is pinged");
 });
 
-test("an admin role may assign, and stale or forged clicks are refused without changing anything", async () => {
-  const { d, id, slots, sql } = await setup();
-  await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
-  await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: C, guildId: "g1", now: NOW });
+test("Sign up player: anyone picked from the member picker is placed, even into a position held for a fill; bots are refused", async () => {
+  const { d, id, sql, slots, posts } = await setup();
+  await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: A, guildId: "g1", now: NOW });
+  await claimSlot(sql, { contentId: id, slotId: slots[1]!, userId: B, guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: id, userId: C, guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: id, userId: ADMIN, guildId: "g1", now: NOW });
+  assert.ok(text(await d(userPick(`fa:u:${id}`, OWNER, "200000000000000001", true))).includes("Bots"));
+  const picked: any = await d(userPick(`fa:u:${id}`, OWNER, STRANGER));
+  assert.equal(picked.type, 7);
+  const rows = picked.data.components;
+  assert.deepEqual(rows.find((r: any) => r.components[0].type === 5).components[0].default_values, [{ id: STRANGER, type: "user" }]);
+  const positions = rows.at(-1).components[0];
+  assert.equal(positions.custom_id, `fa:s:${id}:${STRANGER}`);
+  assert.deepEqual(discordProblems({ ...picked.data, flags: 0 }), []);
+  const done: any = await d(click(`fa:s:${id}:${STRANGER}`, OWNER, [slots[3]!], PANEL));
+  assert.equal(done.type, 7);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.equal(v.slots[3]!.userId, STRANGER);
+  assert.deepEqual(v.fills, [C, ADMIN], "the fills stay; one is now a standby");
+  assert.ok(posts.at(-1)!.body.content.includes(`signed up <@${STRANGER}> for position 4`));
+});
+
+test("Sign up player moves a seated player and serves the waitlist; stale or forged clicks change nothing", async () => {
+  const { d, id, sql, slots, posts } = await setup();
+  await claimSlot(sql, { contentId: id, slotId: slots[0]!, userId: A, guildId: "g1", now: NOW });
+  for (const [n, u] of [B, C, STRANGER].entries()) await claimSlot(sql, { contentId: id, slotId: slots[n + 1]!, userId: u, guildId: "g1", now: NOW });
+  const { joinWaitlist, leaveContent } = await import("../../src/db/signup.ts");
+  await joinWaitlist(sql, { contentId: id, userId: ADMIN, guildId: "g1", role: "Tank", now: NOW });
+  await leaveContent(sql, { contentId: id, userId: STRANGER, guildId: "g1" });
+  await d(click(`fa:s:${id}:${A}`, OWNER, [slots[3]!], PANEL));
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.equal(v.slots[3]!.userId, A);
+  assert.equal(v.slots[0]!.userId, ADMIN, "the freed Tank goes to the first in line");
+  assert.ok(posts.some((p) => p.body.content.includes(`<@${ADMIN}> a position opened`)));
+
+  assert.ok(text(await d(click(`fa:s:${id}:${B}`, OWNER, [slots[0]!], PANEL))).includes("already taken"));
+  assert.ok(text(await d(click(`fa:s:${id}:${B}`, STRANGER, [slots[0]!], PANEL))).includes("Only the creator"));
+  assert.ok(text(await d(click(`fa:s:${id}:${B}`, OWNER, ["nope"], PANEL))).includes("out of date"));
+  assert.ok(text(await d(click(`fa:s:${id}:abc`, OWNER, [slots[0]!], PANEL))).includes("out of date"));
+  assert.ok(text(await d(click(`fa:p:${id}`, OWNER, ["abc"], PANEL))).includes("out of date"));
+  assert.ok(text(await d(click("fa:nope", OWNER, undefined, PANEL))).includes("out of date"));
   const admin = who(ADMIN, ["admins"]);
-  assert.equal(((await d(click(`fa:${id}`, ADMIN, undefined, { member: admin }))) as any).type, 4);
-  assert.ok(text(await d(click(`fa:s:${id}:${A}`, OWNER, [slots[0]!]))).includes("already taken"));
-  assert.ok(text(await d(click(`fa:s:${id}:${B}`, OWNER, [slots[2]!]))).includes("not waiting as a fill"), "B is not a fill");
-  assert.ok(text(await d(click(`fa:p:${id}`, OWNER, [B]))).includes("not waiting as a fill"));
-  assert.ok(text(await d(click(`fa:s:${id}:${A}`, STRANGER, [slots[2]!]))).includes("Only the creator"));
-  assert.ok(text(await d(click(`fa:s:${id}:${A}`, OWNER, ["nope"]))).includes("out of date"));
-  assert.ok(text(await d(click(`fa:s:${id}:abc`, OWNER, [slots[2]!]))).includes("out of date"));
-  assert.ok(text(await d(click("fa:nope", OWNER))).includes("out of date"));
-  assert.ok(text(await d(click(`fa:${id}`, OWNER, undefined, { message: { id: "m1", flags: 0 } }))).includes("older layout"));
-  assert.equal((await getRosterView(sql, id, NOW))!.fills!.length, 1);
+  assert.equal(((await d(click(`fa:${id}`, ADMIN, undefined, { ...PANEL, member: admin }))) as any).type, 4, "an admin role may open it");
 });
 
-test("/content assign: the owner and admins place a fill; others, non-fills and bad input are refused", async () => {
+test("/content assign: the owner and admins sign up any member; others and bad input are refused", async () => {
   const { d, id, sql, posts } = await setup();
   await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
   const opts = (position: unknown, member: unknown) => [{ name: "position", type: 4, value: position }, { name: "member", type: 6, value: member }];
   assert.ok(text(await d(assignCmd(STRANGER, opts(3, A)))).includes("Only the creator"));
   assert.ok(text(await d(assignCmd(OWNER, opts(99, A)))).includes("1 to 20"));
   assert.ok(text(await d(assignCmd(OWNER, opts(3, "nope")))).includes("Pick the member"));
-  assert.ok(text(await d(assignCmd(OWNER, opts(3, B)))).includes("not waiting as a fill"));
   assert.ok(text(await d(assignCmd(OWNER, opts(9, A)))).includes("no such position"));
   const ok: any = await d(assignCmd(ADMIN, opts(3, A), who(ADMIN, ["admins"])));
   assert.ok(ok.data.content.includes("position 3"));
   assert.equal(ok.data.flags, 64);
   assert.equal((await getRosterView(sql, id, NOW))!.slots[2]!.userId, A);
   assert.equal(posts.length, 1);
-  assert.ok(text(await d(assignCmd(OWNER, opts(3, A)))).includes("not waiting as a fill"), "nothing to assign twice");
+  assert.equal(posts[0]!.body.content, `📝 <@${ADMIN}> signed up <@${A}> for position 3 (⚔️ DPS).`);
+  assert.ok(text(await d(assignCmd(OWNER, opts(3, A)))).includes("already in position 3"), "nothing to do twice");
+  assert.ok(text(await d(assignCmd(OWNER, opts(4, B)))).includes("position 4"), "a member who was not on the roster");
 });
 
 test("the attendance form lists a fill and a role-only holder with sensible labels", async () => {
@@ -236,16 +273,4 @@ test("the attendance form lists a fill and a role-only holder with sensible labe
   const options = form.components[0].components[0].options;
   assert.deepEqual(options.map((o: any) => [o.label, o.description]), [["1. Player 1", "Tank - Mace"], ["2. Ana", "Healer"], ["🔁 Cy", "Fill"]].map(([l, dsc]) => [l === "1. Player 1" ? "1. Player 1" : l, dsc]));
   assert.deepEqual(discordProblems({ ...form, flags: 0 }), []);
-});
-
-test("the selects of the private Assign fill panel work: that message is ephemeral, not a roster", async () => {
-  const { d, id, slots, sql } = await setup();
-  await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
-  const panel = { message: { id: "p1", flags: 64 } };
-  const chosen: any = await d(click(`fa:p:${id}`, OWNER, [A], panel));
-  assert.equal(chosen.type, 7);
-  assert.ok(String(chosen.data.content).includes("pick the position") || String(chosen.data.content).includes("Now pick"));
-  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [slots[1]!], panel));
-  assert.ok(String(done.data.content).includes("position 2"), String(done.data.content));
-  assert.equal((await getRosterView(sql, id, NOW))!.slots[1]!.userId, A);
 });
