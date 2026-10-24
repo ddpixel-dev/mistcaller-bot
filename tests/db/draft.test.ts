@@ -1,7 +1,7 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { DRAFT_TTL_MS, deleteDraft, findDraft, getDraft, purgeDrafts, saveDraft, startDraft } from "../../src/db/draft.ts";
+import { DRAFT_TTL_MS, deleteDraft, getDraft, purgeDrafts, saveDraft, startDraft } from "../../src/db/draft.ts";
 
 const NOW = new Date("2026-10-07T12:00:00Z");
 const who = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, loot: true, kind: "zvz" };
@@ -38,13 +38,15 @@ test("starting again in the same post replaces the member's draft; others are se
   assert.equal((await sql`select count(*)::int as n from slot_draft`)[0]!.n, 3);
 });
 
-test("findDraft returns this member's draft in this post, not others, and not expired ones", async () => {
+test("a draft started from the first form keeps the count or a preset's slots, and the gear tier", async () => {
   const sql = await testSql();
-  const id = await startDraft(sql, who);
-  assert.equal((await findDraft(sql, who, new Date()))!.id, id);
-  assert.equal(await findDraft(sql, { ...who, userId: "u2" }, new Date()), null);
-  assert.equal(await findDraft(sql, { ...who, threadId: "t9" }, new Date()), null);
-  assert.equal(await findDraft(sql, who, new Date(Date.now() + DRAFT_TTL_MS + 5000)), null);
+  const base = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, loot: true, kind: "zvz" };
+  const a = (await getDraft(sql, await startDraft(sql, { ...base, count: 7, gearTier: "T8" }), new Date()))!;
+  assert.deepEqual([a.count, a.slots.length, a.step, a.gearTier], [7, 0, 0, "T8"]);
+  const slots = [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "" }];
+  const b = (await getDraft(sql, await startDraft(sql, { ...base, slots, gearTier: "T7" }), new Date()))!;
+  assert.deepEqual([b.count, b.slots, b.step, b.gearTier], [2, slots, 2, "T7"], "complete, so the final form opens");
+  assert.equal(b.id, a.id, "one draft per member per post");
 });
 
 test("a draft older than an hour is gone for reads and is purged by the job", async () => {

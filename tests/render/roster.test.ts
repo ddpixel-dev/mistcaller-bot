@@ -58,7 +58,7 @@ test("a roster is a Components V2 message: flag, one coloured container, no embe
 
 test("header lines: category and tier each on their own line with an icon, then UTC and your time; no loot vote line", () => {
   const lines = txt(view({ kind: "zvz" })).split("\n");
-  assert.ok(lines.includes("⚔️ **Type** **PvP · ZvZ**"));
+  assert.ok(lines.includes("🏷️ **Type** **PvP · ZvZ**"), "a label icon, not the ⚔️ of the PvP titles");
   assert.ok(lines.includes("⚙️ **Gear tier** T5.3–T7.0"));
   assert.ok(!lines.some((l) => l.includes("Loot vote")), "the loot vote lives on its buttons only (ADR 0028)");
   assert.ok(lines.includes("🕰️ **UTC** Wed 7 Oct 2026, 18:00 UTC"));
