@@ -71,7 +71,7 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   const weapon = find(card, "gs:weapon");
   const duty = find(card, "gs:duty");
   assert.deepEqual([role.placeholder, weapon.placeholder, duty.placeholder], ["Role (pick one)", "Weapon (pick a class first)", "Duty (optional)"]);
-  assert.deepEqual(role.options.map((o: any) => o.label), ["Tank", "Healer", "Support", "DPS"]);
+  assert.deepEqual(role.options.map((o: any) => o.label), ["Tank", "DTank", "Healer", "Support", "DPS"]);
   assert.equal(weapon.disabled, true);
   assert.deepEqual(weapon.options.map((o: any) => o.label), ["Pick a weapon class first"]);
   const cls = find(card, "gs:class");
@@ -240,7 +240,7 @@ test("/content slot fills the card in one command, needs a draft and the count, 
   const r: any = await d(slotCmd({ role: "Support", weapon: "broadsword", duty: "scout" }));
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
-  assert.ok(embed(r).description.includes("1. Support - Broadsword · 🏹 Scout"));
+  assert.ok(embed(r).description.includes("1. Support - Broadsword · 🔭 Scout"));
   assert.ok(embed(r).description.includes("Slot 2 of 3"));
   const typed: any = await d(slotCmd({ role: "DPS", weapon: "Some New Weapon" }));
   assert.ok(embed(typed).description.includes("2. DPS - Some New Weapon"));

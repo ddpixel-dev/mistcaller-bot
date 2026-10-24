@@ -70,13 +70,13 @@ test("rename keeps the holder; add appends; empty trailing slot is removed", asy
   const { sql, id, slotIds } = await setup();
   await sign(sql, id, "a", slotIds[0]!);
   await editContent(sql, id, edit({
-    slots: [{ role: "Off-Tank", weapon: "Mace" }, base.slots[1]!, base.slots[2]!, { role: "Scout", weapon: "Bow" }],
+    slots: [{ role: "Tank", weapon: "Axe" }, base.slots[1]!, base.slots[2]!, { role: "Scout", weapon: "Bow" }],
   }), NOW);
   let v = (await getRosterView(sql, id, NOW))!;
   assert.deepEqual(v.slots.map((s) => [s.position, s.role, s.userId]), [
-    [1, "Off-Tank", "a"], [2, "Healer", null], [3, "DPS", null], [4, "Scout", null],
+    [1, "Tank", "a"], [2, "Healer", null], [3, "DPS", null], [4, "Scout", null],
   ]);
-  await editContent(sql, id, edit({ slots: [{ role: "Off-Tank", weapon: "Mace" }, base.slots[1]!] }), NOW);
+  await editContent(sql, id, edit({ slots: [{ role: "Tank", weapon: "Axe" }, base.slots[1]!] }), NOW);
   v = (await getRosterView(sql, id, NOW))!;
   assert.deepEqual(v.slots.map((s) => s.position), [1, 2]);
 });
@@ -163,7 +163,7 @@ test("the duty stays on the position when the holder leaves or moves, and surviv
   const claim = (user: string, slot: string) => claimSlot(sql, { contentId: id, slotId: slot, userId: user, guildId: "g1", now: NOW });
   await claim("a", slotIds[0]!);
   await setSlotDuty(sql, { contentId: id, position: 1, duty: "caller" });
-  await editContent(sql, id, edit({ slots: [{ role: "Off-Tank", weapon: "Mace", duty: "caller" }, base.slots[1]!, base.slots[2]!] }), NOW);
+  await editContent(sql, id, edit({ slots: [{ role: "Tank", weapon: "Axe", duty: "caller" }, base.slots[1]!, base.slots[2]!] }), NOW);
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   await claim("a", slotIds[1]!);
   assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.duty), ["caller", null, null]);
@@ -213,4 +213,16 @@ test("setSlotWeapon gives a role-only position its weapon and replaces the holde
   await sql`update slot set weapon = null where position = 1 and content_id = ${id}`;
   await sql`update content set status = 'done'`;
   assert.deepEqual(await setSlotWeapon(sql, { contentId: id, position: 1, weapon: "Mace" }), { result: "unavailable" });
+});
+
+test("an edit renumbers the positions by role, and seats, duties and weapons move with their slot", async () => {
+  const { sql, id, slotIds } = await setup();
+  await sign(sql, id, "alice", slotIds[2]!); // DPS - Bow, position 3
+  await sql`update slot set duty = 'caller' where id = ${slotIds[2]!}`;
+  const r = await editContent(sql, id, edit({ slots: [base.slots[0]!, base.slots[1]!, { ...base.slots[2]!, duty: "caller" }, { role: "Healer", weapon: "Fallen" }, { role: "DTank", weapon: "" }] }), NOW);
+  assert.equal(r.result, "ok");
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(v.slots.map((s) => [s.position, s.role, s.weapon]), [[1, "Tank", "Mace"], [2, "DTank", ""], [3, "Healer", "Holy"], [4, "Healer", "Fallen"], [5, "DPS", "Bow"]]);
+  const dps = v.slots.find((s) => s.role === "DPS")!;
+  assert.deepEqual([dps.id, dps.userId, dps.duty], [slotIds[2], "alice", "caller"], "the seat and duty follow the slot");
 });

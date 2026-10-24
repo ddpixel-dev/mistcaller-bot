@@ -64,7 +64,7 @@ test("header lines: category and tier each on their own line with an icon, then 
   assert.ok(lines.includes("🕰️ **UTC** Wed 7 Oct 2026, 18:00 UTC"));
   assert.ok(lines.includes("🌍 **Your time** <t:1791396000:f> · <t:1791396000:R>"));
   assert.ok(lines.some((l) => l.startsWith("**Party (1/2)**")));
-  assert.ok(lines[0]!.startsWith("## 📜 ⚜ Ava roam ⚜"), "the title is a level-2 heading");
+  assert.equal(lines[0], "## 🏰 Ava roam", "a level-2 heading with the category's icon (ZvZ)");
   assert.ok(lines[1]!.includes("**Type**"), "no gap after the title");
 });
 
@@ -88,7 +88,7 @@ test("one numbered line per position: number, role icon and role, weapon - playe
     { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: "222" },
     { id: "s4", position: 4, role: "Support", weapon: "Mystery Orb", userId: null },
   ] }));
-  assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - <@111> - 📯 Caller\n2. 💚 Healer - Mystery Staff - Open - 🏹 Scout\n3. ⚔️ DPS - Mystery Bow - <@222>\n4. 🤝 Support - Mystery Orb - Open"));
+  assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - <@111> - 📯 Caller\n2. 💚 Healer - Mystery Staff - Open - 🔭 Scout\n3. ⚔️ DPS - Mystery Bow - <@222>\n4. 🤝 Support - Mystery Orb - Open"));
 });
 
 test("positions keep their order and numbers with no role headings, even when a role repeats apart", () => {
@@ -127,7 +127,7 @@ test("user text is escaped in the title, notes, role and weapon, and nothing can
 test("notes get a Notes: label and a different icon than the title", () => {
   const t = txt(view({ notes: "bring food" }));
   assert.ok(t.includes("📝 **Notes:** bring food"));
-  assert.ok(!t.split("\n").slice(1).some((l) => l.includes("📜")));
+  assert.ok(t.split("\n").slice(1).some((l) => l.startsWith("📝")));
 });
 
 test("colour comes from the category, grey when cancelled or done", () => {
@@ -471,4 +471,23 @@ test("there is no line of only weapon icons; the icons sit on the position lines
   const blocks = (msg(v) as any).components[0].components.filter((c: any) => c.type === 10).map((c: any) => c.content as string);
   assert.ok(!blocks.some((b: string) => b.split("\n").some((l) => /^#* *(<a?:\w+:\d+> ?)+$/.test(l))), "no icon-only line");
   assert.equal(txt(v).split(`<:w8_${known.base}:`).length - 1, 2, "one icon per position line, nothing more");
+});
+
+test("the title carries one icon: the category's, or the type's for Other; a cancelled title keeps its tag", () => {
+  const title = (over: Partial<RosterView>) => txt(view(over)).split("\n")[0];
+  assert.equal(title({ kind: "hellgate" }), "## 🔥 Ava roam");
+  assert.equal(title({ type: "pve", kind: "mists" }), "## 🌫️ Ava roam");
+  assert.equal(title({ kind: "other" }), "## ⚔️ Ava roam");
+  assert.equal(title({ type: "pve", kind: "other" }), "## 🐉 Ava roam");
+  assert.equal(title({ type: "pvx", kind: "other" }), "## 🌀 Ava roam");
+  assert.equal(title({ type: "pvx", kind: "gank-squad" }), "## 🗡️ Ava roam");
+  assert.ok(title({ status: "cancelled" }).startsWith("## ✖ CANCELLED — Ava roam"));
+});
+
+test("role icons: DTank has its own brick, Tank its shield, a Scout role the telescope, bows keep the bow", () => {
+  assert.equal(roleIcon("DTank"), "🧱");
+  assert.equal(roleIcon("dtank"), "🧱");
+  assert.equal(roleIcon("Tank"), "🛡️");
+  assert.equal(roleIcon("Scout"), "🔭");
+  assert.equal(roleIcon("Bow"), "🏹");
 });

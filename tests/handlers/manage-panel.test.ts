@@ -51,7 +51,7 @@ test("Manage opens a private panel for the owner and admins only, with every hos
   assert.equal(r.data.flags, 64);
   assert.deepEqual(labels(r), ["Edit", "Add player", "Remove player", "Set duty", "Set weapon", "Lock", "End", "Cancel", "Attendance"]);
   const add = flatComponents(r.data).find((c) => c.label === "Add player")!;
-  assert.deepEqual([add.style, add.emoji], [3, { name: "➕" }], "a green button with a plus");
+  assert.deepEqual([add.style, add.emoji], [3, { name: "✍️" }], "a green button with the owner's icon");
   assert.deepEqual(discordProblems({ ...r.data, flags: 0 }), []);
   const ids = flatComponents(r.data).filter((c) => c.type === 2).map((c) => c.custom_id);
   assert.deepEqual(ids, [`mg:e:${id}`, `fa:${id}`, `rm:${id}`, `dt:${id}`, `sw:${id}`, `mg:l:${id}`, `mg:n:${id}`, `mg:c:${id}`, `mg:a:${id}`]);

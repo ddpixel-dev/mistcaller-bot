@@ -23,8 +23,6 @@ export const WORDS = {
 } as const;
 
 export const RULE = "═══════════════════════";
-export const TITLE_MARK = "⚜";
-export const SCROLL = "📜";
 export const VOTE_ICON = "💰";
 export const CANCELLED_TAG = "✖ CANCELLED —";
 const BAR_CELLS = 10;
@@ -42,12 +40,14 @@ export function fillBar(filled: number, total: number): string {
 }
 
 const ROLE_ICONS: [RegExp, string][] = [
+  [/^\s*d-?tank\s*$/i, "🧱"], // DTank (owner decision 2026-10-24, ADR 0030)
   [/tank/i, "🛡️"],
   [/support/i, "🤝"],
   [/heal|cleric|holy/i, "💚"],
-  [/scout|ranged|archer|bow/i, "🏹"],
+  [/scout/i, "🔭"],
+  [/ranged|archer|bow/i, "🏹"],
   [/call|shot/i, "📯"],
-  [/mage|arcane|fire|frost|curse|dps|damage|assassin|dagger|melee/i, "🗡️"],
+  [/mage|arcane|fire|frost|curse|dps|damage|assassin|dagger|melee/i, "⚔️"],
 ];
 
 export function roleIcon(role: string): string {
