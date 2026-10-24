@@ -124,19 +124,19 @@ test("a host move clears the player's own weapon: the new position's weapon, or 
   const sql = await testSql();
   const id = await createContent(sql, {
     guildId: G, threadId: "t2", type: "pvp", title: "Raid", notes: null, startsAt: START, tier: "T8", hasLoot: false, createdBy: OWNER, now: NOW,
-    slots: [{ role: "Tank", weapon: "" }, { role: "DPS", weapon: "Bow" }, { role: "Healer", weapon: "" }],
+    slots: [{ role: "Tank", weapon: "" }, { role: "Healer", weapon: "" }, { role: "DPS", weapon: "Bow" }],
   });
   const v = (await getRosterView(sql, id, NOW))!;
   await claimSlot(sql, { contentId: id, slotId: v.slots[0]!.id, userId: A, guildId: G, now: NOW });
   assert.equal(await chooseWeapon(sql, { contentId: id, guildId: G, userId: A, weapon: "Mace" }), "ok");
-  assert.equal((await assign(sql, id, A, { position: 3 })).result, "ok", "to another position without a weapon");
+  assert.equal((await assign(sql, id, A, { position: 2 })).result, "ok", "to another position without a weapon");
   let w = (await getRosterView(sql, id, NOW))!;
-  assert.equal(w.slots[2]!.userId, A);
-  assert.equal(w.slots[2]!.chosenWeapon ?? null, null, "the pick is cleared: the roster shows Player's choice");
+  assert.equal(w.slots[1]!.userId, A);
+  assert.equal(w.slots[1]!.chosenWeapon ?? null, null, "the pick is cleared: the roster shows Player's choice");
   assert.equal(await chooseWeapon(sql, { contentId: id, guildId: G, userId: A, weapon: "Mace" }), "ok");
-  assert.equal((await assign(sql, id, A, { position: 2 })).result, "ok", "to a position with a weapon");
+  assert.equal((await assign(sql, id, A, { position: 3 })).result, "ok", "to a position with a weapon");
   w = (await getRosterView(sql, id, NOW))!;
-  assert.deepEqual([w.slots[1]!.userId, w.slots[1]!.weapon, w.slots[1]!.chosenWeapon ?? null], [A, "Bow", null]);
+  assert.deepEqual([w.slots[2]!.userId, w.slots[2]!.weapon, w.slots[2]!.chosenWeapon ?? null], [A, "Bow", null]);
 });
 
 test("the host may use a position held for a fill; the extra fill becomes a standby", async () => {

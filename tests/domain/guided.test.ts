@@ -12,7 +12,7 @@ const card = (d: ReturnType<typeof emptyDraft>, role: string, weapon: string, du
 const five = () => setCount(emptyDraft(), 5);
 
 test("there are exactly four roles", () => {
-  assert.deepEqual([...GUIDED_ROLES], ["Tank", "Healer", "Support", "DPS"]);
+  assert.deepEqual([...GUIDED_ROLES], ["Tank", "DTank", "Healer", "Support", "DPS"]);
 });
 
 test("the count is a whole number from 1 to 20", () => {

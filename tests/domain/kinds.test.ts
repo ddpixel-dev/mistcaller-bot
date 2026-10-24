@@ -56,3 +56,12 @@ test("Ava Gank is a PvP category and Ava Gold a PvE one, each before Other, and 
   assert.equal(resolveKind("pve", "ava-gold").ok, true);
   assert.equal(resolveKind("pvp", "ava-gold").ok, false);
 });
+
+test("every category has one icon, and each type has a fallback icon", async () => {
+  const { typeIcon, kindIcon } = await import("../../src/domain/kinds.ts");
+  for (const k of KINDS) assert.ok(k.icon && /\p{Extended_Pictographic}/u.test(k.icon), k.id);
+  assert.deepEqual([typeIcon("pvp"), typeIcon("pve"), typeIcon("pvx")], ["⚔️", "🐉", "🌀"]);
+  assert.equal(kindIcon("pvp", "zvz"), "🏰");
+  assert.equal(kindIcon("pve", "other"), "🐉");
+  assert.equal(kindIcon("pvp", "nonsense"), "⚔️");
+});

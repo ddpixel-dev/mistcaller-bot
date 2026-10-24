@@ -183,3 +183,26 @@ test("findContentInThread returns the blocking content, ignoring cancelled", asy
   await sql`update content set status = 'cancelled' where id = ${id}`;
   assert.equal(await findContentInThread(sql, "g1", "t1"), null);
 });
+
+test("positions are numbered by role at creation: Tank, DTank, Healer, Support, DPS, then other roles", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, slots: [
+    { role: "DPS", weapon: "Bow" }, { role: "Healer", weapon: "Holy" }, { role: "Bomber", weapon: "" }, { role: "DTank", weapon: "" }, { role: "Tank", weapon: "Mace" },
+  ] });
+  const v = (await getRosterView(sql, id, startsAt))!;
+  assert.deepEqual(v.slots.map((s) => [s.position, s.role]), [[1, "Tank"], [2, "DTank"], [3, "Healer"], [4, "DPS"], [5, "Bomber"]]);
+});
+
+test("migration 0021 sorts the positions of existing content by role and keeps seats on their slot", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, base);
+  // As content made before 0.24.0 could be: DPS first, Tank last.
+  await sql`update slot set position = position + 10 where content_id = ${id}`;
+  await sql`update slot set position = case role when 'DPS' then 1 when 'Healer' then 2 else 3 end where content_id = ${id}`;
+  const tank = (await sql`select id from slot where role = 'Tank'`)[0]!.id;
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'u9', ${tank}, 'signed')`;
+  const { readFileSync } = await import("node:fs");
+  await sql.unsafe(readFileSync(new URL("../../supabase/migrations/0021_sort_positions.sql", import.meta.url), "utf8"));
+  const v = (await getRosterView(sql, id, startsAt))!;
+  assert.deepEqual(v.slots.map((s) => [s.position, s.role, s.userId]), [[1, "Tank", "u9"], [2, "Healer", null], [3, "DPS", null]]);
+});

@@ -1,9 +1,9 @@
 import { buildRefText } from "../domain/buildref.ts";
 import { seatCounts } from "../domain/seats.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
-import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
+import { DEFAULT_KIND, TYPE_LABEL, kindDef, kindIcon } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
-import { CANCELLED_TAG, RULE, SCROLL, TITLE_MARK, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
+import { CANCELLED_TAG, RULE, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
 import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -84,7 +84,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   const kind = def && def.id !== DEFAULT_KIND ? `${typeLabel} · ${def.label}` : typeLabel;
   const title = view.status === "cancelled"
     ? `${CANCELLED_TAG} ${escapeText(view.title)}`
-    : `${SCROLL} ${TITLE_MARK} ${escapeText(view.title)} ${TITLE_MARK}`;
+    : `${kindIcon(view.type, view.kind)} ${escapeText(view.title)}`; // one icon: the category's (ADR 0030)
   const fact = (icon: string, label: string, value: string) => `${icon} **${label}**${EN.repeat(HEADER_PAD[label] ?? 2)}${value}`;
   const lines = [
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).

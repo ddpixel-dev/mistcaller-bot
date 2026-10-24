@@ -140,8 +140,8 @@ test("adding a position of a waited role in an edit seats the first waiter and r
     slots: [...base.slots, { role: "Tank", weapon: "Hammer" }],
   }, NOW);
   assert.equal(r.result, "ok");
-  assert.deepEqual((r as any).promoted.map((p: Promotion) => [p.userId, p.position, p.weapon]), [["tw", 5, "Hammer"]]);
-  assert.equal((await view()).slots[4]!.userId, "tw");
+  assert.deepEqual((r as any).promoted.map((p: Promotion) => [p.userId, p.position, p.weapon]), [["tw", 2, "Hammer"]], "the new Tank is numbered with the Tanks (ADR 0030)");
+  assert.equal((await view()).slots[1]!.userId, "tw");
   assert.deepEqual((await view()).waitlist, []);
 });
 
