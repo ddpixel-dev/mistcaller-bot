@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL } from "../discord/response.ts";
 
-// `/content help` (owner request 2026-10-08): a private summary of what the bot does and every command.
+// `/content help` (owner request 2026-10-08): a private summary of what the bot does, every command and the Manage panel.
 export const HELP_TEXT = [
   "# Mistcaller help",
   "Content rosters for your guild: sign up, wait, vote on loot and track attendance.",
@@ -18,11 +18,13 @@ export const HELP_TEXT = [
   "• `/content weapon` looks up a weapon. `/content help` shows this message.",
   "",
   "### The content's owner",
-  "• **Manage** on the roster opens your private panel: edit, sign up or remove players, duties, lock, end, cancel, attendance.",
-  "• Or use `/content edit`, `/content cancel`, `/content lock` and `/content unlock`.",
-  "• `/content duty` sets a duty (Caller, Scout, Rat, Looter, Catcher). `/content assign` signs up any member in an open position.",
-  "• `/content end` ends the content (it ends by itself 4 hours after the start). `/content reopen` brings it back.",
-  "• `/content attendance` opens the attendance form. **Ping players** sends a private reminder to each player once, so late joiners can be pinged later.",
+  "Press **Manage** on the roster. Only you see its panel:",
+  "• **Edit:** category, loot vote, build link, and the details form.",
+  "• **Add player** puts any member in an open position; the post says who added them. **Remove player** takes someone off.",
+  "• **Set duty** (Caller, Scout, Rat, Looter, Catcher). **Set weapon** gives a position without a weapon its weapon.",
+  "• **Lock** or **Unlock** signups, **End** (automatic 4 hours after the start), **Cancel**.",
+  "• **Attendance** opens the form. On a finished roster, Manage offers Attendance and **Reopen**.",
+  "• **Ping players** sends each player a private reminder once, so late joiners can be pinged later.",
   "• `/content preset` loads slot presets. `/content slot` fills a guided slot.",
   "",
   "### Admins (an admin role or Manage Server)",

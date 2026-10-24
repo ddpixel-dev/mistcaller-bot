@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId } from "../../src/db/content.ts";
 import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
-import { handleEditCommand, handleEditModal } from "../../src/handlers/manage.ts";
+import { handleEditModal } from "../../src/handlers/manage.ts";
 import { encode, type CreateDraft } from "../../src/handlers/create-panel.ts";
 import { packRef } from "../../src/domain/buildref.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
@@ -118,37 +118,49 @@ const editForm = (id: string, marker: string, extra: Partial<Interaction> = {}) 
   form(`edit:${id}${marker}`, { title: "Raid", start: "2026-12-01 18:00", tier: "T8", slots: "Tank - Mace", notes: "" }, { channel: { id: "c1", type: 0 }, ...extra });
 const buildOf = async (sql: any, id: string) => (await sql`select build_channel_id from content where id = ${id}`)[0].build_channel_id;
 
-test("edit: a link sets the build reference, clear-build removes it, and nothing given keeps it", async () => {
-  const { deps, sql, id, edits } = await withContent();
-  const set: any = await handleEditCommand(deps, cmd("edit", [ref(link(CH2))]));
-  assert.equal(set.data.custom_id, `edit:${id}:k:-:b${packRef(CH2)}`);
-  const clear: any = await handleEditCommand(deps, cmd("edit", [{ name: "clear-build", type: 5, value: true }]));
-  assert.equal(clear.data.custom_id, `edit:${id}:k:-:bx`);
-  const keep: any = await handleEditCommand(deps, cmd("edit"));
-  assert.equal(keep.data.custom_id, `edit:${id}:k`);
-  const withKind: any = await handleEditCommand(deps, cmd("edit", [{ name: "category", type: 3, value: "zvz" }, ref(link(CH2, MSG))]));
-  assert.equal(withKind.data.custom_id, `edit:${id}:k:zvz:b${packRef(`${CH2}/${MSG}`)}`);
+const click = (customId: string, values?: unknown[], user = "boss"): Interaction => ({
+  id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who(user), message: { id: "p1", flags: 64 },
+  data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) },
+});
 
-  await handleEditModal(deps, editForm(id, ":k"));
-  assert.equal(await buildOf(sql, id), CH, "kept");
-  await handleEditModal(deps, editForm(id, `:k:-:b${packRef(CH2)}`));
-  assert.equal(await buildOf(sql, id), CH2);
-  assert.ok(plain(textOf(edits.at(-1))).includes(`<#${CH2}>`));
-  await handleEditModal(deps, editForm(id, `:k:-:b${packRef(`${CH2}/${MSG}`)}`));
+test("Edit panel: Build link opens a one-field form with the current link; a link sets it and an empty field removes it", async () => {
+  const { d, sql, id, edits } = await withContent();
+  const opened: any = await d(click(`ed:b:${id}`));
+  assert.equal(opened.type, 9);
+  assert.equal(opened.data.custom_id, `edb:${id}`);
+  const input = opened.data.components[0].components[0];
+  assert.equal(input.value, link(CH));
+  assert.equal(input.required, false);
+  assert.ok(Array.from(input.label as string).length <= 45, "Discord: a form field label holds 45 characters");
+
+  assert.match(content(await d(form(`edb:${id}`, { link: link(CH2, MSG) }))), /saved/);
   assert.equal(await buildOf(sql, id), `${CH2}/${MSG}`);
   assert.ok(plain(textOf(edits.at(-1))).includes(link(CH2, MSG)));
-  await handleEditModal(deps, editForm(id, ":k:-:bx"));
+  assert.equal((await d(click(`ed:b:${id}`)) as any).data.components[0].components[0].value, link(CH2, MSG));
+  assert.match(content(await d(form(`edb:${id}`, { link: "" }))), /removed/);
   assert.equal(await buildOf(sql, id), null);
   assert.ok(!plain(textOf(edits.at(-1))).includes("Build"));
 });
 
-test("edit refuses both a reference and clear-build, a bad link, and a forged marker", async () => {
-  const { deps, sql, id } = await withContent();
-  const both: any = await handleEditCommand(deps, cmd("edit", [ref(link(CH2)), { name: "clear-build", type: 5, value: true }]));
-  assert.match(content(both), /not both/);
-  assert.match(content(await handleEditCommand(deps, cmd("edit", [ref("https://example.com")]))), /not a link/);
-  assert.match(content(await handleEditModal(deps, editForm(id, ":k:-:bnope"))), /not valid/);
+test("Build link refuses a bad link, another server's link and strangers, and changes nothing", async () => {
+  const { d, sql, id } = await withContent();
+  assert.match(content(await d(form(`edb:${id}`, { link: "https://example.com" }))), /not a link/);
+  assert.match(content(await d(form(`edb:${id}`, { link: link(CH2, undefined, "999999999999999999") }))), /another server/);
+  assert.match(content(await d(form(`edb:${id}`, { link: link(CH2) }, { member: who("stranger") }))), /Only the creator/);
+  assert.match(content(await d(form("edb:nope", { link: link(CH2) }))), /out of date/);
   assert.equal(await buildOf(sql, id), CH);
+});
+
+test("forms opened before 0.23.0 still carry a category and build marker, and are understood", async () => {
+  const { deps, sql, id } = await withContent();
+  await handleEditModal(deps, editForm(id, ":k"));
+  assert.equal(await buildOf(sql, id), CH, "kept");
+  await handleEditModal(deps, editForm(id, `:k:zvz:b${packRef(CH2)}`));
+  assert.equal(await buildOf(sql, id), CH2);
+  assert.equal((await sql`select kind from content`)[0]!.kind, "zvz");
+  await handleEditModal(deps, editForm(id, ":k:-:bx"));
+  assert.equal(await buildOf(sql, id), null);
+  assert.match(content(await handleEditModal(deps, editForm(id, ":k:-:bnope"))), /not valid/);
 });
 
 // ---------------- PvX ----------------

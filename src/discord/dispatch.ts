@@ -18,7 +18,8 @@ import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handl
 import { handleVote } from "../handlers/vote.ts";
 import { handleRetryComponent } from "../handlers/retry.ts";
 import { handleRemoveComponent } from "../handlers/remove.ts";
-import { handleManageComponent } from "../handlers/manage-panel.ts";
+import { handleBuildLinkModal, handleEditPanelComponent, handleManageComponent } from "../handlers/manage-panel.ts";
+import { handleSetWeaponComponent } from "../handlers/set-weapon.ts";
 import { handleDutyComponent } from "../handlers/duty.ts";
 
 export type Deps = { sql: Sql; rest: Rest; now: () => Date };
@@ -26,10 +27,10 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, edit: handleEditModal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, leaveslot: handleLeaveSlot, leave: handleLeave, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent,
+  cp: handleCreatePanel, cpgo: handleCreateContinue, cpx: handleCreateCancel, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
 };
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");

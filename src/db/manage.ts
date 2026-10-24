@@ -121,6 +121,43 @@ export async function cancelContent(sql: Sql, id: string): Promise<CancelResult>
   });
 }
 
+export type SettingsResult = "ok" | "unavailable";
+
+// The Edit panel (ADR 0029): the category, the loot vote and the build reference, each on its own, while open.
+// A field left out keeps its value; buildRef null removes the reference.
+export async function updateContentSettings(
+  sql: Sql, id: string, s: { kind?: string; hasLoot?: boolean; buildRef?: string | null },
+): Promise<SettingsResult> {
+  return await sql.begin(async (tx): Promise<SettingsResult> => {
+    const [c] = await tx`select status, kind, has_loot, build_channel_id from content where id = ${id} for update`;
+    if (!c || c.status !== "open") return "unavailable";
+    await tx`
+      update content set kind = ${s.kind ?? c.kind}, has_loot = ${s.hasLoot ?? c.has_loot},
+        build_channel_id = ${s.buildRef === undefined ? c.build_channel_id : s.buildRef}
+      where id = ${id}`;
+    return "ok";
+  });
+}
+
+export type WeaponResult = { result: "ok"; holder: string | null; replaced: string | null } | { result: "has_weapon" | "no_slot" | "unavailable" };
+
+// Set weapon (ADR 0029): the host gives a role-only position its weapon. The holder keeps the seat; their own pick
+// (FR-030) is replaced, and returned so the post can tell them. Allowed while open or locked.
+export async function setSlotWeapon(sql: Sql, a: { contentId: string; position: number; weapon: string }): Promise<WeaponResult> {
+  return await sql.begin(async (tx): Promise<WeaponResult> => {
+    const [c] = await tx`select status from content where id = ${a.contentId} for update`;
+    if (!c || (c.status !== "open" && c.status !== "locked")) return { result: "unavailable" };
+    const [slot] = await tx`select id, weapon from slot where content_id = ${a.contentId} and position = ${a.position}`;
+    if (!slot) return { result: "no_slot" };
+    if (slot.weapon) return { result: "has_weapon" };
+    await tx`update slot set weapon = ${a.weapon} where id = ${slot.id}`;
+    const [holder] = await tx`
+      select user_id, chosen_weapon from signup where slot_id = ${slot.id} and status = 'signed'`;
+    if (holder) await tx`update signup set chosen_weapon = null where content_id = ${a.contentId} and user_id = ${holder.user_id}`;
+    return { result: "ok", holder: holder?.user_id ?? null, replaced: holder?.chosen_weapon ?? null };
+  });
+}
+
 export type DutyResult = "ok" | "no_slot" | "unavailable";
 
 // The duty belongs to the position, held or open. Locked content can still be changed.

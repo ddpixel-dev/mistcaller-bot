@@ -1,10 +1,9 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { subOption } from "../discord/modal.ts";
 import { assignPlayer, type AssignResult, type Promotion } from "../db/signup.ts";
 import { getRosterView } from "../db/content.ts";
-import { getManageTarget, getManageTargetById } from "../db/manage.ts";
+import { getManageTargetById } from "../db/manage.ts";
 import { announce, authorize, refreshRoster } from "./manage.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { escapeText } from "../render/roster.ts";
@@ -13,7 +12,7 @@ import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Sign up player**, again.";
+const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Add player**, again.";
 const NO_BOTS = "Bots cannot be signed up.";
 
 const failure = (r: AssignResult["result"], position?: number): string =>
@@ -39,7 +38,7 @@ function isBot(i: Interaction, userId: string): boolean {
   return users?.[userId]?.bot === true;
 }
 
-// The private Sign up player panel (FR-047): the players waiting as fills first, then a member picker for anyone else,
+// The private Add player panel (FR-047; named Sign up player in 0.22.0): the players waiting as fills first, then a member picker for anyone else,
 // then (once a player is chosen) the open positions.
 async function panel(deps: Deps, view: RosterView, chosen: string | null) {
   const fills = (view.fills ?? []).slice(0, 25);
@@ -84,7 +83,9 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
 // Only the player is pinged; the host's name shows without a ping.
 async function finish(deps: Deps, view: RosterView, host: string, userId: string, r: Extract<AssignResult, { result: "ok" }>, promoted: Promotion[]): Promise<void> {
   await refreshRoster(deps, view.id);
-  await announce(deps, view.threadId, `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).`, [userId]);
+  // A position without a weapon: the player's own pick was cleared by the move, so they choose again (ADR 0029).
+  const pick = view.slots.some((s) => s.position === r.position && !s.weapon) ? " Pick your weapon with `/content me`." : "";
+  await announce(deps, view.threadId, `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId]);
   await announcePromotions(deps, view.threadId, view.title, promoted);
 }
 
@@ -121,22 +122,4 @@ export async function handleAssignComponent(deps: Deps, i: Interaction): Promise
     return { type: UPDATE_MESSAGE, data: { content: `✅ <@${parts[3]}> is now in position ${r.position}.`, components: [], allowed_mentions: { parse: [] } } };
   }
   return reply(INVALID);
-}
-
-// /content assign position:<n> member:@user: the same, in one command, inside the content's post.
-export async function handleAssignCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
-  const checked = await authorize(deps, i, target);
-  if (!checked.ok) return checked.response;
-  const position = subOption(i, "assign", "position");
-  const member = subOption(i, "assign", "member");
-  if (typeof position !== "number" || !Number.isInteger(position) || position < 1 || position > 20) return reply("Give the position number, from 1 to 20.");
-  if (typeof member !== "string" || !SNOWFLAKE.test(member)) return reply("Pick the member to sign up.");
-  if (isBot(i, member)) return reply(NO_BOTS);
-  const promoted: Promotion[] = [];
-  const r = await assignPlayer(deps.sql, { contentId: checked.target.id, guildId: i.guild_id!, userId: member, position, now: deps.now(), promoted });
-  if (r.result !== "ok") return reply(failure(r.result, position));
-  const view = await getRosterView(deps.sql, checked.target.id, deps.now());
-  if (view) await finish(deps, view, i.member!.user!.id, member, r, promoted);
-  return reply(`<@${member}> is now in position ${r.position}.`);
 }

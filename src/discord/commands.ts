@@ -1,11 +1,6 @@
 import { USER_AGENT } from "./rest.ts";
-import { kindChoices } from "../domain/kinds.ts";
-import { CLEAR_DUTY, DUTIES, DUTY_WORD } from "../domain/duties.ts";
+import { DUTIES, DUTY_WORD } from "../domain/duties.ts";
 import { GUIDED_ROLES } from "../domain/guided.ts";
-
-const kindOption = (description: string): CommandOption => ({
-  type: 3, name: "category", description, required: false, choices: kindChoices(),
-});
 
 const buildReferenceOption = (): CommandOption => ({
   type: 3, name: "build-reference", description: "A link to the build: a channel, post or message of this server (optional)",
@@ -43,17 +38,6 @@ export const commands = [
         options: [buildReferenceOption()],
       },
       {
-        type: 1,
-        name: "edit",
-        description: "Edit this post's content in a form (creator, admin roles, Manage Server)",
-        options: [
-          { type: 5, name: "loot-vote", description: "Turn the loot vote on or off (leave empty to keep it)", required: false },
-          kindOption("Change the category (leave empty to keep it)"),
-          buildReferenceOption(),
-          { type: 5, name: "clear-build", description: "Remove the build reference", required: false },
-        ],
-      },
-      {
         type: 1, name: "setup", description: "Admin roles (Manage Server), and the Events Calendar channel (admins)",
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
@@ -88,21 +72,6 @@ export const commands = [
       { type: 1, name: "me", description: "Your own place in this content: sign up, move or leave" },
       {
         type: 1,
-        name: "duty",
-        description: `Give a player a ${DUTY_WORD.toLowerCase()} (creator, admin roles, Manage Server)`,
-        options: [
-          {
-            type: 4, name: "position", description: "Position number on the roster", required: true,
-            min_value: 1, max_value: 20,
-          },
-          {
-            type: 3, name: "duty", description: `The ${DUTY_WORD.toLowerCase()} to give`, required: true,
-            choices: [...DUTIES.map((d) => ({ name: d.label, value: d.id })), { name: "Clear", value: CLEAR_DUTY }],
-          },
-        ],
-      },
-      {
-        type: 1,
         name: "slot",
         description: "Guided slots: fill the current slot (role, weapon with search, duty)",
         options: [
@@ -120,12 +89,7 @@ export const commands = [
           },
         ],
       },
-      { type: 1, name: "lock", description: "Close signups now (creator, admin roles, Manage Server)" },
-      { type: 1, name: "unlock", description: "Reopen signups after a lock (creator, admin roles, Manage Server)" },
       { type: 1, name: "list", description: "Live and upcoming content in this server, with links" },
-      { type: 1, name: "end", description: "End this content once it has started (creator, admin roles, Manage Server)" },
-      { type: 1, name: "reopen", description: "Reopen ended content (creator, admin roles, Manage Server)" },
-      { type: 1, name: "attendance", description: "Open the attendance form privately (creator, admin roles, Manage Server)" },
       { type: 1, name: "stats", description: "This server's statistics, shown only to you" },
       {
         type: 1,
@@ -133,17 +97,7 @@ export const commands = [
         description: "A member's attendance history (your own for everyone; others: admins only)",
         options: [{ type: 6, name: "member", description: "The member", required: true }],
       },
-      {
-        type: 1,
-        name: "assign",
-        description: "Sign up any member in an open position (creator, admin roles, Manage Server)",
-        options: [
-          { type: 4, name: "position", description: "The open position number", required: true, min_value: 1, max_value: 20 },
-          { type: 6, name: "member", description: "The member to sign up", required: true },
-        ],
-      },
       { type: 1, name: "help", description: "What the bot does and every command" },
-      { type: 1, name: "cancel", description: "Cancel this post's content (creator, admin roles, Manage Server)" },
     ],
   },
 ] satisfies Command[] as [Command & { options: (CommandOption & { options?: CommandOption[] })[] }];

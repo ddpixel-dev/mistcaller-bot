@@ -31,51 +31,48 @@ async function setup() {
   await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'alice', ${slots[0]}, 'signed')`;
   return { sql, deps, d: createDispatch(deps), id, edits };
 }
-const duty = (position: unknown, value: unknown, userId = "boss", roles: string[] = [], permissions?: string): Interaction => ({
-  id: "i", type: 2, application_id: "a", token: "t", guild_id: "g1", channel_id: "t1",
-  channel: { id: "t1", type: 11, parent_id: "fp" }, member: { user: { id: userId }, roles, permissions },
-  data: { name: "content", options: [{ name: "duty", type: 1, options: [{ name: "position", type: 4, value: position }, { name: "duty", type: 3, value }] }] },
+// Set duty is a button of the Manage panel (ADR 0029): a position, then a duty. `duty` is the second click.
+const duty = (id: string, position: unknown, value: unknown, userId = "boss", roles: string[] = [], permissions?: string): Interaction => ({
+  id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1", channel_id: "t1",
+  channel: { id: "t1", type: 11, parent_id: "fp" }, member: { user: { id: userId }, roles, permissions }, message: { id: "p1", flags: 64 },
+  data: { custom_id: `dt:d:${id}:${position}`, component_type: 3, values: [value] },
 });
 const text = (r: any) => r.data.content as string;
 
 test("the creator assigns a duty to a held position: saved and shown on the roster message", async () => {
   const { d, sql, id, edits } = await setup();
-  const r = await d(duty(1, "caller"));
+  const r = await d(duty(id, 1, "caller"));
   assert.ok(text(r).includes("Caller assigned for position 1."));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
   assert.equal(edits.length, 1);
   assert.ok(textOf(edits[0].body).includes("<@alice> - 📯 Caller"));
-  assert.ok(text(await d(duty(1, "none"))).includes("Duty cleared"));
+  assert.ok(text(await d(duty(id, 1, "none"))).includes("Duty cleared"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, null);
 });
 
 test("officers and Manage Server may assign; strangers may not", async () => {
   const { d, sql, id } = await setup();
-  assert.ok(text(await d(duty(1, "scout", "x", ["officer"]))).includes("Scout assigned"));
-  assert.ok(text(await d(duty(1, "rat", "y", [], "32"))).includes("Rat assigned"));
-  assert.ok(text(await d(duty(1, "caller", "stranger"))).includes("Only the creator"));
+  assert.ok(text(await d(duty(id, 1, "scout", "x", ["officer"]))).includes("Scout assigned"));
+  assert.ok(text(await d(duty(id, 1, "rat", "y", [], "32"))).includes("Rat assigned"));
+  assert.ok(text(await d(duty(id, 1, "caller", "stranger"))).includes("Only the creator"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "rat");
 });
 
-test("an open position, a missing position, bad input and no content are explained", async () => {
+test("an open position, a missing position, bad input and cancelled content are explained", async () => {
   const { d, sql, id } = await setup();
-  assert.ok(text(await d(duty(2, "caller"))).includes("Caller assigned for position 2."));
+  assert.ok(text(await d(duty(id, 2, "caller"))).includes("Caller assigned for position 2."));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[1]!.duty, "caller");
-  assert.ok(text(await d(duty(9, "caller"))).includes("no position 9"));
-  assert.ok(text(await d(duty(0, "caller"))).includes("1 to 20"));
-  assert.ok(text(await d(duty(1.5, "caller"))).includes("1 to 20"));
-  assert.ok(text(await d(duty("1", "caller"))).includes("1 to 20"));
-  assert.ok(text(await d(duty(1, "captain"))).includes("from the list"));
-  assert.ok(text(await d(duty(1, 5))).includes("from the list"));
-  const other: Interaction = { ...duty(1, "caller"), channel: { id: "other", type: 11, parent_id: "fp" } };
-  assert.ok(text(await d(other)).includes("no active content"));
+  assert.ok(text(await d(duty(id, 9, "caller"))).includes("no position 9"));
+  for (const bad of [0.5, "x", "999"]) assert.ok(text(await d(duty(id, bad, "caller"))).includes("out of date"), String(bad));
+  assert.ok(text(await d(duty(id, 1, "captain"))).includes("out of date"));
+  assert.ok(text(await d(duty(id, 1, 5))).includes("out of date"));
   await sql`update content set status = 'cancelled' where id = ${id}`;
-  assert.ok(text(await d(duty(1, "caller"))).includes("no active content"));
+  assert.ok(text(await d(duty(id, 1, "caller"))).includes("no longer open"));
 });
 
-test("a failed roster edit still saves the duty and says the message will update later", async () => {
+test("a failed roster edit still saves the duty", async () => {
   const { d, deps, sql, id } = await setup();
   deps.rest.editMessage = async () => { throw new Error("boom"); };
-  assert.ok(text(await d(duty(1, "caller"))).includes("will update on the next change"));
+  assert.ok(text(await d(duty(id, 1, "caller"))).includes("Caller assigned"));
   assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.duty, "caller");
 });
