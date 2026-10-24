@@ -10,7 +10,7 @@ import { DEFAULT_KIND, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
 import { formatSlotLines } from "../domain/slots.ts";
-import { cardStart, withStartPart } from "../domain/time.ts";
+import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
 import { renderCard, v2Text } from "../render/card.ts";
 import { renderGuidedStep } from "../render/guided.ts";
@@ -28,7 +28,7 @@ export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<I
   if (!i.guild_id || !userId || !threadId) return reply(NOT_HERE);
   const only = typesFor(o.forumType);
   const id = await startCard(deps.sql, {
-    guildId: i.guild_id, userId, threadId, type: only.length === 1 ? only[0]! : null, title: o.title, startText: cardStart(deps.now()),
+    guildId: i.guild_id, userId, threadId, type: only.length === 1 ? only[0]! : null, title: o.title, startText: defaultStart(deps.now()),
     targetForumId: o.targetForumId,
   });
   if (o.buildRef) await saveCard(deps.sql, id, { buildRef: o.buildRef });
@@ -100,14 +100,6 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, { slots: preset.slots.slice(0, 20), slotsText: null });
       return await showCard(deps, await reload(deps, d), { note: `📋 Slots from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**.` });
     }
-    case "day":
-    case "hour":
-    case "minute": {
-      const start = value ? withStartPart(d.startText, action, value, deps.now()) : null;
-      if (!start) return reply(EXPIRED);
-      await saveCard(deps.sql, d.id, { startText: start });
-      return await showCard(deps, await reload(deps, d));
-    }
     case "details": return detailsForm(d);
     case "build": {
       return {
@@ -132,7 +124,7 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
   }
 }
 
-// Details: the card's text in one form, filled with what is set. The start is set with the card's menus (ADR 0033).
+// Details: the card's text in one form, filled with what is set; the start begins at now plus an hour (ADR 0034).
 function detailsForm(d: StoredDraft): InteractionResponse {
   const slots = d.slotsText ?? formatSlotLines(d.slots);
   return {
@@ -142,6 +134,7 @@ function detailsForm(d: StoredDraft): InteractionResponse {
       title: "Event details",
       components: [
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
+        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
           style: 2, required: false, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
@@ -168,7 +161,7 @@ export async function handleCardDetails(deps: Deps, i: Interaction): Promise<Int
   const typed = (v.slots ?? "").trim();
   const parsed = typed ? parseSlots(typed) : null;
   await saveCard(deps.sql, d.id, {
-    title: clean(v.title), gearTier: clean(v.tier), notes: clean(v.notes),
+    title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes),
     ...(parsed === null ? { slots: [], slotsText: null } : parsed.ok ? { slots: parsed.value, slotsText: null } : { slotsText: typed }),
   });
   return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [`Slots: ${parsed.error}`] } : {});

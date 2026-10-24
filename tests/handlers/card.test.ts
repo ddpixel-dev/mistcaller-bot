@@ -80,22 +80,26 @@ test("Details opens one form filled from the card; what is typed is kept, and sl
   const f: any = await d(press(`cc:details:${id}`));
   assert.equal(f.type, 9);
   const inputs = f.data.components.map((row: any) => row.components[0]);
-  assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "tier", "slots", "notes"], "the start is set with the card's menus");
+  assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "start", "tier", "slots", "notes"]);
+  assert.equal(inputs[1].value, "2026-10-24 13:00", "the start is prefilled with now plus an hour");
   const r: any = await d(form(`ccd:${id}`, { ...details, slots: "Tank - Mace (Captain)" }));
   assert.equal(r.type, 7);
   assert.ok(say(r).includes("Ava roam") && say(r).includes("Unknown duty"));
   let stored = (await getDraft(sql, id, NOW))!;
-  assert.deepEqual([stored.title, stored.startText, stored.gearTier, stored.notes, stored.slotsText], ["Ava roam", "2026-10-24 13:00", "T8", null, "Tank - Mace (Captain)"]);
+  assert.deepEqual([stored.title, stored.startText, stored.gearTier, stored.notes, stored.slotsText], ["Ava roam", "2026-10-25 18:00", "T8", null, "Tank - Mace (Captain)"]);
   const again: any = await d(press(`cc:details:${id}`));
-  assert.equal(again.data.components[2].components[0].value, "Tank - Mace (Captain)", "the typed slots come back to be fixed");
+  assert.equal(again.data.components[3].components[0].value, "Tank - Mace (Captain)", "the typed slots come back to be fixed");
   await d(form(`ccd:${id}`, details));
   stored = (await getDraft(sql, id, NOW))!;
   assert.deepEqual([stored.slots.length, stored.slotsText], [2, null]);
 });
 
-test("Create lists every problem on the card and creates nothing; only the member who opened the card can use it", async () => {
+test("Create is dimmed and the card lists what is still needed; a forced click creates nothing; only the opener can use the card", async () => {
   const { d, sql, calls } = await setup();
-  const { id } = await open(d);
+  const { r: opened, id } = await open(d);
+  const createBtn = (m: any) => flatComponents(m.data).find((c: any) => c.custom_id === `cc:create:${id}`)!;
+  assert.equal(createBtn(opened).disabled, true);
+  assert.ok(say(opened).includes("Still needed before Create"));
   const r: any = await d(press(`cc:create:${id}`));
   assert.equal(r.type, 7);
   for (const p of ["Pick the type", "Add a title", "gear tier", "Add the slots"]) assert.ok(say(r).includes(p), p);
@@ -227,4 +231,20 @@ test("editing the title renames a post the bot made; a refused rename is explain
   const own = await createContent(sql, { guildId: GUILD, threadId: "c9", type: "pvp", title: "Old", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"), tier: "T8", hasLoot: false, createdBy: OWNER, slots: [{ role: "Tank", weapon: "Mace" }] });
   await handleEditModal(deps, form(`edit:${own}:k`, { ...details, title: "New" }, { channel: { id: "c9", type: 0 } }));
   assert.equal(calls.filter((c) => c.op === "editChannel").length, 0);
+});
+
+test("Create lights up once the card is complete; the tips sit under the buttons after a divider, one 💡 per line", async () => {
+  const { d } = await setup();
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  const r: any = await d(form(`ccd:${id}`, details));
+  assert.equal(flatComponents(r.data).find((c: any) => c.custom_id === `cc:create:${id}`)!.disabled, false);
+  assert.ok(say(r).includes("Ready: press **Create**"));
+  const parts = r.data.components[0].components;
+  const buttonsAt = parts.findIndex((c: any) => c.type === 1 && c.components.some((b: any) => b.custom_id === `cc:create:${id}`));
+  assert.deepEqual(parts.slice(buttonsAt + 1).map((c: any) => c.type), [14, 10], "a divider, then the tips, after the buttons");
+  const tips = parts.at(-1).content.split("\n");
+  assert.ok(tips.length >= 3 && tips.every((l: string) => l.startsWith("-# 💡 ")));
+  assert.ok(!parts[0].content.includes("💡"), "no tips above the menus");
+  assert.deepEqual(discordProblems(r.data), []);
 });
