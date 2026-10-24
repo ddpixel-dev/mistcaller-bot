@@ -1,10 +1,11 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { DRAFT_TTL_MS, deleteDraft, getDraft, purgeDrafts, saveDraft, startDraft } from "../../src/db/draft.ts";
+import { DRAFT_TTL_MS, deleteDraft, getDraft, purgeDrafts, saveCard, saveDraft, startCard } from "../../src/db/draft.ts";
 
 const NOW = new Date("2026-10-07T12:00:00Z");
-const who = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, loot: true, kind: "zvz" };
+const who = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, title: "Raid", startText: "2026-10-08 18:00" };
+const startDraft = async (sql: any, w: typeof who & { targetForumId?: string | null }) => { const id = await startCard(sql, w); await saveCard(sql, id, { loot: true, kind: "zvz" }); return id; };
 beforeEach(async () => { await resetDb(await testSql()); });
 after(async () => { await (await testSql()).end(); });
 
@@ -29,24 +30,29 @@ test("starting again in the same post replaces the member's draft; others are se
   const sql = await testSql();
   const a = await startDraft(sql, who);
   await saveDraft(sql, a, { count: 4, slots: [{ role: "Tank", weapon: "X" }], step: 1, role: "DPS", weapon: "Y", duty: "rat", weaponClass: "Bow" });
-  const b = await startDraft(sql, { ...who, loot: false });
+  const b = await startCard(sql, { ...who, title: null });
   assert.equal(a, b);
   const d = (await getDraft(sql, b, new Date()))!;
-  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.weaponClass, d.loot], [null, [], 0, null, null, null, null, false]);
+  assert.deepEqual([d.count, d.slots, d.step, d.role, d.weapon, d.duty, d.weaponClass, d.loot, d.kind, d.title], [null, [], 0, null, null, null, null, false, "other", null]);
   await startDraft(sql, { ...who, userId: "u2" });
   await startDraft(sql, { ...who, threadId: "t2" });
   assert.equal((await sql`select count(*)::int as n from slot_draft`)[0]!.n, 3);
 });
 
-test("a draft started from the first form keeps the count or a preset's slots, and the gear tier", async () => {
+test("the creation card keeps its fields; saving slots sets the count and completes the cards; the type can be empty", async () => {
   const sql = await testSql();
-  const base = { guildId: "g1", userId: "u1", threadId: "t1", type: "pvp" as const, loot: true, kind: "zvz" };
-  const a = (await getDraft(sql, await startDraft(sql, { ...base, count: 7, gearTier: "T8" }), new Date()))!;
-  assert.deepEqual([a.count, a.slots.length, a.step, a.gearTier], [7, 0, 0, "T8"]);
+  const id = await startCard(sql, { ...who, type: null, targetForumId: "f1" });
+  let d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.type, d.title, d.startText, d.targetForumId, d.loot, d.kind], [null, "Raid", "2026-10-08 18:00", "f1", false, "other"]);
+  await saveCard(sql, id, { type: "pve", kind: "mists", gearTier: "T8", notes: "food", buildRef: "123456789", slotsText: "Tank - Mace (Nope)" });
+  d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.type, d.kind, d.gearTier, d.notes, d.buildRef, d.slotsText, d.title], ["pve", "mists", "T8", "food", "123456789", "Tank - Mace (Nope)", "Raid"], "fields left out keep their value");
   const slots = [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "" }];
-  const b = (await getDraft(sql, await startDraft(sql, { ...base, slots, gearTier: "T7" }), new Date()))!;
-  assert.deepEqual([b.count, b.slots, b.step, b.gearTier], [2, slots, 2, "T7"], "complete, so the final form opens");
-  assert.equal(b.id, a.id, "one draft per member per post");
+  await saveCard(sql, id, { slots, slotsText: null });
+  d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.slots, d.count, d.step, d.slotsText], [slots, 2, 2, null]);
+  await saveCard(sql, id, { slots: [] });
+  assert.equal((await getDraft(sql, id, new Date()))!.count, null);
 });
 
 test("a draft older than an hour is gone for reads and is purged by the job", async () => {

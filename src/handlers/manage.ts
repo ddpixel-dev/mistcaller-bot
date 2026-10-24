@@ -132,6 +132,16 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
 
   const refreshed = await refreshRoster(deps, checked.target.id);
   await refreshDashboardSoon(deps, checked.target.guildId, "schedule");
+  // A post the bot made is named after the event, so it follows the title (ADR 0032). Discord allows two renames per
+  // ten minutes per post; a refusal leaves the old name and says so.
+  let renameNote = "";
+  if (checked.target.ownPost && title.value !== checked.target.title && deps.rest.editChannel) {
+    try {
+      await deps.rest.editChannel(checked.target.threadId, { name: Array.from(title.value).slice(0, 100).join("") });
+    } catch {
+      renameNote = " The post keeps its old name for now: Discord allows two renames every 10 minutes. Edit again later to rename it.";
+    }
+  }
   if (result.startChanged && result.notify.length > 0) {
     const epoch = Math.floor(start.value.getTime() / 1000);
     await announce(
@@ -142,7 +152,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
     );
   }
   await announcePromotions(deps, checked.target.threadId, title.value, result.promoted);
-  return reply(refreshed ? "Content updated." : "Content updated, but the roster message could not be refreshed. It will update on the next change.");
+  return reply((refreshed ? "Content updated." : "Content updated, but the roster message could not be refreshed. It will update on the next change.") + renameNote);
 }
 
 export async function handleCancel(deps: Deps, i: Interaction): Promise<InteractionResponse> {

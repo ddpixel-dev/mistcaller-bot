@@ -17,6 +17,7 @@ export type NewContent = {
   createdBy: string;
   slots: SlotDef[];
   buildRef?: string | null;
+  ownPost?: boolean; // the bot created the post (ADR 0032): renamed when the title changes
   now?: Date;
 };
 
@@ -57,10 +58,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).

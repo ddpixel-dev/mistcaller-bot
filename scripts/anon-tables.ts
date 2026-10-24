@@ -12,6 +12,7 @@ export const ANON_PROBE_TABLES = [
   "ping_log",
   "dashboard",
   "attendance",
+  "event_forum",
   "schema_migrations",
 ] as const;
 

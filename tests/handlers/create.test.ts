@@ -102,46 +102,37 @@ test("command without a guild, or in a place that cannot hold a roster, is an ep
   assert.match(content(b), /server channel/);
 });
 
-const fields = (r: any) => Object.fromEntries(r.data.components.map((l: any) => [l.component.custom_id, l]));
+const cardMenus = (r: any) => r.data.components.filter((row: any) => row.components[0].type === 3).map((row: any) => row.components[0]);
 
-test("the command opens the first form directly: type and category, players, gear tier and loot vote (ADR 0031)", async () => {
+test("the command opens the creation card: summary, Type and Category menus, Loot vote, and the buttons (ADR 0032)", async () => {
   const { deps } = await setup();
   const r: any = await handleCreateCommand(deps, command());
-  assert.equal(r.type, 9);
-  assert.equal(r.data.custom_id, "cf");
-  assert.equal(r.data.title, "Create content");
-  assert.deepEqual(modalProblems(r.data), []);
-  const f = fields(r);
-  assert.deepEqual(Object.keys(f), ["kind", "count", "tier", "loot"], "no preset field while the server has none");
-  assert.deepEqual(r.data.components.map((l: any) => l.label), ["Type and category", "Players needed", "Gear tier", "Loot vote"]);
-  const kinds = f.kind.component.options;
-  assert.equal(kinds.length, 22);
-  assert.deepEqual(kinds.slice(0, 2).map((o: any) => [o.label, o.value, o.emoji.name]), [["PvP · ZvZ", "pvp:zvz", "🏰"], ["PvP · Small-scale", "pvp:small-scale", "⚔️"]]);
-  assert.deepEqual(kinds.slice(-3).map((o: any) => [o.label, o.value]), [["PvP · Other", "pvp:other"], ["PvE · Other", "pve:other"], ["PvX", "pvx:other"]]);
-  assert.ok(kinds.some((o: any) => o.value === "pve:mists" && o.label === "PvE · Mists"));
-  assert.ok(kinds.every((o: any) => !o.default));
-  assert.deepEqual(f.count.component.options.map((o: any) => o.value), Array.from({ length: 20 }, (_, n) => String(n + 1)));
-  assert.equal(f.count.component.required, false);
-  assert.deepEqual([f.tier.component.type, f.tier.component.max_length, f.tier.component.required], [4, 80, true]);
-  assert.deepEqual(f.loot.component.options.map((o: any) => [o.label, !!o.default]), [["Off", true], ["On (split or regear)", false]]);
+  assert.equal(r.type, 4);
+  assert.equal(r.data.flags, 64);
+  assert.deepEqual(discordProblems(r.data), []);
+  assert.ok(r.data.content.includes("Create event"));
+  const [type, kind, loot] = cardMenus(r);
+  assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
+  assert.equal(kind.disabled, true, "the category waits for the type");
+  assert.deepEqual(loot.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]]);
+  assert.deepEqual(r.data.components.at(-1).components.map((b: any) => b.label), ["Details", "Guided slots", "Build link", "Create", "Cancel"]);
+  assert.equal(cardMenus(r).length, 3, "no preset menu while the server has none");
 });
 
-test("with saved presets the first form has a fifth field to pick one", async () => {
+test("with saved presets the card has a Preset menu", async () => {
   const { deps, sql } = await setup();
   await sql`insert into slot_preset (guild_id, name, slots, created_by) values ('g1', 'Ava', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
   const r: any = await handleCreateCommand(deps, command());
-  const f = fields(r);
-  assert.deepEqual(Object.keys(f), ["kind", "count", "preset", "tier", "loot"]);
-  assert.deepEqual(f.preset.component.options.map((o: any) => [o.label, o.description]), [["Ava", "1 positions"]]);
-  assert.equal(f.preset.component.required, false);
-  assert.deepEqual(modalProblems(r.data), []);
+  const preset = cardMenus(r)[3];
+  assert.deepEqual(preset.options.map((o: any) => [o.label, o.description]), [["Ava", "1 positions"]]);
+  assert.deepEqual(discordProblems(r.data), []);
 });
 
 test("it works in any forum and does not assume the type from the place", async () => {
   const { deps } = await setup();
   for (const parent of [PVP, PVE]) {
     const r: any = await handleCreateCommand(deps, command(undefined, { channel: { id: "thread-2", type: 11, parent_id: parent } }));
-    assert.ok(fields(r).kind.component.options.every((o: any) => !o.default));
+    assert.ok(cardMenus(r)[0].options.every((o: any) => !o.default));
   }
 });
 
@@ -212,7 +203,7 @@ test("createMessage failure deletes the row and replies with a generic error", a
 test("dispatch routes command and modal; unknown things are not implemented", async () => {
   const { deps } = await setup();
   const d = createDispatch(deps);
-  assert.equal((await d(command(true))).type, 9);
+  assert.equal((await d(command(true))).type, 4);
   assert.equal(content(await d(modal(good))), "Created");
   assert.equal(content(await d(base({ data: { name: "nope" } }))), "Not implemented yet");
   assert.equal(content(await d(base({ type: 5, data: { custom_id: "zzz:1", components: [] } }))), "Not implemented yet");
@@ -243,7 +234,7 @@ test("any text channel, announcement channel, thread or forum post can hold a ro
     const { deps, sql, posts } = await setup();
     const ch = { id: `place-${type}`, type };
     const a: any = await handleCreateCommand(deps, command(undefined, { channel: ch }));
-    assert.equal(a.type, 9, `type ${type} gets the first form`);
+    assert.equal(a.type, 4, `type ${type} gets the creation card`);
     const b = await handleCreateModal(deps, modal(good, "1", { channel: ch }));
     assert.ok(!content(b).includes("server channel"));
     assert.equal(posts.length, 1);
@@ -359,7 +350,7 @@ test("after cancelling, a new content can be created in the same post", async ()
   const { deps, sql } = await setup();
   await handleCreateModal(deps, modal(good));
   await sql`update content set status = 'cancelled'`;
-  assert.equal((await handleCreateCommand(deps, command(true))).type, 9, "the first form opens");
+  assert.equal(((await handleCreateCommand(deps, command(true))).data as any).flags, 64, "the creation card opens");
   assert.equal(content(await handleCreateModal(deps, modal({ ...good, title: "Second" }))), "Created");
 });
 
@@ -417,16 +408,10 @@ test("a bot added only to an account, not the server, is told so, and nothing is
   assert.equal((a.data as any).flags, 64);
   assert.match(content(a), /not added to this server/);
   assert.match(content(await handleCreateModal(deps, modal(good, "1", owners))), /not added to this server/);
-  const first = { type: 5, data: { custom_id: "cf", components: [
-    { type: 18, component: { type: 3, custom_id: "kind", values: ["pvp:zvz"] } }, { type: 18, component: { type: 4, custom_id: "tier", value: "T8" } },
-    { type: 18, component: { type: 3, custom_id: "loot", values: ["0"] } },
-  ] } };
-  const c: any = await createDispatch(deps)({ ...command(undefined, owners), ...first } as Interaction);
-  assert.match(content(c), /not added to this server/);
   assert.equal((await sql`select 1 from content`).length, 0);
   assert.equal(posts.length, 0);
   // a server install (key 0, alone or with a user install) is fine
-  assert.equal((await handleCreateCommand(deps, command(undefined, { authorizing_integration_owners: { "0": GUILD, "1": "u1" } }))).type, 9);
+  assert.ok(((await handleCreateCommand(deps, command(undefined, { authorizing_integration_owners: { "0": GUILD, "1": "u1" } }))).data as any).components);
 });
 
 test("a channel the bot cannot see or write in is explained, and one it can is not", async () => {
@@ -455,18 +440,16 @@ test("Administrator, or no permission information at all, lets creation try", as
   assert.equal(posts.length, 3);
 });
 
-test("the create form's Start field is prefilled with the current UTC time plus one hour, and still shows the example", async () => {
-  const { createForm } = await import("../../src/handlers/create.ts");
-  const r: any = createForm({ type: "pvp", loot: false, kind: "other" }, null, new Date("2026-10-15T13:20:00Z"));
-  const start = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "start");
-  assert.equal(start.value, "2026-10-15 14:20");
-  assert.equal(start.placeholder, "2026-10-07 18:00");
-  const title = r.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "title");
-  assert.equal("value" in title, false, "only the start is prefilled");
+test("the card starts with the start time (now plus one hour) and, in a post, its name as the title", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateCommand(deps, command(undefined, { channel: { id: "thread-9", type: 11, parent_id: PVP, name: "Ava roam Friday" } }));
+  const [d] = await sql`select title, start_text from slot_draft`;
+  assert.equal(d!.title, "Ava roam Friday");
+  assert.match(d!.start_text, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
 });
 
-test("the create form's title starts as the name of the forum post or thread it is opened in, not a channel name", async () => {
-  const { createForm, postTitle } = await import("../../src/handlers/create.ts");
+test("the post's name is used as the title only in forum posts and threads", async () => {
+  const { postTitle } = await import("../../src/handlers/create.ts");
   const at = (type: number, name?: string) => ({ channel: { id: "c", type, ...(name !== undefined ? { name } : {}) } }) as Interaction;
   assert.equal(postTitle(at(11, "  Ava roam Friday ")), "Ava roam Friday");
   assert.equal(postTitle(at(12, "Private thread")), "Private thread");
@@ -474,8 +457,4 @@ test("the create form's title starts as the name of the forum post or thread it 
   assert.equal(postTitle(at(11)), null);
   assert.equal(postTitle(at(11, "   ")), null);
   assert.equal(Array.from(postTitle(at(11, "x".repeat(150)))!).length, 100);
-  const now = new Date("2026-10-15T13:20:00Z");
-  const title = (r: any) => r.data.components[0].components[0].value;
-  assert.equal(title(createForm({ type: "pvp", loot: false, kind: "other" }, null, now, { title: "Ava roam Friday" })), "Ava roam Friday");
-  assert.equal(title(createForm({ type: "pvp", loot: false, kind: "other" }, null, now)), undefined);
 });

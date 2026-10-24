@@ -88,7 +88,7 @@ test("presets are per guild", async () => {
   assert.ok(text(await handlePresetCommand(deps, { ...preset("list"), guild_id: "g2" } as Interaction)).includes("No presets"));
 });
 
-test("the first form lists presets; picking one loads its slots into the final form; a deleted one is refused", async () => {
+test("the creation card lists presets; picking one fills the slots; a deleted one is refused", async () => {
   const { deps, sql, id } = await setup();
   await handlePresetCommand(deps, preset("save", { name: "Ava" }));
   await sql`update content set status = 'cancelled' where id = ${id}`;
@@ -98,26 +98,17 @@ test("the first form lists presets; picking one loads its slots into the final f
     channel: { id: "t1", type: 11, parent_id: "fp" }, member: who("u1"),
     data: { name: "content", options: [{ name: "create", type: 1 }] },
   };
-  const first: any = await handleCreateCommand(deps, base);
-  const presetMenu = first.data.components.find((l: any) => l.component.custom_id === "preset").component;
-  assert.deepEqual(presetMenu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
-  const submit = (picked: string): Interaction => ({
-    ...base, type: 5, data: { custom_id: "cf", components: [
-      { type: 18, component: { type: 3, custom_id: "kind", values: ["pvp:other"] } },
-      { type: 18, component: { type: 3, custom_id: "preset", values: [picked] } },
-      { type: 18, component: { type: 4, custom_id: "tier", value: "T8" } },
-      { type: 18, component: { type: 3, custom_id: "loot", values: ["0"] } },
-    ] },
-  });
+  const card: any = await handleCreateCommand(deps, base);
+  const menu = card.data.components.map((r: any) => r.components[0]).find((c: any) => String(c.custom_id).startsWith("cc:preset:"));
+  assert.deepEqual(menu.options.map((o: any) => [o.label, o.value]), [["Ava", presetId]]);
+  const pick = (v: string): Interaction => ({ ...base, type: 3, data: { custom_id: menu.custom_id, component_type: 3, values: [v] } });
   const d = createDispatch(deps);
-  const loaded: any = await d(submit(presetId));
-  const open = loaded.data.components[0].components[0];
-  const form: any = await d({ ...base, type: 3, data: { custom_id: open.custom_id, component_type: 2 } });
-  assert.equal(form.type, 9);
-  const slotsInput = form.data.components.map((row: any) => row.components[0]).find((c: any) => c.custom_id === "slots");
-  assert.equal(slotsInput.value, "Tank - Mace\nHealer - Holy");
+  const filled: any = await d(pick(presetId));
+  assert.equal(filled.type, 7);
+  assert.ok(filled.data.content.includes("1. 🛡️ Tank - Mace") && filled.data.content.includes("2. 💚 Healer - Holy"));
+  assert.ok(filled.data.content.includes("Slots from the preset **Ava**"));
   await handlePresetCommand(deps, preset("delete", { name: "Ava" }));
-  assert.ok(text(await d(submit(presetId))).includes("no longer exists"));
+  assert.ok(text(await d(pick(presetId))).includes("no longer exists"));
 });
 
 test("autocomplete filters the guild's names and answers with type 8", async () => {
