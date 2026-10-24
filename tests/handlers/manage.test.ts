@@ -2,8 +2,9 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
-import { handleCancelButton, handleCancelCommand, handleEditCommand, handleEditModal } from "../../src/handlers/manage.ts";
+import { handleCancelButton, handleCancel, openEditForm, handleEditModal } from "../../src/handlers/manage.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
+import { withHostActions } from "../helpers/host.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 
@@ -57,11 +58,11 @@ const good = { title: "Ganking 2", start: "2026-12-02 18:00", tier: "T6.1-T8.0",
 const text = (r: any) => r.data.content as string;
 const isEphemeral = (r: any) => { assert.equal(r.type, 4); assert.equal(r.data.flags, 64); };
 
-test("edit command opens a modal prefilled with the current values", async () => {
+test("Edit details opens a modal prefilled with the current values", async () => {
   const { deps, id } = await setup();
-  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "loot-vote", type: 5, value: true }]));
+  const r: any = await openEditForm(deps, command("edit"));
   assert.equal(r.type, 9);
-  assert.equal(r.data.custom_id, `edit:${id}:1`);
+  assert.equal(r.data.custom_id, `edit:${id}:k`, "the category, loot vote and build link are kept; the Edit panel changes them");
   const inputs = r.data.components.map((row: any) => row.components[0]);
   assert.deepEqual(inputs.map((x: any) => x.custom_id), ["title", "start", "tier", "slots", "notes"]);
   assert.equal(inputs[0].value, "Ganking");
@@ -69,13 +70,11 @@ test("edit command opens a modal prefilled with the current values", async () =>
   assert.equal(inputs[2].value, "T8.0");
   assert.equal(inputs[3].value, "Tank - Mace\nHealer - Holy");
   assert.equal(inputs[4].value, undefined);
-  const keep: any = await handleEditCommand(deps, command("edit"));
-  assert.ok(keep.data.custom_id.endsWith(":k"));
 });
 
 test("only the creator, an officer or Manage Server may open edit and cancel", async () => {
   const { deps } = await setup();
-  for (const handler of [handleEditCommand, handleCancelCommand]) {
+  for (const handler of [openEditForm, handleCancel]) {
     isEphemeral(await handler(deps, command("x", "stranger")));
     assert.ok(text(await handler(deps, command("x", "stranger"))).includes("Only the creator"));
     for (const member of [who("o", ["officer"]), who("admin", [], "32")]) {
@@ -87,9 +86,9 @@ test("only the creator, an officer or Manage Server may open edit and cancel", a
 
 test("a post without content says so; cancelled content is not editable", async () => {
   const { deps, sql } = await setup();
-  assert.ok(text(await handleEditCommand(deps, command("edit", "boss", { channel: { id: "other", type: 11, parent_id: "fp" } }))).includes("no active content"));
+  assert.ok(text(await openEditForm(deps, command("edit", "boss", { channel: { id: "other", type: 11, parent_id: "fp" } }))).includes("no active content"));
   await sql`update content set status = 'locked'`;
-  assert.ok(text(await handleEditCommand(deps, command("edit"))).includes("Only open"));
+  assert.ok(text(await openEditForm(deps, command("edit"))).includes("Only open"));
 });
 
 test("valid edit saves, refreshes the roster and pings on a start change", async () => {
@@ -139,7 +138,7 @@ test("edit modal re-checks permission, guild and custom id", async () => {
 
 test("cancel asks for confirmation first and changes nothing", async () => {
   const { deps, sql, id } = await setup();
-  const r: any = await handleCancelCommand(deps, command("cancel"));
+  const r: any = await handleCancel(deps, command("cancel"));
   isEphemeral(r);
   assert.deepEqual(r.data.components[0].components.map((c: any) => c.custom_id), [`cancelyes:${id}`, `cancelno:${id}`]);
   assert.equal((await getRosterView(sql, id, NOW))!.status, "open");
@@ -177,22 +176,20 @@ test("after cancelling, a new content can be created (FR-019 link)", async () =>
   await createContent(sql, { ...base, title: "Next" });
 });
 
-test("dispatch routes the edit and cancel subcommands, buttons and modal", async () => {
+test("the removed host commands point to Manage; the cancel buttons and the edit form still route", async () => {
   const { deps, id } = await setup();
   const d = createDispatch(deps);
-  assert.equal((await d(command("edit"))).type, 9);
-  assert.equal((await d(command("cancel"))).type, 4);
+  for (const sub of ["edit", "cancel", "lock", "unlock", "end", "reopen", "attendance", "duty", "assign"]) {
+    assert.ok(text(await d(command(sub))).includes("Press **Manage**"), sub);
+  }
   assert.equal((await d(button(`cancelno:${id}`))).type, 7);
   assert.equal((await d(modal(id, "k", good))).type, 4);
-  assert.equal(text(await d(command("zzz"))), "Not implemented yet");
 });
 
-test("edit with a kind option carries it through and saves it; a wrong-type kind is refused", async () => {
+test("an edit form that carries a category (opened before 0.23.0) saves it; a wrong-type category is refused", async () => {
   const { deps, sql, id } = await setup();
-  const r: any = await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "category", type: 3, value: "hellgate" }]));
-  assert.equal(r.data.custom_id, `edit:${id}:k:hellgate`);
   assert.equal(text(await handleEditModal(deps, modal(id, "k:hellgate", good))), "Content updated.");
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
-  assert.ok(text(await handleEditCommand(deps, command("edit", "boss", {}, [{ name: "category", type: 3, value: "mists" }]))).includes("PvE category"));
+  assert.ok(text(await handleEditModal(deps, modal(id, "k:mists", good))).includes("PvE category"));
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
 });

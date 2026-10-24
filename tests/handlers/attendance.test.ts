@@ -6,6 +6,7 @@ import { claimSlot } from "../../src/db/signup.ts";
 import { getAttendance, memberHistory } from "../../src/db/attendance.ts";
 import { postPendingReports, sendAttendanceDms } from "../../src/jobs/cron.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
+import { withHostActions } from "../helpers/host.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { discordProblems, flatComponents, textOf } from "../helpers/discordLimits.ts";
@@ -44,7 +45,7 @@ async function setup(opts: { dmFails?: boolean; postFails?: () => boolean } = {}
   };
   let now = AFTER;
   const deps: Deps = { sql, rest, now: () => now };
-  return { sql, id, slots, deps, d: createDispatch(deps), posts, edits, setNow: (t: Date) => { now = t; } };
+  return { sql, id, slots, deps, d: withHostActions(createDispatch(deps), deps), posts, edits, setNow: (t: Date) => { now = t; } };
 }
 
 const member = (user: string, roles: string[] = [], permissions?: string) => ({ user: { id: user }, roles, permissions });

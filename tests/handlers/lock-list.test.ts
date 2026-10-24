@@ -5,6 +5,7 @@ import { createContent, getRosterView, setMessageId } from "../../src/db/content
 import { claimSlot, leaveContent } from "../../src/db/signup.ts";
 import { sendReminders } from "../../src/jobs/cron.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
+import { withHostActions } from "../helpers/host.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { flatComponents, textOf } from "../helpers/discordLimits.ts";
@@ -36,7 +37,7 @@ async function setup(now = NOW) {
   };
   let clock = now;
   const deps: Deps = { sql, rest, now: () => clock };
-  return { sql, id, make, deps, d: createDispatch(deps), edits, posts, setNow: (t: Date) => { clock = t; } };
+  return { sql, id, make, deps, d: withHostActions(createDispatch(deps), deps), edits, posts, setNow: (t: Date) => { clock = t; } };
 }
 const member = (user: string, roles: string[] = [], permissions?: string) => ({ user: { id: user }, roles, permissions });
 const cmd = (sub: string, user = "boss", extra: Partial<Interaction> = {}): Interaction => ({

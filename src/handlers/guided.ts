@@ -13,7 +13,7 @@ import { formatSlotLines } from "../domain/slots.ts";
 import { renderGuidedStep, TYPED_WEAPON } from "../render/guided.ts";
 import { isWeaponClass, weaponClass } from "../domain/weapons.ts";
 import type { ContentType } from "../domain/types.ts";
-import { NOT_HERE, createForm, placeProblem, postTakenReply } from "./create.ts";
+import { NOT_HERE, createForm, placeProblem, postTakenReply, postTitle } from "./create.ts";
 import { createPanel } from "./create-panel.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -114,7 +114,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!kind.ok) return reply(kind.error);
       const taken = i.channel?.id ? await postTakenReply(deps, i.guild_id, i.channel.id) : null;
       if (taken) return taken;
-      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now());
+      return createForm({ type: d.type, loot: d.loot, kind: kind.value, buildRef: d.buildRef }, formatSlotLines(d.slots), deps.now(), postTitle(i));
     }
     default: return reply(EXPIRED);
   }

@@ -59,7 +59,7 @@ export async function postReport(deps: Deps, contentId: string): Promise<boolean
 }
 
 // "/content attendance": a manager opens the form privately, once the content has started.
-export async function handleAttendanceCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleAttendance(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const a = target ? await getAttendance(deps.sql, target.id) : null;
   if (!a) return reply(NO_CONTENT);
@@ -71,7 +71,7 @@ export async function handleAttendanceCommand(deps: Deps, i: Interaction): Promi
 }
 
 // "/content end": a manager ends content that has started. It becomes done.
-export async function handleEndCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleEnd(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const a = target ? await getAttendance(deps.sql, target.id) : null;
   if (!a || !target) return reply(NO_CONTENT);
@@ -91,7 +91,7 @@ export async function handleEndCommand(deps: Deps, i: Interaction): Promise<Inte
 
 // "/content reopen": a manager reopens ended content (owner decision 2026-10-09). It is live again, with a fresh
 // 4-hour auto-end window. The attendance report is not touched.
-export async function handleReopenCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+export async function handleReopen(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   const a = target ? await getAttendance(deps.sql, target.id) : null;
   if (!a || !target) return reply(NO_CONTENT);

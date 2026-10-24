@@ -6,7 +6,7 @@ import { DEFAULT_KIND, kindsOf, kindDef, resolveKind } from "../domain/kinds.ts"
 import { formatSlotLines } from "../domain/slots.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import type { ContentType } from "../domain/types.ts";
-import { createForm, placeProblem, postTakenReply } from "./create.ts";
+import { createForm, placeProblem, postTakenReply, postTitle } from "./create.ts";
 import { deleteDraft, findDraft } from "../db/draft.ts";
 import { startGuided } from "./guided.ts";
 
@@ -181,7 +181,7 @@ export async function handleCreateContinue(deps: Deps, i: Interaction): Promise<
   if (c.draft.presetId) {
     const preset = await getPresetById(deps.sql, i.guild_id!, c.draft.presetId);
     if (!preset) return reply("That preset no longer exists. Run `/content create` again.");
-    return createForm(c.draft, formatSlotLines(preset.slots), deps.now());
+    return createForm(c.draft, formatSlotLines(preset.slots), deps.now(), postTitle(i));
   }
   return await startGuided(deps, i, c.draft);
 }

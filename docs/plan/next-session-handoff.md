@@ -11,7 +11,7 @@ Read `PRODUCT.md` and [INDEX.md](../INDEX.md) first. Then this note.
 
 ## Where things stand
 - Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions pinned to `dub1`, Supabase eu-west-1. Repo `ddpixel-dev/mistcaller-bot`.
-- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to **v0.22.0** (migrations through 0020). To add the bot to another server see `docs/guides/adding-the-bot-to-a-server.md`. `mvp-approved` tag = the owner-approved MVP build (0.10.0). `develop` equals that release plus docs.
+- Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*` and `hotfix/*` branches. Released up to **v0.23.0** (migrations through 0020). To add the bot to another server see `docs/guides/adding-the-bot-to-a-server.md`. `mvp-approved` tag = the owner-approved MVP build (0.10.0). `develop` equals that release plus docs.
 - Tests: `docker compose run --rm node npm test` and `... npm run typecheck`. Everything runs through Docker.
 - Release steps (the owner has asked the agent to run them): `npm run migrate`, merge to `main`, tag, push, merge back into `develop`, wait for Vercel (poll the commit status on GitHub), `npm run register` when commands changed.
 - Since 0.14.0 (ADR 0020, ADR 0019): commands are registered globally (no server id), content can be created in any channel, thread or forum post, `/content setup` is a role picker for the admin roles, the Ping players button works once per content, header and rows are padded for alignment, and cron-job.org drives `/api/cron` (automatic reminders stay off until verified).
@@ -20,6 +20,7 @@ Read `PRODUCT.md` and [INDEX.md](../INDEX.md) first. Then this note.
 - Since 0.17.0: gear tier is free text (`content.gear_tier`), PvP has Gank Squad and Bomb Squad, `/content help` exists, live rosters end with owner tips, and the commands are server-only (ADR 0022).
 - Since 0.18.0 (ADR 0023): role-only slots with a private weapon picker, a build channel per event, the PvX type, and Fill with Assign fill and `/content assign`. Open: Q22 (calibrate the Build header padding).
 - Since 0.22.0 (ADR 0028): one numbered line per position (no role headings), `##` title, no Loot vote line or gaps; the roster bar is Leave, Split, Regear, Ping players, Manage; the Manage panel holds the host actions; Sign up player replaces Assign fill.
+- Since 0.23.0 (ADR 0029): the host commands are gone (`edit`, `cancel`, `lock`, `unlock`, `end`, `reopen`, `attendance`, `duty`, `assign`); their handlers run from the Manage panel (`mg:`, `ed:`, `edb:`, `sw:`, `dt:`, `fa:`, `rm:`). Tests of their rules go through `tests/helpers/host.ts`.
 - The roster is a Components V2 message since 0.10.0 (ADR 0018): open-positions menu, one shared Leave button, weapon emoji. Rosters posted before 0.10.0 are read-only (their controls explain this).
 
 ## In progress: the roster rewrite (owner-approved on 2026-10-07)

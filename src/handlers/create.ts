@@ -82,14 +82,23 @@ export async function handleCreateCommand(deps: Deps, i: Interaction): Promise<I
   return await createPanel(deps, i.guild_id, { ...DEFAULT_DRAFT, buildRef: build.id ?? null }, "new");
 }
 
-export function createForm(draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null, now: Date): InteractionResponse {
+// The title starts as the name of the forum post or thread the form is opened in (owner request 2026-10-24, ADR 0029).
+// A channel name such as "pvp-content" is rarely an event title, so an ordinary channel leaves it empty.
+export function postTitle(i: Interaction): string | null {
+  const name = i.channel && [10, 11, 12].includes(i.channel.type) ? i.channel.name?.trim() : "";
+  return name ? Array.from(name).slice(0, 100).join("") : null;
+}
+
+export function createForm(
+  draft: { type: ContentType; loot: boolean; kind: string; buildRef?: string | null }, presetLines: string | null, now: Date, title: string | null = null,
+): InteractionResponse {
   return {
     type: MODAL,
     data: {
       custom_id: `create:${draft.type}:${draft.loot ? 1 : 0}:${draft.kind}${draft.buildRef ? `:${packRef(draft.buildRef)}` : ""}`,
       title: "Create content",
       components: [
-        textInput("title", "Title", 100),
+        textInput("title", "Title", 100, title ? { value: title } : {}),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { placeholder: "2026-10-07 18:00", value: defaultStart(now) }),
         textInput("tier", "Gear Tier", 80, { placeholder: "Weapon T7.1 - Gear T4.3" }),
         textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
