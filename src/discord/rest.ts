@@ -22,6 +22,11 @@ export type Rest = {
   // Optional so older test doubles keep working; the real client has both.
   createDm?(userId: string): Promise<string>;
   memberName?(guildId: string, userId: string): Promise<string | null>;
+  // Forum posts made by the bot (ADR 0032). A forum post is a thread whose first message has the post's id.
+  createForumPost?(forumId: string, body: { name: string; message: unknown; applied_tags?: string[] }): Promise<{ id: string }>;
+  forumTags?(forumId: string): Promise<{ id: string; name: string }[]>;
+  editChannel?(channelId: string, body: unknown): Promise<void>;
+  deleteChannel?(channelId: string): Promise<void>;
 };
 
 export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -75,6 +80,25 @@ export function createRest(
     async createDm(userId) {
       const out = (await call("POST", "/users/@me/channels", { recipient_id: userId })) as { id: string };
       return out.id;
+    },
+    async createForumPost(forumId, body) {
+      const out = (await call("POST", `/channels/${forumId}/threads`, body)) as { id: string };
+      return { id: out.id };
+    },
+    // The forum's tags; none when they cannot be read (tags are a convenience).
+    async forumTags(forumId) {
+      try {
+        const c = (await call("GET", `/channels/${forumId}`, undefined)) as { available_tags?: { id?: unknown; name?: unknown }[] };
+        return (c.available_tags ?? []).filter((t) => typeof t.id === "string" && typeof t.name === "string").map((t) => ({ id: t.id as string, name: t.name as string }));
+      } catch {
+        return [];
+      }
+    },
+    async editChannel(channelId, body) {
+      await call("PATCH", `/channels/${channelId}`, body);
+    },
+    async deleteChannel(channelId) {
+      await call("DELETE", `/channels/${channelId}`, undefined, [404]);
     },
     // The name shown in the server: nickname, then display name, then username. Null when unavailable.
     async memberName(guildId, userId) {

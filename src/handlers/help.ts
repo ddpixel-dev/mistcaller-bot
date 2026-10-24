@@ -12,7 +12,7 @@ export const HELP_TEXT = [
   "• **Fill:** choose Fill if you can play any position. You hold a seat until the owner places you.",
   "• **Leave** takes you off the roster. **Waitlist:** when a role is full, join its waitlist and you are seated when a spot frees up.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
-  "• `/content create` starts a roster in this channel or post: a first form (type, players, gear tier, loot), the slot cards or a preset, then the final form. If it has mistakes, press **Fix and retry**.",
+  "• **Create event** (pinned in event forums) or `/content create` (in a channel or post) opens your creation card: menus, **Details**, **Guided slots**, then **Create**.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
   "• `/content stats` shows this server's numbers, only to you. `/content history` shows your own attendance.",
   "• `/content help` shows this message.",
@@ -29,7 +29,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do, on any content, and `/content history` for any member. Saving and deleting presets.",
-  "• `/content setup` chooses the admin roles and the Events Calendar channel.",
+  "• `/content setup` chooses the admin roles, the Events Calendar channel and the event forums.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {

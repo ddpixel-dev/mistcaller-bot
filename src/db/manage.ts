@@ -12,6 +12,8 @@ export type ManageTarget = {
   messageId: string | null;
   status: ContentStatus;
   createdBy: string | null;
+  title: string;
+  ownPost: boolean; // the bot created the post (ADR 0032)
 };
 
 const target = (r: Record<string, any>): ManageTarget => ({
@@ -21,18 +23,20 @@ const target = (r: Record<string, any>): ManageTarget => ({
   messageId: r.message_id,
   status: r.status as ContentStatus,
   createdBy: r.created_by,
+  title: r.title,
+  ownPost: r.own_post === true,
 });
 
 export async function getManageTarget(sql: Sql, guildId: string, threadId: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by from content
+    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content
     where guild_id = ${guildId} and thread_id = ${threadId} and status <> 'cancelled'`;
   return r ? target(r) : null;
 }
 
 export async function getManageTargetById(sql: Sql, id: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by from content where id = ${id}`;
+    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content where id = ${id}`;
   return r ? target(r) : null;
 }
 
