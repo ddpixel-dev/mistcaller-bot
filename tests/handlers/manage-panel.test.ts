@@ -135,7 +135,7 @@ test("Set duty: a position, then a duty (Catcher included) or Clear; the roster 
   assert.equal(picked.type, 7);
   const duties = picked.data.components.at(-1).components[0];
   assert.equal(duties.custom_id, `dt:d:${id}:3`);
-  assert.deepEqual(duties.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher", "Clear"]);
+  assert.deepEqual(duties.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher", "Party Healer", "Main Healer", "Clear"]);
   assert.deepEqual(discordProblems({ ...picked.data, flags: 0 }), []);
 
   const done: any = await d(click(`dt:d:${id}:3`, OWNER, ["catcher"]));

@@ -126,7 +126,7 @@ test("parseSlots reads an optional duty in brackets at the end of a line", () =>
   ]);
   const bad = parseSlots("Tank - Axe (Captain)");
   assert.equal(bad.ok, false);
-  assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat, Looter, Catcher\./);
+  assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat, Looter, Catcher, Party Healer, Main Healer\./);
   assert.deepEqual(ok(parseSlots("Tank - (Caller)")), [{ role: "Tank", weapon: "", duty: "caller" }]);
 });
 
@@ -140,4 +140,12 @@ test("Catcher is a duty, typed as (Catcher) in any case, with the hook icon", as
 test("Looter is a duty, typed as (Looter) in any case", () => {
   const r = parseSlots("Support - Holy Staff (Looter)\nDPS - Bow ( looter )");
   assert.deepEqual((r as { ok: true; value: { duty?: string }[] }).value.map((s) => s.duty), ["looter", "looter"]);
+});
+
+test("Party Healer and Main Healer are duties, typed with a space in any case", async () => {
+  const r = parseSlots("Healer - Holy (Party Healer)\nHealer - Fallen ( main healer )");
+  assert.deepEqual(r, { ok: true, value: [{ role: "Healer", weapon: "Holy", duty: "party-healer" }, { role: "Healer", weapon: "Fallen", duty: "main-healer" }] });
+  const { dutyDef } = await import("../../src/domain/duties.ts");
+  assert.deepEqual(dutyDef("party-healer"), { id: "party-healer", label: "Party Healer", icon: "💚" });
+  assert.deepEqual(dutyDef("main-healer"), { id: "main-healer", label: "Main Healer", icon: "💖" });
 });

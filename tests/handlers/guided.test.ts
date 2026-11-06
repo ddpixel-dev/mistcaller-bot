@@ -91,7 +91,7 @@ test("a valid number shows slot card 1 with three lists with placeholders, then 
   assert.deepEqual(cls.options.map((o: any) => o.label), ["Sword", "Axe", "Hammer", "Mace", "Spear", "Dagger", "Quarterstaff", "Bow", "Crossbow", "Gloves", "Fire Staff", "Frost Staff", "Holy Staff", "Arcane Staff", "Cursed Staff", "Nature Staff", "Shapeshifter", "Off-hand"]);
   assert.ok(cls.options.every((o: any) => !o.default));
   assert.equal(rowsOf(card.data).length, 5);
-  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher"]);
+  assert.deepEqual(duty.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher", "Party Healer", "Main Healer"]);
   assert.deepEqual([duty.min_values, duty.max_values], [0, 1]);
   assert.ok([role, weapon, duty].every((s: any) => s.options.every((o: any) => !o.default)));
   const buttons = rowsOf(card.data)[4].components;
