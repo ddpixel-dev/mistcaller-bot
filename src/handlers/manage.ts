@@ -82,8 +82,9 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
         textInput("title", "Title", 100, { value: view.title }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { value: utcInput(view.startsAt) }),
         textInput("tier", "Gear Tier", 80, { value: view.tier }),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) }),
-        textInput("notes", "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
+        // A blank content has no slots (FR-060); its notes are the description.
+        ...(view.blank ? [] : [textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) })]),
+        textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
       ],
     },
   };
@@ -115,7 +116,8 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const title = parseTitle(v.title ?? "");
   const start = parseUtcStart(v.start ?? "", deps.now());
   const tier = parseGearTier(v.tier ?? "");
-  const slots = parseSlots(v.slots ?? "");
+  const isBlank = (await getRosterView(deps.sql, checked.target.id, deps.now()))?.blank === true;
+  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
   if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {

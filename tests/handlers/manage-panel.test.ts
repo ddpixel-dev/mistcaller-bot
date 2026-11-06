@@ -262,3 +262,40 @@ test("a stranger's click on a panel action still gets a private refusal, not the
   assert.equal(r.type, 4);
   assert.ok(text(r).includes("Only the creator"));
 });
+
+// ---- FR-060: blank content has no roster, so its Manage panel and Edit form are small ----
+
+async function blankSetup() {
+  const s = await setup();
+  const sql = s.sql;
+  const id = await createContent(sql, {
+    guildId: "g1", threadId: "tb", type: "pvp", title: "Meet", notes: "At the portal", startsAt: START, tier: "T8", hasLoot: false, createdBy: OWNER,
+    now: NOW, slots: [], blank: true,
+  });
+  await setMessageId(sql, id, "mb");
+  return { ...s, bid: id };
+}
+
+test("a blank content's Manage panel offers Edit, Lock, End and Cancel only", async () => {
+  const { d, bid } = await blankSetup();
+  const r: any = await d(click(`mg:${bid}`, OWNER, undefined, ROSTER));
+  assert.deepEqual(labels(r), ["Edit", "Lock", "End", "Cancel"]);
+  assert.deepEqual(discordProblems({ ...r.data, flags: 0 }), []);
+});
+
+test("a blank content's Edit panel has the category only, and its form has no slots field and saves without slots", async () => {
+  const { d, bid, sql } = await blankSetup();
+  const panel: any = await d(click(`mg:e:${bid}`, OWNER));
+  const menuIds = flatComponents(panel.data).filter((c) => c.type === 3).map((c) => c.custom_id);
+  assert.deepEqual(menuIds, [`ed:k:${bid}`], "no loot or sign-up menus");
+  const f: any = await d(click(`mg:f:${bid}`, OWNER, undefined, { message: { id: "mb", flags: V2 }, channel: { id: "tb", type: 11 } } as any));
+  assert.equal(f.type, 9);
+  assert.deepEqual(f.data.components.map((r: any) => r.components[0].custom_id), ["title", "start", "tier", "notes"]);
+  const saved: any = await d({
+    id: "i", type: 5, application_id: "a", token: "t", guild_id: "g1", channel: { id: "tb", type: 11 }, member: who(OWNER),
+    data: { custom_id: `edit:${bid}:k`, components: Object.entries({ title: "Meet later", start: "2026-12-01 19:00", tier: "T8", notes: "New place" }).map(([custom_id, value]) => ({ type: 1, components: [{ type: 4, custom_id, value }] })) },
+  } as Interaction);
+  assert.ok(!String(saved.data.content).includes("mistake"), String(saved.data.content));
+  const [row] = await sql`select title, notes from content where id = ${bid}`;
+  assert.deepEqual([row!.title, row!.notes], ["Meet later", "New place"]);
+});

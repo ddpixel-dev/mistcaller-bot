@@ -20,3 +20,10 @@ Creation starts from a pinned launcher post in each event forum (ADR 0032, 0033)
 ## Consequences
 - One way to create content, so rules (type forums, tags, CTA roles) apply everywhere.
 - Existing launcher posts are cleaned up at release. Content created before stays untouched.
+
+## Amended during the build (2026-11-06)
+- The creation buttons are a **message of their own above the calendar** (owner request), not part of the calendar's first message. The refresh writes it first, so the existing first message becomes the buttons and the calendar follows below it.
+- **CTA content is posted in a forum**, set with `cta-channel`, because each content needs its own post (FR-019, one content per post). A plain channel would hold one CTA at a time.
+- **Blank** is the **Blank template** button on the creation card, so the type, or the CTA choice, is already known. Gear tier stays required, like normal content.
+- The CTA roles are chosen in a second role picker in `/content setup`; admins always may.
+- Old launcher posts are removed with `scripts/remove-launchers.ts` at release. `/content create` is unregistered and unrouted; its handler and tests remain as dead code to clean up.
