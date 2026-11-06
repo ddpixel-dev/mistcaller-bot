@@ -90,7 +90,8 @@ test("buildRegisterRequest builds URL, headers and body", () => {
     ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["clear-cta", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
-  assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum") || o.name === "cta-channel").map((o) => o.channel_types), [[15], [15], [15]], "forum channels only");
+  assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
+  assert.deepEqual(setupOpts.find((o) => o.name === "cta-channel")!.channel_types, [0, 5], "the CTA channel is a text or announcement channel");
   assert.deepEqual(commands[0]!.options.map((o) => o.name), ["setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
 });
 
@@ -191,4 +192,15 @@ test("pinMessage pins with the current endpoint and falls back to the older one 
   const rest = createRest("token", fetchFn, async () => {});
   await rest.pinMessage!("c1", "m1");
   assert.deepEqual(calls, ["PUT /channels/c1/messages/pins/m1", "PUT /channels/c1/pins/m1"]);
+});
+
+test("startThread starts a public thread from a message and returns its id", async () => {
+  const calls: { method: string; url: string; body: any }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: url.replace("https://discord.com/api/v10", ""), body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: "m9" }), { status: 201 });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  assert.deepEqual(await rest.startThread!("c1", "m9", "Call to arms"), { id: "m9" });
+  assert.deepEqual(calls, [{ method: "POST", url: "/channels/c1/messages/m9/threads", body: { name: "Call to arms", auto_archive_duration: 10080 } }]);
 });

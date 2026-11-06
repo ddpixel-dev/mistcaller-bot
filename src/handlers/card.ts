@@ -4,7 +4,7 @@ import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../dis
 import { modalValues, textInput } from "../discord/modal.ts";
 import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
-import { getCtaForum } from "../db/cta.ts";
+import { getCtaChannel } from "../db/cta.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
 import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
@@ -196,18 +196,19 @@ export async function handleCardBuild(deps: Deps, i: Interaction): Promise<Inter
   return await showCard(deps, await reload(deps, d));
 }
 
-type Destination = { ok: true; forumId: string } | { ok: false; problem: string };
+type Place = { forumId: string } | { channelId: string } | { threadId: string };
+type Destination = { ok: true; place: Place } | { ok: false; problem: string };
 
-// Where the content is posted (ADR 0036): a CTA in the CTA forum, normal content in the event forum of its type. A card
-// opened from an old launcher post still goes to that launcher's forum.
+// Where the content is posted (ADR 0036): a CTA in the CTA text channel (announced, with a thread for its roster), normal
+// content in the event forum of its type. A card opened from an old launcher post still goes to that launcher's forum.
 async function destinationOf(deps: Deps, d: StoredDraft, type: ContentType): Promise<Destination> {
-  if (d.targetForumId) return { ok: true, forumId: d.targetForumId };
+  if (d.targetForumId) return { ok: true, place: { forumId: d.targetForumId } };
   if (d.cta) {
-    const forum = await getCtaForum(deps.sql, d.guildId);
-    return forum ? { ok: true, forumId: forum } : { ok: false, problem: "No CTA forum is set. Ask an admin to run `/content setup` with `cta-channel`." };
+    const channel = await getCtaChannel(deps.sql, d.guildId);
+    return channel ? { ok: true, place: { channelId: channel } } : { ok: false, problem: "No CTA channel is set. Ask an admin to run `/content setup` with `cta-channel`." };
   }
   const forum = pickEventForum(await listEventForums(deps.sql, d.guildId), type);
-  return forum ? { ok: true, forumId: forum.forumId } : { ok: false, problem: `No event forum takes ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\`.` };
+  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum takes ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\`.` };
 }
 
 // A CTA is checked again at Create: the roles may have changed since the card was opened.
@@ -229,7 +230,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!where.ok) return await showCard(deps, d, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: { forumId: where.forumId },
+    slots: c.slots, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
@@ -273,7 +274,7 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
   if (!where.ok) return await showCard(deps, fresh, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: fresh.guildId, creator: fresh.userId, type: c.type, kind: DEFAULT_KIND, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: [], hasLoot: false, cta: fresh.cta, blank: true, buildRef: null, place: { forumId: where.forumId },
+    slots: [], hasLoot: false, cta: fresh.cta, blank: true, buildRef: null, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);

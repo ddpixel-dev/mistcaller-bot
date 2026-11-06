@@ -9,7 +9,7 @@ import { refreshDashboard } from "../jobs/dashboards.ts";
 import { deleteEventForum, getEventForum, listEventForums, saveEventForum, type EventForum } from "../db/eventForum.ts";
 import { TYPE_LABEL } from "../domain/kinds.ts";
 import { clearChangelogChannel, getChangelogChannel, setChangelogChannel } from "../db/changelog.ts";
-import { MAX_CTA_ROLES, clearCtaForum, getCtaForum, getCtaRoleIds, setCtaForum, setCtaRoles } from "../db/cta.ts";
+import { MAX_CTA_ROLES, clearCtaChannel, getCtaChannel, getCtaRoleIds, setCtaChannel, setCtaRoles } from "../db/cta.ts";
 
 const SNOWFLAKE = /^\d{5,25}$/;
 const NOT_ALLOWED = "Only members with Manage Server can change the admin roles.";
@@ -22,9 +22,9 @@ const KINDS: { kind: DashboardKind; label: string; set: string; clear: string; w
 
 // The panel: a role picker with the current admin roles already selected (ADR 0020, owner request 2026-10-08), and the
 // channels now in use (FR-043, FR-044).
-export type CtaSettings = { forum: string | null; roles: string[] };
+export type CtaSettings = { channel: string | null; roles: string[] };
 
-export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null, cta: CtaSettings = { forum: null, roles: [] }) {
+export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null, cta: CtaSettings = { channel: null, roles: [] }) {
   const current = roleIds.length ? roleIds.map((r) => `<@&${r}>`).join(" ") : "none yet";
   const channel = (kind: DashboardKind) => {
     const d = dashboards.find((x) => x.kind === kind);
@@ -46,8 +46,8 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
       "**Event forums** (admins set them with `event-forum`; normal content is posted in the forum of its type)",
       forums.length ? forums.map((f) => `<#${f.forumId}> · ${f.type ? TYPE_LABEL[f.type] : "Any type"}`).join("\n") : "none",
       "",
-      "**CTA (call to arms)** (admins set the forum with `cta-channel`)",
-      `CTA forum: ${cta.forum ? `<#${cta.forum}>` : "none"}`,
+      "**CTA (call to arms)** (admins set the text channel with `cta-channel`)",
+      `CTA channel: ${cta.channel ? `<#${cta.channel}>` : "none"}`,
       `Roles that may create CTA content (admins always may): ${cta.roles.length ? cta.roles.map((r) => `<@&${r}>`).join(" ") : "none yet"}`,
     ].join("\n"),
     components: [{
@@ -70,7 +70,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
 async function panelOf(deps: Deps, guildId: string) {
   return setupPanel(
     await getAdminRoleIds(deps.sql, guildId), await dashboardsOf(deps, guildId), await listEventForums(deps.sql, guildId),
-    await getChangelogChannel(deps.sql, guildId), { forum: await getCtaForum(deps.sql, guildId), roles: await getCtaRoleIds(deps.sql, guildId) },
+    await getChangelogChannel(deps.sql, guildId), { channel: await getCtaChannel(deps.sql, guildId), roles: await getCtaRoleIds(deps.sql, guildId) },
   );
 }
 
@@ -138,9 +138,9 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const changelog = subOption(i, "setup", "changelog-channel");
   const clearChangelog = subOption(i, "setup", "clear-changelog") === true;
   const changelogGiven = changelog !== undefined || clearChangelog;
-  const ctaForum = subOption(i, "setup", "cta-channel");
+  const ctaChannel = subOption(i, "setup", "cta-channel");
   const clearCta = subOption(i, "setup", "clear-cta") === true;
-  const ctaGiven = ctaForum !== undefined || clearCta;
+  const ctaGiven = ctaChannel !== undefined || clearCta;
   if (given.every((g) => g.channel === undefined && !g.clear) && !forumGiven && !changelogGiven && !ctaGiven) {
     if (!hasManageServer(i.member.permissions)) return reply(NOT_ALLOWED);
     return { type: CHANNEL_MESSAGE, data: { ...(await panelOf(deps, i.guild_id)), flags: EPHEMERAL } };
@@ -164,14 +164,16 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (clearForum !== undefined && !isForum(clearForum)) return reply("Pick a forum channel of this server for `clear-event-forum`.");
   if (forumType !== undefined && forum === undefined) return reply("`forum-type` goes with `event-forum`.");
   if (forumType !== undefined && forumType !== "any" && forumType !== "pvp" && forumType !== "pve") return reply("Pick Any, PvP or PvE.");
-  if (ctaForum !== undefined && clearCta) return reply("Give a forum or clear it, not both.");
-  if (ctaForum !== undefined && !isForum(ctaForum)) return reply("Pick a forum channel of this server for `cta-channel`: each CTA is its own post there.");
+  if (ctaChannel !== undefined && clearCta) return reply("Give a channel or clear it, not both.");
+  if (ctaChannel !== undefined && (typeof ctaChannel !== "string" || !SNOWFLAKE.test(ctaChannel) || ![0, 5].includes(resolved[ctaChannel]?.type ?? -1))) {
+    return reply("Pick a text or announcement channel of this server for `cta-channel`.");
+  }
   const lines: string[] = [];
-  if (typeof ctaForum === "string") {
-    await setCtaForum(deps.sql, i.guild_id, ctaForum);
-    lines.push(`<#${ctaForum}> is the CTA forum: Special content (CTA) is posted there as its own post. Give the bot View Channel, Create Posts, Send Messages in Posts, Manage Threads and Pin Messages in it. Pick the roles that may create CTA content with \`/content setup\`.`);
+  if (typeof ctaChannel === "string") {
+    await setCtaChannel(deps.sql, i.guild_id, ctaChannel);
+    lines.push(`<#${ctaChannel}> is the CTA channel: each Special content (CTA) is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Pick the roles that may create CTAs with \`/content setup\`.`);
   } else if (clearCta) {
-    lines.push((await clearCtaForum(deps.sql, i.guild_id)) ? "CTA forum cleared: Special content (CTA) cannot be created until you set one." : "No CTA forum was set.");
+    lines.push((await clearCtaChannel(deps.sql, i.guild_id)) ? "CTA channel cleared: Special content (CTA) cannot be created until you set one." : "No CTA channel was set.");
   }
   if (isForum(forum)) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType === "pvp" || forumType === "pve" ? forumType : null));
   if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum));

@@ -16,7 +16,7 @@ export type NewContent = {
   tier: string;
   hasLoot: boolean;
   selection?: boolean; // the host picks the party (FR-058)
-  cta?: boolean; // a call to arms, posted in the CTA forum (FR-059)
+  cta?: boolean; // a call to arms, announced in the CTA channel, with a thread for its roster (FR-059)
   blank?: boolean; // no roster: title, time, tier and description only (FR-060)
   createdBy: string;
   slots: SlotDef[];

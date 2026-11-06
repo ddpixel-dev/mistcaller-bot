@@ -2,20 +2,20 @@ import type { Sql } from "./client.ts";
 
 export const MAX_CTA_ROLES = 10;
 
-// FR-059: the forum where CTA (call to arms) posts are made, and the roles that may create them.
-export async function getCtaForum(sql: Sql, guildId: string): Promise<string | null> {
-  const [r] = await sql`select forum_id from cta_forum where guild_id = ${guildId}`;
-  return r ? (r.forum_id as string) : null;
+// FR-059: the text channel where CTAs (calls to arms) are announced, and the roles that may create them.
+export async function getCtaChannel(sql: Sql, guildId: string): Promise<string | null> {
+  const [r] = await sql`select channel_id from cta_channel where guild_id = ${guildId}`;
+  return r ? (r.channel_id as string) : null;
 }
 
-export async function setCtaForum(sql: Sql, guildId: string, forumId: string): Promise<void> {
+export async function setCtaChannel(sql: Sql, guildId: string, channelId: string): Promise<void> {
   await sql`
-    insert into cta_forum (guild_id, forum_id) values (${guildId}, ${forumId})
-    on conflict (guild_id) do update set forum_id = excluded.forum_id, updated_at = now()`;
+    insert into cta_channel (guild_id, channel_id) values (${guildId}, ${channelId})
+    on conflict (guild_id) do update set channel_id = excluded.channel_id, updated_at = now()`;
 }
 
-export async function clearCtaForum(sql: Sql, guildId: string): Promise<boolean> {
-  return (await sql`delete from cta_forum where guild_id = ${guildId} returning guild_id`).length > 0;
+export async function clearCtaChannel(sql: Sql, guildId: string): Promise<boolean> {
+  return (await sql`delete from cta_channel where guild_id = ${guildId} returning guild_id`).length > 0;
 }
 
 export async function getCtaRoleIds(sql: Sql, guildId: string): Promise<string[]> {

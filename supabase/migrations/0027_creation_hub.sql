@@ -4,10 +4,11 @@ alter table content add column cta boolean not null default false;
 alter table content add column blank boolean not null default false;
 alter table slot_draft add column cta boolean not null default false;
 
--- The forum where CTA posts are made. Each CTA is its own post, like any event (one content per post, FR-019).
-create table cta_forum (
+-- The text channel where CTAs are announced. Each CTA gets a thread started from its announcement, and the roster lives
+-- in that thread, so it is its own post like any event (one content per post, FR-019).
+create table cta_channel (
   guild_id text primary key,
-  forum_id text not null,
+  channel_id text not null,
   updated_at timestamptz not null default now()
 );
 
@@ -19,15 +20,15 @@ create table guild_cta_role (
   primary key (guild_id, role_id)
 );
 
-alter table cta_forum enable row level security;
+alter table cta_channel enable row level security;
 alter table guild_cta_role enable row level security;
 
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
-    revoke all on cta_forum, guild_cta_role from anon;
+    revoke all on cta_channel, guild_cta_role from anon;
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
-    revoke all on cta_forum, guild_cta_role from authenticated;
+    revoke all on cta_channel, guild_cta_role from authenticated;
   end if;
 end $$;

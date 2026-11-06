@@ -8,7 +8,7 @@ import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
 } from "../db/content.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
-import { IS_COMPONENTS_V2, renderRosterMessage } from "../render/roster.ts";
+import { IS_COMPONENTS_V2, escapeText, renderRosterMessage } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType, SlotDef } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
@@ -20,6 +20,7 @@ import { defaultStart } from "../domain/time.ts";
 
 export const NOT_HERE = "Use this command in a server channel, thread or forum post that the bot can write in.";
 const FAILED = "Could not create the content right now. Nothing was saved, please try again.";
+const NO_THREAD = "The bot could not start a thread in the CTA channel. An admin should give the bot's role View Channel, Send Messages, Create Public Threads, Send Messages in Threads and Manage Threads there, then try again.";
 const NO_POST = "The bot could not create a post in this forum. An admin should give the bot's role Create Posts, Send Messages in Posts and Manage Threads in the forum, then try again.";
 
 // FR-002 (changed 2026-10-08, ADR 0020): content may be created in any text channel, announcement channel, thread or
@@ -132,8 +133,9 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
 export type PublishInput = {
   guildId: string; creator: string; type: ContentType; kind: string; title: string; notes: string | null; startsAt: Date;
   tier: string; slots: SlotDef[]; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
-  // Where the roster goes: an existing channel or post, or a new post the bot creates in an event forum (ADR 0032).
-  place: { threadId: string } | { forumId: string };
+  // Where the roster goes: an existing channel or post, a new post the bot creates in an event forum (ADR 0032), or a new
+  // thread under an announcement in a text channel (the CTA channel, ADR 0036).
+  place: { threadId: string } | { forumId: string } | { channelId: string };
 };
 
 // A forum post needs a first message; it is a Components V2 message so it can become the roster.
@@ -145,6 +147,8 @@ const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string } | { ok: false; response: InteractionResponse }> {
   let threadId: string;
   let ownPost = false;
+  let announcement: { id: string } | null = null;
+  let announcementChannel: string | null = null;
   if ("forumId" in a.place) {
     if (!deps.rest.createForumPost) return { ok: false, response: reply(FAILED) };
     const tags = matchTags((await deps.rest.forumTags?.(a.place.forumId)) ?? [], a.type, a.kind);
@@ -156,11 +160,31 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
       logFailure(err);
       return { ok: false, response: reply(NO_POST) };
     }
+  } else if ("channelId" in a.place) {
+    // A CTA (ADR 0036): an announcement in the channel, a thread started from it, and the roster in that thread.
+    if (!deps.rest.startThread) return { ok: false, response: reply(FAILED) };
+    const channelId = a.place.channelId;
+    try {
+      const epoch = Math.floor(a.startsAt.getTime() / 1000);
+      announcement = await deps.rest.createMessage(channelId, {
+        content: `📣 **${escapeText(Array.from(a.title).slice(0, 100).join(""))}** · <t:${epoch}:f> (<t:${epoch}:R>)`,
+        allowed_mentions: { parse: [] },
+      });
+      announcementChannel = channelId;
+      threadId = (await deps.rest.startThread(channelId, announcement.id, Array.from(a.title).slice(0, 100).join(""))).id;
+      ownPost = true;
+    } catch (err) {
+      logFailure(err);
+      if (announcement) await deps.rest.deleteMessage(channelId, announcement.id).catch(() => {});
+      return { ok: false, response: reply(NO_THREAD) };
+    }
   } else {
     threadId = a.place.threadId;
   }
+  const starterIsRoster = "forumId" in a.place; // a forum post's first message becomes the roster
   const dropPost = async () => {
     if (ownPost) await deps.rest.deleteChannel?.(threadId).catch((e) => console.error(JSON.stringify({ evt: "orphan_post_delete_failed", name: errName(e) })));
+    if (announcement && announcementChannel) await deps.rest.deleteMessage(announcementChannel, announcement.id).catch(() => {});
   };
 
   let id: string;
@@ -178,7 +202,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view) throw new Error("content row missing");
-    if (ownPost) {
+    if (starterIsRoster) {
       // A forum post's first message has the post's id.
       await deps.rest.editMessage(threadId, threadId, renderRosterMessage(view));
       postedId = threadId;

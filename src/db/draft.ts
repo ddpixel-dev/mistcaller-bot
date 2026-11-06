@@ -26,7 +26,7 @@ export type StoredDraft = GuidedDraft & {
   type: ContentType | null;
   loot: boolean;
   selection: boolean;
-  cta: boolean; // opened with Special content (FR-059): it is posted in the CTA forum
+  cta: boolean; // opened with Special content (FR-059): it is announced in the CTA channel, with a thread for its roster
   kind: string;
   buildRef: string | null;
   weaponClass: string | null;

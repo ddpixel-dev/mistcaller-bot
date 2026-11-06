@@ -26,6 +26,8 @@ async function setup(o: { failEdit?: boolean; failPost?: boolean; renameFails?: 
     async forumTags() { return [{ id: "tag-pvp", name: "PvP" }, { id: "tag-zvz", name: "zvz" }, { id: "tag-pve", name: "PvE" }]; },
     async editChannel(id, body) { calls.push({ op: "editChannel", args: [id, body] }); if (o.renameFails && (body as any).name) throw new Error("429"); },
     async deleteChannel(id) { calls.push({ op: "deleteChannel", args: [id] }); },
+    // A thread started from a message has that message's id.
+    async startThread(channel, message, name) { calls.push({ op: "startThread", args: [channel, message, name] }); return { id: message }; },
   };
   await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, ${FORUM}, null) on conflict do nothing`;
   const deps: Deps = { sql, rest, now: () => NOW };
@@ -243,15 +245,15 @@ test("an old launcher button only points to the content-management channel", asy
 
 // ---- CTA and Blank (FR-059, FR-060) ----
 
-const CTA_FORUM = "300000000000000009";
+const CTA_CHANNEL = "300000000000000009";
 const member = (roles: string[], permissions = "0"): Partial<Interaction> => ({ member: { user: { id: OWNER }, roles, permissions } });
 
-test("Special content is for admins and CTA roles, and needs a CTA forum", async () => {
+test("Special content is for admins and CTA roles, and needs a CTA channel", async () => {
   const { d, sql } = await setup();
   assert.ok(((await d(press("hub:c", undefined, member([])))) as any).data.content.includes("admins and members with a CTA role"));
   await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
-  assert.ok(((await d(press("hub:c", undefined, member(["callers"])))) as any).data.content.includes("No CTA forum is set"));
-  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  assert.ok(((await d(press("hub:c", undefined, member(["callers"])))) as any).data.content.includes("No CTA channel is set"));
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const byRole: any = await d(press("hub:c", undefined, member(["callers"])));
   assert.equal(byRole.type, 4);
   assert.ok(say(byRole).includes("Create CTA (call to arms)"));
@@ -260,10 +262,10 @@ test("Special content is for admins and CTA roles, and needs a CTA forum", async
   assert.equal(byAdmin.type, 4);
 });
 
-test("a CTA is created in the CTA forum, flagged, and the roles are checked again at Create", async () => {
+test("a CTA is announced in the CTA channel with a thread, the roster is in the thread, and the roles are checked again at Create", async () => {
   const { d, sql, calls } = await setup();
   await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
-  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const { id } = await open(d, member(["callers"]), "c");
   await d(press(`cc:type:${id}`, ["pvp"], member(["callers"])));
   await d(form(`ccd:${id}`, details, member(["callers"])));
@@ -271,9 +273,33 @@ test("a CTA is created in the CTA forum, flagged, and the roles are checked agai
   assert.ok(denied.data.content.includes("admins and members with a CTA role"));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   const r: any = await d(press(`cc:create:${id}`, undefined, member(["callers"])));
-  assert.ok(say(r).startsWith("✅ Created"));
-  assert.equal(calls.filter((c) => c.op === "createForumPost").at(-1)!.args[0], CTA_FORUM);
-  assert.equal((await sql`select cta from content`)[0]!.cta, true);
+  assert.ok(say(r).startsWith("✅ Created"), say(r));
+  const ops = calls.filter((c) => ["createMessage", "startThread", "editMessage", "createForumPost"].includes(c.op));
+  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage"], "an announcement, a thread, then the roster in it");
+  assert.equal(ops[0]!.args[0], CTA_CHANNEL);
+  assert.ok(String(ops[0]!.args[1].content).includes("Ava roam") && ops[0]!.args[1].allowed_mentions.parse.length === 0);
+  assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam"]);
+  assert.equal(ops[2]!.args[0], "m1", "the roster is posted in the thread, whose id is the announcement's");
+  const [row] = await sql`select thread_id, message_id, own_post, cta from content`;
+  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta], ["m1", "m2", true, true]);
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/m1/m2`);
+});
+
+test("if the roster cannot be posted in a CTA thread, the thread, the announcement and the content are removed", async () => {
+  const { d, sql, calls, deps } = await setup();
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
+  const failing = { ...deps, rest: { ...deps.rest, async createMessage(channel: string, body: any) { calls.push({ op: "createMessage", args: [channel, body] }); if (channel !== CTA_CHANNEL) throw new Error("403"); return { id: "ann1" }; } } };
+  const { createDispatch } = await import("../../src/discord/dispatch.ts");
+  const dd = createDispatch(failing as any);
+  const { id } = await open(dd, member([], "32"), "c");
+  await dd(press(`cc:type:${id}`, ["pvp"], member([], "32")));
+  await dd(form(`ccd:${id}`, details, member([], "32")));
+  const r: any = await dd(press(`cc:create:${id}`, undefined, member([], "32")));
+  assert.equal(r.data.flags, 64);
+  assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "ann1"), "the thread is deleted");
+  assert.ok(calls.some((c) => c.op === "deleteMessage" && c.args[0] === CTA_CHANNEL && c.args[1] === "ann1"), "so is the announcement");
+  assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
+  assert.ok(await getDraft(sql, id, NOW));
 });
 
 test("Blank template: needs the type for normal content; opens a form with title, start, gear tier and description; posts a content without a roster", async () => {
@@ -300,15 +326,15 @@ test("Blank template: needs the type for normal content; opens a form with title
   assert.deepEqual(buttons, ["Manage"]);
 });
 
-test("a blank CTA needs no type: it is PvX and goes to the CTA forum", async () => {
+test("a blank CTA needs no type: it is PvX and is announced in the CTA channel", async () => {
   const { d, sql, calls } = await setup();
-  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const { id } = await open(d, member([], "32"), "c");
   const ok: any = await d(form(`ccl:${id}`, { title: "All hands", start: "2026-10-25 18:00", tier: "T8", notes: "" }, member([], "32")));
   assert.ok(say(ok).startsWith("✅ Created"), say(ok));
   const [row] = await sql`select blank, cta, type from content`;
   assert.deepEqual([row!.blank, row!.cta, row!.type], [true, true, "pvx"]);
-  assert.equal(calls.filter((c) => c.op === "createForumPost").at(-1)!.args[0], CTA_FORUM);
+  assert.ok(calls.some((c) => c.op === "startThread" && c.args[0] === CTA_CHANNEL));
 });
 
 test("Create lights up once the card is complete; the tips sit under the buttons after a divider, one 💡 per line", async () => {
