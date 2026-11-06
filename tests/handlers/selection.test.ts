@@ -49,7 +49,7 @@ test("applying for a position answers privately, seats nobody, refreshes the ros
   assert.ok(text(r).includes("You applied for position 2") && text(r).includes("host picks the party"));
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.slots.filter((s) => s.userId).length, 0);
-  assert.deepEqual(v.applicants, [{ userId: A, wants: "#2" }]);
+  assert.deepEqual(v.applicants!.map((a) => [a.userId, a.wants]), [[A, "#2"]]);
   assert.ok(plain(textOf(edits.at(-1))).includes(`📨 **Applicants (1):** <@${A}> (\\#2)`));
 });
 
@@ -57,7 +57,7 @@ test("Fill in a selection event is an application too, with the player's choices
   const { d, id, sql, posts } = await setup();
   const r: any = await d(click(`fp:${id}`, A, ["r:Healer", "r:Tank"]));
   assert.ok(text(r).includes("You applied (Healer, Tank)"));
-  assert.deepEqual((await getRosterView(sql, id, NOW))!.applicants, [{ userId: A, wants: "Healer, Tank" }]);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.applicants!.map((a) => [a.userId, a.wants]), [[A, "Healer, Tank"]]);
   assert.equal(posts.length, 0, "nothing is posted until the host decides");
 });
 
@@ -73,7 +73,7 @@ test("the host reviews applicants in the Add player panel, accepts one into a po
   assert.deepEqual(discordProblems({ ...panel.data, flags: 0 }), []);
   const chosen: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
   const positions = chosen.data.components.at(-1).components[0];
-  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [positions.options[1].value], PANEL));
+  const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [positions.options[0].value], PANEL));
   assert.ok(text(done).includes(`<@${A}>`));
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.slots[1]!.userId, A);
@@ -125,3 +125,25 @@ test("a normal event still has Add player and no disclaimer", async () => {
   assert.ok(labels(manage).includes("Add player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
   assert.ok(edits.length === 0);
 });
+
+test("the host sees only the open positions that suit what the applicant or the fill asked for", async () => {
+  const { d, id, slots, sql } = await setup();
+  await d(click(`fp:${id}`, A, ["r:Healer"]));
+  await d(click(`join:${id}`, B, [slots[0]!]));
+  const forA: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
+  const optsA = forA.data.components.at(-1).components[0].options;
+  assert.deepEqual(optsA.map((o: any) => o.label), ["2. Healer - Holy"], "A asked for Healer only");
+  assert.ok(text(forA).includes("only the open positions that suit"));
+  const forB: any = await d(click(`fa:p:${id}`, OWNER, [B], PANEL));
+  assert.deepEqual(forB.data.components.at(-1).components[0].options.map((o: any) => o.label), ["1. Tank - Mace"], "B applied for position 1");
+  const anyone: any = await d(click(`fa:u:${id}`, OWNER, [STRANGER], PANEL));
+  assert.equal(anyone.data.components.at(-1).components[0].options.length, 3, "any other member can go anywhere");
+  await assignPlayerFor(sql, id, slots[1]!, STRANGER);
+  const none: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
+  assert.ok(text(none).includes("No open position suits what"));
+  assert.ok(!none.data.components.some((r: any) => r.components[0].custom_id.startsWith("fa:s:")));
+});
+async function assignPlayerFor(sql: any, id: string, slotId: string, userId: string) {
+  const { assignPlayer } = await import("../../src/db/signup.ts");
+  await assignPlayer(sql, { contentId: id, guildId: "g1", userId, slotId, now: NOW });
+}

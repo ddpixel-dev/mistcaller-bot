@@ -13,29 +13,19 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Choose Fill on the latest roster message again.";
 const NOT_FOUND = "This content no longer exists.";
 
-// FR-057: the private panel a player gets from Fill. One menu, several choices: Any position, whole roles, single
-// positions. A Discord menu holds 25 options, so on a big roster the roles come first and the positions fill the rest.
+// FR-057: the private panel a player gets from Fill: Any position, or whole roles. One menu, several choices. (Single
+// positions are still understood from a panel opened by 0.30.0, but are no longer offered: owner request 2026-11-06.)
 export function fillPanel(view: RosterView) {
   const roles = [...new Map(view.slots.map((s) => [s.role.toLowerCase(), s.role])).values()];
   const options: { label: string; value: string; description?: string; emoji: { name: string } }[] = [
     { label: "Any position", value: "any", description: "Healers first", emoji: { name: "🔁" } },
-    ...roles.slice(0, 8).map((r) => ({ label: `Any ${r} position`.slice(0, 100), value: `r:${r}`, emoji: { name: roleIcon(r) } })),
+    ...roles.slice(0, MAX_FILL_VALUES - 1).map((r) => ({ label: `Any ${r} position`.slice(0, 100), value: `r:${r}`, emoji: { name: roleIcon(r) } })),
   ];
-  const positions = view.slots.map((s) => ({
-    label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
-    value: `s:${s.id}`, description: s.userId ? "Taken now" : "Open", emoji: { name: roleIcon(s.role) },
-  }));
-  const room = MAX_FILL_VALUES - options.length;
-  options.push(...positions.slice(0, room));
-  const cut = positions.length > room;
   return {
-    content: [
-      "🔁 **Fill: what can you play?** Pick one or more. You are seated at once in the first matching open position (healers first), or you wait and are seated as soon as one frees up.",
-      ...(cut ? ["Only the first positions are listed; pick a role to cover the rest."] : []),
-    ].join("\n"),
+    content: "🔁 **Fill: what can you play?** Pick Any, or one or more roles. You are seated at once in the first matching open position (healers first), or you wait and are seated as soon as one frees up.",
     components: [{
       type: 1,
-      components: [{ type: 3, custom_id: `fp:${view.id}`, placeholder: "Any, a role, or positions", min_values: 1, max_values: options.length, options }],
+      components: [{ type: 3, custom_id: `fp:${view.id}`, placeholder: "Any, or a role", min_values: 1, max_values: options.length, options }],
     }],
     allowed_mentions: { parse: [] as [] },
   };

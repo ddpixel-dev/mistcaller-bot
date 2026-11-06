@@ -103,7 +103,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
 }
 
 // FR-058: the disclaimer of a host-selected event, in the post itself.
-export const SELECTION_NOTE = "🎯 **Selection event:** signing up is an application. The host picks the party.";
+export const SELECTION_NOTE = "🎯 **Selection event:** the host picks the party.";
 
 const text = (content: string) => ({ type: 10, content });
 
@@ -151,7 +151,8 @@ export function renderRosterMessage(view: RosterView): {
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
-  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept, ...(waitText ? [waitText] : [])].join("\n"))];
+  // A blank line sets the applicants apart from the players (owner request 2026-11-06).
+  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept, ...(waitText ? [...(applicantText ? [""] : []), waitText] : [])].join("\n"))];
 
   const open = view.slots.filter((s) => s.userId === null);
   if (view.status === "open" && open.length > 0) {

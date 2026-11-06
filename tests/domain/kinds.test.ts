@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010 and FR-023: 17 PvP and 13 PvE kinds, Other in each", () => {
+test("the lists match ADR 0010 and FR-023: 17 PvP and 12 PvE kinds, Other in each", () => {
   assert.equal(KINDS.filter((k) => k.type === "pvp").length, 17);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 13);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 12);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -42,7 +42,7 @@ test("Fame farming and Avalonian gold chest are no longer offered, but old conte
 test("the new PvE and PvP categories (FR-023), Ancient Lands and Hellgate in both, each before Other", () => {
   const pvp = kindsOf("pvp").map((k) => k.id);
   const pve = kindsOf("pve").map((k) => k.id);
-  for (const id of ["static-dungeon", "dragon-sanctuary", "hellgate", "depths", "avalonian-raid", "crystal-creatures", "ancient-lands"]) assert.ok(pve.includes(id), `PvE ${id}`);
+  for (const id of ["static-dungeon", "dragon-sanctuary", "hellgate", "depths", "crystal-creatures", "ancient-lands"]) assert.ok(pve.includes(id), `PvE ${id}`);
   for (const id of ["outposts", "castle", "ancient-lands", "hellgate"]) assert.ok(pvp.includes(id), `PvP ${id}`);
   assert.ok(!pvp.includes("static-dungeon") && !pve.includes("castle") && !pve.includes("outposts"));
   assert.equal(pvp.at(-1), "other");
@@ -109,4 +109,13 @@ test("Ava Skip is a PvE category, in the PvX menu too, and not a PvP one", () =>
   assert.equal(resolveKind("pve", "ava-skip").ok, true);
   assert.equal(resolveKind("pvp", "ava-skip").ok, false);
   assert.ok(kindsOf("pvx").length <= 25, "a menu holds 25 options at most");
+});
+
+test("Avalonian raid is retired: not offered anywhere, but old content keeps its label; PvX is back to leaving out only Training", () => {
+  for (const type of ["pve", "pvx"] as const) assert.ok(!kindsOf(type).some((k) => k.id === "avalonian-raid"), type);
+  assert.equal(resolveKind("pve", "avalonian-raid").ok, false);
+  assert.equal(kindDef("pve", "avalonian-raid")!.label, "Avalonian raid");
+  const pvx = kindsOf("pvx").map((k) => k.id);
+  assert.ok(pvx.includes("skirmish") && !pvx.includes("training"));
+  assert.ok(pvx.length <= 25);
 });

@@ -39,7 +39,7 @@ test("picking a position applies for it: no seat is taken, several players may a
   assert.equal(await claim(sql, id, slots[0]!, A), "unchanged");
   const v = await view();
   assert.equal(v.slots.filter((s) => s.userId).length, 0, "nobody is seated");
-  assert.deepEqual(v.applicants, [{ userId: A, wants: "#1" }, { userId: B, wants: "#1" }]);
+  assert.deepEqual(v.applicants!.map((a) => [a.userId, a.wants]), [[A, "#1"], [B, "#1"]]);
   assert.equal(await claim(sql, id, slots[2]!, A), "applied", "changing the position changes the application");
   assert.deepEqual((await view()).applicants!.map((a) => [a.userId, a.wants]), [[A, "#3"], [B, "#1"]].sort(), "A keeps a single application");
 });
@@ -50,7 +50,7 @@ test("Fill in a selection event is an application for what the player can play",
   assert.deepEqual(await apply(sql, id, A), { result: "unchanged" });
   assert.deepEqual(await apply(sql, id, B, { any: false, roles: ["Healer", "Tank"], slotIds: [] }), { result: "applied" });
   const v = await view();
-  assert.deepEqual(v.applicants, [{ userId: A, wants: "Any" }, { userId: B, wants: "Healer, Tank" }]);
+  assert.deepEqual(v.applicants!.map((a) => [a.userId, a.wants]), [[A, "Any"], [B, "Healer, Tank"]]);
   assert.deepEqual(v.fills, [], "an application is not a waiting fill");
   assert.equal(v.slots.filter((s) => s.userId).length, 0);
 });
@@ -91,7 +91,7 @@ test("turning selection on turns waiting fills and waiters into applicants; turn
   const v = await view();
   assert.equal(v.selection, true);
   assert.deepEqual(v.slots.map((s) => s.userId), [A, B, C], "seated players keep their seats");
-  assert.deepEqual(v.applicants, [{ userId: OWNER, wants: "Scout" }, { userId: "100000000000000008", wants: "Tank" }]);
+  assert.deepEqual(v.applicants!.map((a) => [a.userId, a.wants]), [[OWNER, "Scout"], ["100000000000000008", "Tank"]]);
   assert.deepEqual([v.fills, v.waitlist], [[], []]);
   assert.equal(await updateContentSettings(sql, id, { selection: false }), "has_applicants");
   assert.equal((await view()).selection, true, "nothing changed");
