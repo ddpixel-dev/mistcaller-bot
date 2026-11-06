@@ -44,6 +44,7 @@ test("a text or announcement channel gets plain messages; a forum gets one post,
   const parts = ["first", "second", "third"];
   assert.deepEqual(planChangelogPost({ type: 0 }, parts, "Title"), { kind: "messages", messages: parts });
   assert.deepEqual(planChangelogPost({ type: 5 }, parts, "Title"), { kind: "messages", messages: parts });
+  for (const type of [10, 11, 12]) assert.deepEqual(planChangelogPost({ type }, parts, "Title"), { kind: "messages", messages: parts }, `a thread or forum post (type ${type}) takes messages`);
   assert.deepEqual(planChangelogPost({ type: 15 }, parts, "Title"), { kind: "forum", name: "Title", first: "first", replies: ["second", "third"], tags: [] });
 });
 

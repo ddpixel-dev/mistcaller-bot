@@ -89,13 +89,19 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         ],
       }],
     },
-    ...(ctx.presets.length ? [{
+    {
       type: 1,
-      components: [{
-        type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset (fills the slots)",
-        options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
-      }],
-    }] : []),
+      components: [ctx.presets.length
+        ? {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset (fills the slots)",
+          options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
+        }
+        // Always shown, so it never looks missing: with no presets it is dimmed and says how to save one (owner request 2026-11-07).
+        : {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset: none saved yet", disabled: true,
+          options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
+        }],
+    },
     {
       type: 1,
       components: [btn("Blank template", "📄", `cc:blank:${id}`)], // FR-060: skip the roster, go to the final form
@@ -122,6 +128,9 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
 }
 
 // The tips sit under the buttons, one per line (owner request 2026-10-24, ADR 0034).
+// The value of the placeholder option of the dimmed Preset menu; it is never a preset id.
+export const NO_PRESET = "-";
+
 export const CARD_TIPS = [
   "-# 💡 Only you see this card.",
   "-# 💡 Set the type, category and loot vote above, then press **Details** for the title, start time, gear tier and notes.",

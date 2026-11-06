@@ -115,7 +115,7 @@ test("Create is dimmed and the card lists what is still needed; a forced click c
   }
 });
 
-test("Normal content opens a private card in the hub channel; it needs an event forum", async () => {
+test("Plan Content opens a private card in the hub channel; it needs an event forum", async () => {
   const { d, sql } = await setup();
   const r: any = await d(press("hub:n"));
   assert.equal(r.type, 4);
@@ -267,7 +267,7 @@ test("an old launcher button only points to the content-management channel", asy
 const CTA_CHANNEL = "300000000000000009";
 const member = (roles: string[], permissions = "0"): Partial<Interaction> => ({ member: { user: { id: OWNER }, roles, permissions } });
 
-test("Special content is for admins and CTA roles, and needs a CTA channel", async () => {
+test("Schedule CTA is for admins and CTA roles, and needs a CTA channel", async () => {
   const { d, sql } = await setup();
   assert.ok(((await d(press("hub:c", undefined, member([])))) as any).data.content.includes("admins and members with a CTA role"));
   await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
@@ -370,4 +370,33 @@ test("Create lights up once the card is complete; the tips sit under the buttons
   assert.ok(tips.length >= 3 && tips.every((l: string) => l.startsWith("-# 💡 ")));
   assert.ok(!parts[0].content.includes("💡"), "no tips above the menus");
   assert.deepEqual(discordProblems(r.data), []);
+});
+
+test("Plan Content and Schedule CTA both offer the server's saved presets, and picking one fills the slots", async () => {
+  const { d, sql } = await setup();
+  const { savePreset } = await import("../../src/db/preset.ts");
+  await savePreset(sql, { guildId: GUILD, name: "Ava raid", slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }], createdBy: OWNER });
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, 'cta-ch') on conflict do nothing`;
+  await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'r1') on conflict do nothing`;
+  for (const [button, member] of [["hub:n", undefined], ["hub:c", { member: { user: { id: OWNER }, roles: ["r1"] } }]] as const) {
+    const r: any = await d(press(button, undefined, member as any));
+    const menu = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:preset:"));
+    assert.ok(menu, `${button}: the Preset menu is on the card`);
+    assert.deepEqual(menu!.options.map((o: any) => o.label), ["Ava raid"]);
+    assert.deepEqual(discordProblems(r.data), []);
+  }
+});
+
+test("with no presets the card still shows a dimmed Preset menu that says how to save one; a forced click only explains", async () => {
+  const { d, sql } = await setup();
+  const r: any = await d(press("hub:n"));
+  const menu = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:preset:"))!;
+  assert.ok(menu, "the menu is on the card");
+  assert.equal(menu.disabled, true);
+  assert.ok(menu.options[0].label.includes("/content preset save"));
+  assert.deepEqual(discordProblems(r.data), []);
+  const id = cardIdOf(r);
+  const forced: any = await d(press(`cc:preset:${id}`, ["-"]));
+  assert.ok(forced.data.content.includes("no presets yet"), forced.data.content);
+  assert.equal((await sql`select count(*)::int as n from slot_draft where slots_text is not null`)[0]!.n, 0);
 });

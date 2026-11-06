@@ -13,7 +13,7 @@ import { parseSlots } from "../domain/parse.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
-import { renderCard, v2Text } from "../render/card.ts";
+import { NO_PRESET, renderCard, v2Text } from "../render/card.ts";
 import { renderGuidedStep } from "../render/guided.ts";
 import { NOT_HERE, publish } from "./create.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
@@ -21,11 +21,11 @@ import { getCtaRoleIds } from "../db/cta.ts";
 import { canCreateCta } from "../domain/permissions.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EXPIRED = "This card expired or is not yours. Press **Normal content** or **Special content** in the content-management channel again.";
+const EXPIRED = "This card expired or is not yours. Press **Plan Content** or **Schedule CTA** in the content-management channel again.";
 
 type Opened = { targetForumId: string | null; forumType: ContentType | null; title: string | null; buildRef?: string | null; cta?: boolean };
 
-// Open the creation card (FR-054): from the Normal content or Special content (CTA) button of the content-management channel.
+// Open the creation card (FR-054): from the Plan Content or Schedule CTA button of the content-management channel.
 export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   const threadId = i.channel?.id;
@@ -45,7 +45,7 @@ export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<I
 // lc:create: the Create event button of an old launcher post. Launcher posts are gone since ADR 0036: content is created
 // with the buttons in the content-management channel.
 export async function handleLauncher(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {
-  return reply("Creating content has moved: use the **Normal content** or **Special content** buttons in the content-management channel.");
+  return reply("Creating content has moved: use the **Plan Content** or **Schedule CTA** buttons in the content-management channel.");
 }
 
 async function card(deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}) {
@@ -102,6 +102,7 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       return await showCard(deps, await reload(deps, d));
     }
     case "preset": {
+      if (value === NO_PRESET) return reply("This server has no presets yet. Save one with `/content preset save`.");
       const preset = value ? await getPresetById(deps.sql, d.guildId, value) : null;
       if (!preset) return reply("That preset no longer exists.");
       await saveCard(deps.sql, d.id, { slots: preset.slots.slice(0, 20), slotsText: null });
@@ -218,7 +219,7 @@ async function ctaAllowed(deps: Deps, i: Interaction, d: StoredDraft): Promise<b
   return canCreateCta(actor, await getAdminRoleIds(deps.sql, d.guildId), await getCtaRoleIds(deps.sql, d.guildId));
 }
 
-const NOT_CTA = "Special content (CTA) is for admins and members with a CTA role.";
+const NOT_CTA = "Schedule CTA is for admins and members with a CTA role.";
 
 // Create: every problem is listed on the card; otherwise the roster is posted in a new forum post (FR-059).
 async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<InteractionResponse> {
@@ -283,6 +284,6 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
 
 // A form or panel of an earlier version (the first form, the create panel): it no longer exists.
 export async function handleOldCreate(): Promise<InteractionResponse> {
-  return reply("This is from an earlier version. Press **Normal content** or **Special content** in the content-management channel.");
+  return reply("This is from an earlier version. Press **Plan Content** or **Schedule CTA** in the content-management channel.");
 }
 

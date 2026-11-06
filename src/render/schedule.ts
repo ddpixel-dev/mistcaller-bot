@@ -42,7 +42,7 @@ const message = (parts: string[]) => ({
 });
 
 // The creation buttons are a message of their own above the calendar (FR-059, ADR 0036, owner request 2026-11-06):
-// Normal content and Special content (CTA). It never changes, so the refresh leaves it alone.
+// Plan Content and Schedule CTA. It never changes, so the refresh leaves it alone.
 export function renderHub() {
   return {
     flags: IS_COMPONENTS_V2,
@@ -50,12 +50,12 @@ export function renderHub() {
       type: 17,
       accent_color: ACCENT,
       components: [
-        textBlock("# ✨ Create content\nPress a button to set up an event. **Special content** is for admins and CTA roles."),
+        textBlock("# ✨ Create content\nPress a button to set up an event. **Schedule CTA** is for admins and CTA roles."),
         {
           type: 1,
           components: [
-            { type: 2, style: 3, label: "Normal content", emoji: { name: "✨" }, custom_id: "hub:n" },
-            { type: 2, style: 1, label: "Special content (CTA)", emoji: { name: "📣" }, custom_id: "hub:c" },
+            { type: 2, style: 3, label: "Plan Content", emoji: { name: "✨" }, custom_id: "hub:n" },
+            { type: 2, style: 1, label: "Schedule CTA", emoji: { name: "📣" }, custom_id: "hub:c" },
           ],
         },
       ],
@@ -84,7 +84,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   const shown = running.length + days.reduce((k, d) => k + d.events.length, 0);
   const updated = `-# Updated <t:${Math.floor(stamp.getTime() / 1000)}:R>`;
   if (shown === 0) {
-    return [renderHub(), message([`# 📅 Events Calendar\n${updated}`, "No live or upcoming events. Press **Normal content** above to start one."])];
+    return [renderHub(), message([`# 📅 Events Calendar\n${updated}`, "No live or upcoming events. Press **Plan Content** above to start one."])];
   }
 
   // Pack the groups into messages by event count and by text size. A day that continues repeats its heading.
