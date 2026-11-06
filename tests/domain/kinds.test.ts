@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010 and FR-023: 17 PvP and 12 PvE kinds, Other in each", () => {
+test("the lists match ADR 0010 and FR-023: 17 PvP and 13 PvE kinds, Other in each", () => {
   assert.equal(KINDS.filter((k) => k.type === "pvp").length, 17);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 12);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 13);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -100,4 +100,13 @@ test("every list is alphabetical by label with Other last, PvX included", () => 
     const rest = labels.slice(0, -1);
     assert.deepEqual(rest, [...rest].sort((a, b) => a.localeCompare(b, "en")), type);
   }
+});
+
+test("Ava Skip is a PvE category, in the PvX menu too, and not a PvP one", () => {
+  assert.equal(kindDef("pve", "ava-skip")!.label, "Ava Skip");
+  assert.ok(kindsOf("pve").some((k) => k.id === "ava-skip") && !kindsOf("pvp").some((k) => k.id === "ava-skip"));
+  assert.ok(kindsOf("pvx").some((k) => k.id === "ava-skip"));
+  assert.equal(resolveKind("pve", "ava-skip").ok, true);
+  assert.equal(resolveKind("pvp", "ava-skip").ok, false);
+  assert.ok(kindsOf("pvx").length <= 25, "a menu holds 25 options at most");
 });

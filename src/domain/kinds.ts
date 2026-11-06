@@ -37,6 +37,7 @@ export const KINDS: KindDef[] = [
   { id: "crystal-creatures", label: "Crystal creatures", type: "pve", color: 0xcfa83a, icon: "🔮" },
   { id: "ancient-lands", label: "Ancient Lands", type: "pve", color: 0xbf9b30, icon: "🗿" },
   { id: "ava-gold", label: "Ava Gold", type: "pve", color: 0xe6b422, icon: "💰" },
+  { id: "ava-skip", label: "Ava Skip", type: "pve", color: 0xd9a21b, icon: "🛤️" },
   { id: DEFAULT_KIND, label: "Other", type: "pve", color: 0xc9a227, icon: "🐉" },
 ];
 
@@ -52,9 +53,10 @@ const LEGACY_KINDS: KindDef[] = [
 
 // PvX holds every PvP and PvE category (owner decision 2026-10-08), each once.
 const PVX_COLOR = 0x6f4fb0;
-// A menu holds 25 options, and the PvP and PvE lists together are 26 once a shared id is counted once, so PvX leaves
-// out Training (practice, not mixed content). Content already saved as PvX Training still shows its label (kindDef).
-const PVX_LEFT_OUT = new Set(["training"]);
+// A menu holds 25 options, and the PvP and PvE lists together are 27 once a shared id is counted once, so PvX leaves
+// out Training and Skirmish (practice and small skirmishes, not mixed content). Content already saved as PvX with one of
+// them still shows its label (kindDef).
+const PVX_LEFT_OUT = new Set(["training", "skirmish"]);
 // Alphabetical by label, Other last (owner request 2026-11-06), in every list including PvX.
 const alphabetical = (list: KindDef[]): KindDef[] =>
   [...list.filter((k) => k.id !== DEFAULT_KIND).sort((a, b) => a.label.localeCompare(b.label, "en")), ...list.filter((k) => k.id === DEFAULT_KIND)];
