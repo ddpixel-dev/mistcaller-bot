@@ -26,16 +26,16 @@ test("an empty calendar says so and how to start an event", () => {
 
 test("only the days that have events get a section, in date order; days without events are left out", () => {
   const t = all(render([event({ startsAt: at(2, 20) }), event({ startsAt: at(0, 18) }), event({ startsAt: at(2, 9) })]));
-  const heads = t.split("\n").filter((l) => l.startsWith("### "));
-  assert.deepEqual(heads, ["### 📆 Thu 15 Oct · Today", "### 📆 Sat 17 Oct"]);
+  const heads = t.split("\n").filter((l) => l.startsWith("## "));
+  assert.deepEqual(heads, ["## 📆 Thu 15 Oct · Today", "## 📆 Sat 17 Oct"]);
   assert.ok(!t.includes("Nothing planned") && !t.includes("Fri 16 Oct"), "the empty Friday is not shown");
   assert.ok(t.includes("Events Calendar") && !t.includes("Event calendar"));
 });
 
 test("the day tags say Today and Tomorrow, and the window is 7 days", () => {
   const t = all(render([event({ startsAt: at(1, 18) }), event({ startsAt: at(6, 18) }), event({ startsAt: at(7, 18) })]));
-  const heads = t.split("\n").filter((l) => l.startsWith("### "));
-  assert.deepEqual(heads, ["### 📆 Fri 16 Oct · Tomorrow", "### 📆 Wed 21 Oct"], "the 8th day is outside the window");
+  const heads = t.split("\n").filter((l) => l.startsWith("## "));
+  assert.deepEqual(heads, ["## 📆 Fri 16 Oct · Tomorrow", "## 📆 Wed 21 Oct"], "the 8th day is outside the window");
 });
 
 test("an event shows its UTC time as a column, its title, its party, your time, and a roster link, on the right day", () => {
@@ -43,9 +43,12 @@ test("an event shows its UTC time as a column, its title, its party, your time, 
   const t = all(render([e]));
   const lines = t.split("\n");
   const i = lines.findIndex((l) => l.includes("Ava \\*raid\\*"));
-  assert.ok(lines[i]!.startsWith("`18:30` 🐉 **Ava \\*raid\\***"), lines[i]);
+  // FR-062: a larger title (a level-3 heading), no emoji in it, and the details in normal-size text.
+  assert.ok(lines[i]!.startsWith("### `18:30` Ava \\*raid\\* [Open"), lines[i]);
+  assert.ok(!/\p{Extended_Pictographic}/u.test(lines[i]!.replace("↗", "")), "no emoji in the title line");
   assert.ok(lines[i]!.includes(`[Open ↗](https://discord.com/channels/g1/${e.threadId}/${e.messageId})`));
   const detail = lines[i + 1]!;
+  assert.ok(!detail.startsWith("-#"), "the details are no longer small subtext");
   assert.ok(detail.includes("PvE · Group dungeon") && detail.includes("👥 7/10") && detail.includes("🔒"), detail);
   const epoch = Math.floor(e.startsAt.getTime() / 1000);
   assert.ok(detail.includes(`<t:${epoch}:t>`) && detail.includes(`<t:${epoch}:R>`), "local time and relative time");
