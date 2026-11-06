@@ -52,3 +52,5 @@ Dated entries, newest first. Record what surprised us, what we would do differen
 - What happened: choosing a fill player in the Assign fill panel answered "posted with an older layout". The old-layout check read `message.flags` on every `fa:` click, but only the button sits on the roster; the two menus sit on a private (ephemeral) panel that never has the Components V2 flag. Tests passed because the click helper gave every click a roster message.
 - What we learned: a check on the clicked message is only right for controls that live on that message. Test the follow-up clicks of a private panel with the flags Discord really sends (64), not the roster's.
 - Follow-up: the check now applies to the button only, with a regression test in `tests/handlers/fill.test.ts`. Review any new handler that is reached from an ephemeral panel.
+
+- 2026-11-06: Discord rejects the whole command list (status 400) when one option description passes 100 characters, and nothing in the build shows it. Registering is the only check, so `tests/discord/commands-limits.test.ts` now checks every name, description and option order.
