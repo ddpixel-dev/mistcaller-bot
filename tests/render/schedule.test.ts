@@ -22,7 +22,7 @@ test("an empty calendar says so and how to start an event", () => {
   assert.equal(bodies.length, 1);
   const t = all(bodies);
   assert.ok(t.includes("Events Calendar"));
-  assert.ok(t.includes("No live or upcoming events") && t.includes("Normal content"));
+  assert.ok(t.includes("No live or upcoming events") && t.includes("Plan Content"));
   assert.deepEqual(discordProblems(bodies[0]), []);
 });
 
@@ -113,12 +113,12 @@ test("the container uses the calendar colour, mentions nobody and is a Component
 
 // ---- FR-059, FR-060: the creation buttons, CTA grouping, blank events ----
 
-test("a message of its own above the calendar holds the Normal content and Special content buttons", () => {
+test("a message of its own above the calendar holds the Plan Content and Schedule CTA buttons", () => {
   for (const events of [[event()], []]) {
     const bodies = renderSchedule(events, "g1", NOW, NOW) as any[];
     const buttons = flatComponents(bodies[0]).filter((c) => c.type === 2);
-    assert.deepEqual(buttons.map((b) => [b.label, b.custom_id, b.style]), [["Normal content", "hub:n", 3], ["Special content (CTA)", "hub:c", 1]]);
-    assert.ok(!all(bodies.slice(1)).includes("Normal content") || events.length === 0, "the calendar pages have no buttons");
+    assert.deepEqual(buttons.map((b) => [b.label, b.custom_id, b.style]), [["Plan Content", "hub:n", 3], ["Schedule CTA", "hub:c", 1]]);
+    assert.ok(!all(bodies.slice(1)).includes("Plan Content") || events.length === 0, "the calendar pages have no buttons");
     assert.equal(flatComponents(bodies[1]).filter((c) => c.type === 2).length, 0);
     assert.deepEqual(discordProblems(bodies[0]), []);
   }

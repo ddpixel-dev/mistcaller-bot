@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { getSql } from "../src/db/client.ts";
 import { markChangelogPosted, pendingChangelogTargets } from "../src/db/changelog.ts";
+import { changelogMessage } from "../src/render/changelog.ts";
 import { changelogFileName, changelogTitle, planChangelogPost, splitChangelog, type ChannelInfo } from "../src/domain/changelog.ts";
 
 const args = process.argv.slice(2);
@@ -27,7 +28,8 @@ if (parts.length === 0) {
 const { DISCORD_BOT_TOKEN } = process.env;
 const headers = { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, "Content-Type": "application/json", "User-Agent": "DiscordBot (content-roster-bot, 0.1.0)" };
 const API = "https://discord.com/api/v10";
-const body = (content: string) => JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }); // 4: no link previews
+// Each part is a roster-style card (src/render/changelog.ts); the first one carries the title.
+const card = (content: string, parts: string[]) => changelogMessage(content, content === parts[0]);
 
 async function call(method: string, path: string, payload?: unknown): Promise<any> {
   const res = await fetch(`${API}${path}`, { method, headers, ...(payload === undefined ? {} : { body: JSON.stringify(payload) }) });
@@ -60,12 +62,12 @@ try {
         const info = await call("GET", `/channels/${t.channelId}`) as ChannelInfo;
         const plan = planChangelogPost(info, parts, title);
         if (plan.kind === "messages") {
-          for (const content of plan.messages) await call("POST", `/channels/${t.channelId}/messages`, JSON.parse(body(content)));
+          for (const content of plan.messages) await call("POST", `/channels/${t.channelId}/messages`, card(content, parts));
         } else {
           const post = await call("POST", `/channels/${t.channelId}/threads`, {
-            name: plan.name, ...(plan.tags.length ? { applied_tags: plan.tags } : {}), message: JSON.parse(body(plan.first)),
+            name: plan.name, ...(plan.tags.length ? { applied_tags: plan.tags } : {}), message: card(plan.first, parts),
           }) as { id: string };
-          for (const content of plan.replies) await call("POST", `/channels/${post.id}/messages`, JSON.parse(body(content)));
+          for (const content of plan.replies) await call("POST", `/channels/${post.id}/messages`, card(content, parts));
         }
         await markChangelogPosted(sql, t.guildId, clean, new Date());
         console.log(`posted to channel ${t.channelId} of server ${t.guildId}`);

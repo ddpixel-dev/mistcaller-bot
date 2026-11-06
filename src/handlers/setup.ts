@@ -55,7 +55,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
       "",
       "**CTA (call to arms)** (admins set the text channel with `cta-channel`)",
       `CTA channel: ${cta.channel ? `<#${cta.channel}>` : "none"}`,
-      `Roles that may create CTA content (admins always may): ${cta.roles.length ? cta.roles.map((r) => `<@&${r}>`).join(" ") : "none yet"}`,
+      `Roles that may schedule a CTA (admins always may): ${cta.roles.length ? cta.roles.map((r) => `<@&${r}>`).join(" ") : "none yet"}`,
     ].join("\n"),
     components: [{
       type: 1,
@@ -66,7 +66,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
     }, {
       type: 1,
       components: [{
-        type: 6, custom_id: "setup:cta", placeholder: "Choose the roles that may create CTA content", min_values: 0, max_values: MAX_CTA_ROLES,
+        type: 6, custom_id: "setup:cta", placeholder: "Choose the roles that may schedule a CTA", min_values: 0, max_values: MAX_CTA_ROLES,
         default_values: cta.roles.map((id) => ({ id, type: "role" })),
       }],
     }],
@@ -182,8 +182,8 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
     }
   }
   if (changelog !== undefined && clearChangelog) return reply("Give a channel or clear it, not both.");
-  if (changelog !== undefined && (typeof changelog !== "string" || !SNOWFLAKE.test(changelog) || ![0, 5, 15].includes(resolved[changelog]?.type ?? -1))) {
-    return reply("Pick a text, announcement or forum channel of this server.");
+  if (changelog !== undefined && (typeof changelog !== "string" || !SNOWFLAKE.test(changelog) || ![0, 5, 10, 11, 12, 15].includes(resolved[changelog]?.type ?? -1))) {
+    return reply("Pick a text, announcement or forum channel, or a thread or forum post, of this server.");
   }
   const forums = (i.data as { resolved?: { channels?: Record<string, { type?: number }> } } | undefined)?.resolved?.channels ?? {};
   const isForum = (v: unknown): v is string => typeof v === "string" && SNOWFLAKE.test(v) && forums[v]?.type === 15;
@@ -205,18 +205,21 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const lines: string[] = [];
   if (typeof ctaChannel === "string") {
     await setCtaChannel(deps.sql, i.guild_id, ctaChannel);
-    lines.push(`<#${ctaChannel}> is the CTA channel: each Special content (CTA) is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Choose who may create CTAs with \`cta-role\`.`);
+    lines.push(`<#${ctaChannel}> is the CTA channel: each CTA you schedule is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Choose who may create CTAs with \`cta-role\`.`);
   } else if (clearCta) {
-    lines.push((await clearCtaChannel(deps.sql, i.guild_id)) ? "CTA channel cleared: Special content (CTA) cannot be created until you set one." : "No CTA channel was set.");
+    lines.push((await clearCtaChannel(deps.sql, i.guild_id)) ? "CTA channel cleared: a CTA cannot be scheduled until you set one." : "No CTA channel was set.");
   }
   if (typeof ctaRole === "string" || typeof removeCtaRole === "string") lines.push(await applyCtaRoles(deps, i.guild_id, ctaRole, removeCtaRole));
   if (isForum(forum) && (forumType === "pvp" || forumType === "pve" || forumType === "pvx")) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType));
   if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum, forumType === "pvp" || forumType === "pve" || forumType === "pvx" ? forumType : null));
   if (typeof changelog === "string") {
     await setChangelogChannel(deps.sql, i.guild_id, changelog);
-    const forum = resolved[changelog]?.type === 15;
+    const kind = resolved[changelog]?.type;
+    const forum = kind === 15;
     lines.push(forum
       ? `Changelog forum set to <#${changelog}>: each release becomes a new post there. Give the bot View Channel, Create Posts and Send Messages in Posts in it.`
+      : kind === 10 || kind === 11 || kind === 12
+      ? `Changelog thread set to <#${changelog}>: each release's changelog is posted in it. Give the bot View Channel and Send Messages in Posts (or Send Messages in Threads) there.`
       : `Changelog channel set to <#${changelog}>: each release's changelog is posted there. Give the bot View Channel and Send Messages in it.`);
   } else if (clearChangelog) {
     lines.push((await clearChangelogChannel(deps.sql, i.guild_id)) ? "Changelog channel cleared: changelogs are no longer posted here." : "The changelog channel was not set.");

@@ -38,7 +38,7 @@ const form = (customId: string, fields: Record<string, string>, over: Partial<In
     data: { custom_id: customId, components: Object.entries(fields).map(([custom_id, value]) => ({ type: 1, components: [{ type: 4, custom_id, value }] })) },
     ...over,
   });
-// The creation card opens from the Normal content button (FR-059).
+// The creation card opens from the Plan Content button (FR-059).
 const create = (over: Partial<Interaction> = {}) => press("hub:n", undefined, over);
 const embed = (r: any) => ({ description: textOf(r.data), thumbnail: { url: flatComponents(r.data).find((c: any) => c.type === 11)?.media?.url } });
 const all = (r: any): any[] => flatComponents(r.data).filter((c: any) => typeof c.custom_id === "string");

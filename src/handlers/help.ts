@@ -12,7 +12,7 @@ export const HELP_TEXT = [
   "• **Fill:** pick what you can play. You are seated at once (healers first) or when a spot frees up.",
   "• **Leave** takes you off the roster. **Waitlist:** when a role is full, join its waitlist and you are seated when a spot frees up.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
-  "• **Normal content** (content-management channel) opens your creation card; **Blank template** is a quick event with no roster. **Special content** is for admins and CTA roles.",
+  "• **Plan Content** (content-management channel) opens your creation card; **Blank template** is a quick event with no roster. **Schedule CTA** is for admins and CTA roles.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
   "• `/content stats` shows this server's numbers, only to you. `/content history` shows your own attendance.",
   "• `/content help` shows this message.",

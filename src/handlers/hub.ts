@@ -8,11 +8,11 @@ import { canCreateCta } from "../domain/permissions.ts";
 import { openCard } from "./card.ts";
 import { NOT_HERE } from "./create.ts";
 
-export const NOT_CTA = "Special content (CTA) is for admins and members with a CTA role. Ask an admin to add your role in `/content setup`.";
+export const NOT_CTA = "Schedule CTA is for admins and members with a CTA role. Ask an admin to add your role in `/content setup`.";
 export const NO_CTA_CHANNEL = "No CTA channel is set yet. An admin must run `/content setup` with `cta-channel` first.";
 export const NO_EVENT_FORUM = "No event forum is set yet. An admin must run `/content setup` with `event-forum` and `forum-type` first.";
 
-// hub:n and hub:c: the Normal content and Special content (CTA) buttons of the content-management channel (FR-059,
+// hub:n and hub:c: the Plan Content and Schedule CTA buttons of the content-management channel (FR-059,
 // ADR 0036). Both open the creation card, privately, in this channel. CTA is checked here and again at Create.
 export async function handleHub(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;

@@ -29,7 +29,7 @@ export function canManagePresets(actor: Actor, adminRoleIds: string[]): boolean 
   return isAdmin(actor, adminRoleIds);
 }
 
-// FR-059: Special content (CTA) is for the admins and the members who hold one of the CTA roles.
+// FR-059: Schedule CTA is for the admins and the members who hold one of the CTA roles.
 export function canCreateCta(actor: Actor, adminRoleIds: string[], ctaRoleIds: string[]): boolean {
   return isAdmin(actor, adminRoleIds) || actor.roles.some((r) => ctaRoleIds.includes(r));
 }

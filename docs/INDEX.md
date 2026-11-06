@@ -37,6 +37,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0035 Fill preferences, selection mode](decisions/0035-fill-preferences-and-selection-mode.md): fill seated at once or waiting, no reserved seats; host-picked content
 - [0036 Creation hub, blank content](decisions/0036-creation-hub-and-blank-content.md): buttons in content-management, CTA by role, blank type
 - [0037 Forum per type, CTA role options](decisions/0037-forum-per-type-and-cta-role-option.md): no Any forum type, PvX has its own, `cta-role` option
+- [0038 Changelog thread, preset menu, button names](decisions/0038-changelog-thread-preset-menu-button-names.md): thread target, always-on Preset menu, Plan Content and Schedule CTA
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
 - [Release 0.32.0 brief: ZvZ](plan/2026-11-06-zvz-brief.md): the owner's request, limits, open questions and the release checklist, for a new session
 - [Releases 0.29.0 to 0.32.0](plan/2026-11-06-releases-0.29-0.32.md): eleven owner requests, order and branches (FR-055 to FR-062)

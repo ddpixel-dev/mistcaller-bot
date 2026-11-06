@@ -7,6 +7,7 @@ export const COLORS = {
   pvp: 0x2b4db0, // royal blue
   pve: 0xc9a227, // gold
   pvx: 0x6f4fb0, // purple: both
+  changelog: 0xc9a227, // gold, for the changelog card
   cancelled: 0x6b6b6b,
   done: 0x4a4a4a,
 } as const;

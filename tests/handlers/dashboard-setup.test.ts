@@ -30,7 +30,8 @@ function fake(opts: { createFails?: boolean } = {}) {
 }
 const deps = async (rest: Rest): Promise<Deps> => ({ sql: await testSql(), rest, now: () => NOW });
 const FORUM = "300000000000000004";
-const channels = { [CH1]: { id: CH1, type: 0 }, [CH2]: { id: CH2, type: 5 }, [VOICE]: { id: VOICE, type: 2 }, [FORUM]: { id: FORUM, type: 15 } };
+const THREAD = "300000000000000005";
+const channels = { [THREAD]: { id: THREAD, type: 11 }, [CH1]: { id: CH1, type: 0 }, [CH2]: { id: CH2, type: 5 }, [VOICE]: { id: VOICE, type: 2 }, [FORUM]: { id: FORUM, type: 15 } };
 const setup = (options: unknown[] = [], over: { permissions?: string; roles?: string[] } = {}): Interaction => ({
   id: "i", type: 2, application_id: "a", token: "t", guild_id: GUILD, channel_id: "c",
   member: { user: { id: "u1" }, roles: over.roles ?? [], permissions: over.permissions ?? "0" },
@@ -183,4 +184,12 @@ test("cta-role adds one role and remove-cta-role removes one, with no need for t
   assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000009", 8)], admin))).includes("Pick a role of this server"));
   assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000001", 8)], { roles: ["999"] }))).includes("Only an admin"));
   assert.deepEqual(await getCtaRoleIds(d.sql, GUILD), ["200000002"], "a refused call changes nothing");
+});
+
+test("the changelog can go to one existing thread or forum post: it is saved and the reply says so", async () => {
+  const { rest } = fake();
+  const d = await deps(rest);
+  const r = text(await handleSetupCommand(d, setup([opt("changelog-channel", THREAD)], { permissions: "32" })));
+  assert.ok(r.includes("Changelog thread set") && r.includes(`<#${THREAD}>`), r);
+  assert.equal(await getChangelogChannel(d.sql, GUILD), THREAD);
 });

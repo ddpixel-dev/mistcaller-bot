@@ -42,12 +42,13 @@ export type ChangelogPlan =
 
 const REQUIRE_TAG = 1 << 4;
 
-// Where and how a changelog is posted (owner request 2026-11-06): a text or announcement channel gets one message after
-// another; a forum gets one post per release (the first part), with the rest as replies in it. A forum that requires a
+// Where and how a changelog is posted (owner request 2026-11-06): a text or announcement channel, or a thread or forum post,
+// gets one message after another; a forum gets one post per release (the first part), with the rest as replies in it. A forum that requires a
 // tag gets its first tag, because the bot cannot ask which one.
 export function planChangelogPost(channel: ChannelInfo, parts: string[], title: string): ChangelogPlan {
-  if (channel.type === 0 || channel.type === 5) return { kind: "messages", messages: parts };
-  if (channel.type !== 15) throw new Error("that channel cannot take a changelog (use a text, announcement or forum channel)");
+  // A text or announcement channel, or an existing thread or forum post (10, 11, 12): messages one after another.
+  if ([0, 5, 10, 11, 12].includes(channel.type)) return { kind: "messages", messages: parts };
+  if (channel.type !== 15) throw new Error("that channel cannot take a changelog (use a text, announcement or forum channel, or a thread)");
   const required = ((channel.flags ?? 0) & REQUIRE_TAG) !== 0;
   const tags = required ? (channel.available_tags ?? []).slice(0, 1).map((t) => t.id) : [];
   if (required && tags.length === 0) throw new Error("the forum requires a tag but has none");
