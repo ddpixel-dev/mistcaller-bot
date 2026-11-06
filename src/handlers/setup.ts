@@ -9,6 +9,7 @@ import { refreshDashboard } from "../jobs/dashboards.ts";
 import { deleteEventForum, getEventForum, listEventForums, saveEventForum, type EventForum } from "../db/eventForum.ts";
 import { LAUNCHER_NAME, renderLauncher } from "../render/card.ts";
 import { TYPE_LABEL } from "../domain/kinds.ts";
+import { clearChangelogChannel, getChangelogChannel, setChangelogChannel } from "../db/changelog.ts";
 
 const SNOWFLAKE = /^\d{5,25}$/;
 const NOT_ALLOWED = "Only members with Manage Server can change the admin roles.";
@@ -21,7 +22,7 @@ const KINDS: { kind: DashboardKind; label: string; set: string; clear: string; w
 
 // The panel: a role picker with the current admin roles already selected (ADR 0020, owner request 2026-10-08), and the
 // channels now in use (FR-043, FR-044).
-export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = []) {
+export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null) {
   const current = roleIds.length ? roleIds.map((r) => `<@&${r}>`).join(" ") : "none yet";
   const channel = (kind: DashboardKind) => {
     const d = dashboards.find((x) => x.kind === kind);
@@ -36,6 +37,9 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
       "",
       "**Events Calendar** (admins set it with the options of this command)",
       `Calendar channel: ${channel("schedule")}`,
+      "",
+      "**Changelog** (admins set it with `changelog-channel`)",
+      `Changelog channel: ${changelogChannel ? `<#${changelogChannel}>` : "none"}`,
       "",
       "**Event forums** (admins set them with `event-forum`)",
       forums.length ? forums.map((f) => `<#${f.forumId}> · ${f.type ? TYPE_LABEL[f.type] : "Any type"}`).join("\n") : "none",
@@ -125,10 +129,13 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const forumType = subOption(i, "setup", "forum-type");
   const clearForum = subOption(i, "setup", "clear-event-forum");
   const forumGiven = forum !== undefined || clearForum !== undefined || forumType !== undefined;
-  if (given.every((g) => g.channel === undefined && !g.clear) && !forumGiven) {
+  const changelog = subOption(i, "setup", "changelog-channel");
+  const clearChangelog = subOption(i, "setup", "clear-changelog") === true;
+  const changelogGiven = changelog !== undefined || clearChangelog;
+  if (given.every((g) => g.channel === undefined && !g.clear) && !forumGiven && !changelogGiven) {
     if (!hasManageServer(i.member.permissions)) return reply(NOT_ALLOWED);
     const roles = await getAdminRoleIds(deps.sql, i.guild_id);
-    return { type: CHANNEL_MESSAGE, data: { ...setupPanel(roles, await dashboardsOf(deps, i.guild_id), await listEventForums(deps.sql, i.guild_id)), flags: EPHEMERAL } };
+    return { type: CHANNEL_MESSAGE, data: { ...setupPanel(roles, await dashboardsOf(deps, i.guild_id), await listEventForums(deps.sql, i.guild_id), await getChangelogChannel(deps.sql, i.guild_id)), flags: EPHEMERAL } };
   }
   const adminRoles = await getAdminRoleIds(deps.sql, i.guild_id);
   if (!isAdmin({ userId: i.member.user.id, roles: i.member.roles ?? [], permissions: i.member.permissions }, adminRoles)) return reply(NOT_ADMIN);
@@ -139,6 +146,10 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
       return reply(BAD_CHANNEL);
     }
   }
+  if (changelog !== undefined && clearChangelog) return reply("Give a channel or clear it, not both.");
+  if (changelog !== undefined && (typeof changelog !== "string" || !SNOWFLAKE.test(changelog) || ![0, 5].includes(resolved[changelog]?.type ?? -1))) {
+    return reply(BAD_CHANNEL);
+  }
   const forums = (i.data as { resolved?: { channels?: Record<string, { type?: number }> } } | undefined)?.resolved?.channels ?? {};
   const isForum = (v: unknown): v is string => typeof v === "string" && SNOWFLAKE.test(v) && forums[v]?.type === 15;
   if (forum !== undefined && !isForum(forum)) return reply("Pick a forum channel of this server for `event-forum`.");
@@ -148,6 +159,12 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const lines: string[] = [];
   if (isForum(forum)) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType === "pvp" || forumType === "pve" ? forumType : null));
   if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum));
+  if (typeof changelog === "string") {
+    await setChangelogChannel(deps.sql, i.guild_id, changelog);
+    lines.push(`Changelog channel set to <#${changelog}>: each release's changelog is posted there. Give the bot View Channel and Send Messages in it.`);
+  } else if (clearChangelog) {
+    lines.push((await clearChangelogChannel(deps.sql, i.guild_id)) ? "Changelog channel cleared: changelogs are no longer posted here." : "The changelog channel was not set.");
+  }
   for (const g of given) {
     if (g.channel !== undefined) lines.push(await applyChannel(deps, i.guild_id, g.k, g.channel as string));
     else if (g.clear) lines.push(await applyChannel(deps, i.guild_id, g.k, null));
@@ -168,5 +185,5 @@ export async function handleSetupComponent(deps: Deps, i: Interaction): Promise<
   if (ids.includes(i.guild_id)) return reply("@everyone cannot be an admin role. Pick specific roles.");
   if (ids.length > MAX_ADMIN_ROLES) return reply(`Pick at most ${MAX_ADMIN_ROLES} roles.`);
   await setAdminRoles(deps.sql, i.guild_id, ids);
-  return { type: UPDATE_MESSAGE, data: setupPanel(await getAdminRoleIds(deps.sql, i.guild_id), await dashboardsOf(deps, i.guild_id), await listEventForums(deps.sql, i.guild_id)) };
+  return { type: UPDATE_MESSAGE, data: setupPanel(await getAdminRoleIds(deps.sql, i.guild_id), await dashboardsOf(deps, i.guild_id), await listEventForums(deps.sql, i.guild_id), await getChangelogChannel(deps.sql, i.guild_id)) };
 }
