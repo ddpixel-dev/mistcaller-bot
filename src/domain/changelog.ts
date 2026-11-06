@@ -27,3 +27,29 @@ export function splitChangelog(markdown: string, limit = MESSAGE_LIMIT): string[
   parts.push(rest);
   return parts;
 }
+
+// A forum post needs a title (100 characters at most): the changelog's first heading, without markdown.
+export function changelogTitle(markdown: string, version: string): string {
+  const heading = markdown.split("\n").find((l) => /^#{1,3}\s+\S/.test(l));
+  const text = heading ? heading.replace(/^#{1,3}\s+/, "").replace(/[*_`~]/g, "").trim() : `What's new in ${version}`;
+  return Array.from(text).slice(0, 100).join("");
+}
+
+export type ChannelInfo = { type: number; flags?: number; available_tags?: { id: string }[] };
+export type ChangelogPlan =
+  | { kind: "messages"; messages: string[] }
+  | { kind: "forum"; name: string; first: string; replies: string[]; tags: string[] };
+
+const REQUIRE_TAG = 1 << 4;
+
+// Where and how a changelog is posted (owner request 2026-11-06): a text or announcement channel gets one message after
+// another; a forum gets one post per release (the first part), with the rest as replies in it. A forum that requires a
+// tag gets its first tag, because the bot cannot ask which one.
+export function planChangelogPost(channel: ChannelInfo, parts: string[], title: string): ChangelogPlan {
+  if (channel.type === 0 || channel.type === 5) return { kind: "messages", messages: parts };
+  if (channel.type !== 15) throw new Error("that channel cannot take a changelog (use a text, announcement or forum channel)");
+  const required = ((channel.flags ?? 0) & REQUIRE_TAG) !== 0;
+  const tags = required ? (channel.available_tags ?? []).slice(0, 1).map((t) => t.id) : [];
+  if (required && tags.length === 0) throw new Error("the forum requires a tag but has none");
+  return { kind: "forum", name: title, first: parts[0]!, replies: parts.slice(1), tags };
+}

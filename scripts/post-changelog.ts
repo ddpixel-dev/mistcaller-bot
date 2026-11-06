@@ -5,7 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { getSql } from "../src/db/client.ts";
 import { markChangelogPosted, pendingChangelogTargets } from "../src/db/changelog.ts";
-import { changelogFileName, splitChangelog } from "../src/domain/changelog.ts";
+import { changelogFileName, changelogTitle, planChangelogPost, splitChangelog, type ChannelInfo } from "../src/domain/changelog.ts";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -16,10 +16,29 @@ if (!version) {
 }
 const file = new URL(`../${changelogFileName(version)}`, import.meta.url);
 const clean = version.replace(/^v/, "");
-const parts = splitChangelog(await readFile(file, "utf8"));
+const markdown = await readFile(file, "utf8");
+const parts = splitChangelog(markdown);
+const title = changelogTitle(markdown, clean);
 if (parts.length === 0) {
   console.error(`${changelogFileName(version)} is empty`);
   process.exit(1);
+}
+
+const { DISCORD_BOT_TOKEN } = process.env;
+const headers = { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, "Content-Type": "application/json", "User-Agent": "DiscordBot (content-roster-bot, 0.1.0)" };
+const API = "https://discord.com/api/v10";
+const body = (content: string) => JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }); // 4: no link previews
+
+async function call(method: string, path: string, payload?: unknown): Promise<any> {
+  const res = await fetch(`${API}${path}`, { method, headers, ...(payload === undefined ? {} : { body: JSON.stringify(payload) }) });
+  if (!res.ok) throw new Error(`status ${res.status}`);
+  return await res.json().catch(() => ({}));
+}
+
+// The channel's kind decides how it is posted: messages in a text channel, one post in a forum.
+async function channelInfo(channelId: string): Promise<ChannelInfo | null> {
+  if (!DISCORD_BOT_TOKEN) return null;
+  try { return await call("GET", `/channels/${channelId}`); } catch { return null; }
 }
 
 const sql = getSql();
@@ -28,20 +47,25 @@ try {
   console.log(`${changelogFileName(version)}: ${parts.length} message(s), ${targets.length} server(s) waiting`);
   if (dryRun) {
     parts.forEach((p, i) => console.log(`\n----- message ${i + 1}/${parts.length} (${p.length} characters) -----\n${p}`));
-    for (const t of targets) console.log(`\nwould post to channel ${t.channelId} of server ${t.guildId}`);
+    for (const t of targets) {
+      const info = await channelInfo(t.channelId);
+      const how = info?.type === 15 ? `a new forum post "${title}"` : info ? "messages" : "(channel kind unknown: no bot token here)";
+      console.log(`\nwould post to channel ${t.channelId} of server ${t.guildId} as ${how}`);
+    }
     console.log("\ndry run: nothing was posted");
   } else {
-    const { DISCORD_BOT_TOKEN } = process.env;
     if (!DISCORD_BOT_TOKEN) throw new Error("DISCORD_BOT_TOKEN is required");
     for (const t of targets) {
       try {
-        for (const content of parts) {
-          const res = await fetch(`https://discord.com/api/v10/channels/${t.channelId}/messages`, {
-            method: "POST",
-            headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, "Content-Type": "application/json", "User-Agent": "DiscordBot (content-roster-bot, 0.1.0)" },
-            body: JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }), // 4: no link previews
-          });
-          if (!res.ok) throw new Error(`status ${res.status}`);
+        const info = await call("GET", `/channels/${t.channelId}`) as ChannelInfo;
+        const plan = planChangelogPost(info, parts, title);
+        if (plan.kind === "messages") {
+          for (const content of plan.messages) await call("POST", `/channels/${t.channelId}/messages`, JSON.parse(body(content)));
+        } else {
+          const post = await call("POST", `/channels/${t.channelId}/threads`, {
+            name: plan.name, ...(plan.tags.length ? { applied_tags: plan.tags } : {}), message: JSON.parse(body(plan.first)),
+          }) as { id: string };
+          for (const content of plan.replies) await call("POST", `/channels/${post.id}/messages`, JSON.parse(body(content)));
         }
         await markChangelogPosted(sql, t.guildId, clean, new Date());
         console.log(`posted to channel ${t.channelId} of server ${t.guildId}`);
