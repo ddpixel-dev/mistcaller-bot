@@ -45,7 +45,7 @@ export const commands = [
             type: 3, name: "forum-type", description: "With event-forum: the content types it takes (default Any)", required: false,
             choices: [{ name: "Any", value: "any" }, { name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
           },
-          { type: 7, name: "changelog-channel", description: "The channel where each release's changelog is posted", required: false, channel_types: [0, 5] },
+          { type: 7, name: "changelog-channel", description: "Where each release's changelog is posted: a channel, or a forum (one post per release)", required: false, channel_types: [0, 5, 15] },
           { type: 5, name: "clear-changelog", description: "Stop posting changelogs in this server", required: false },
           { type: 7, name: "clear-event-forum", description: "Stop using a forum for events and remove its Create event post", required: false, channel_types: [15] },
         ],
