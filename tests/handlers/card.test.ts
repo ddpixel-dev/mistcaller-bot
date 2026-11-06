@@ -29,7 +29,7 @@ async function setup(o: { failEdit?: boolean; failPost?: boolean; renameFails?: 
     // A thread started from a message has that message's id.
     async startThread(channel, message, name) { calls.push({ op: "startThread", args: [channel, message, name] }); return { id: message }; },
   };
-  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, ${FORUM}, null) on conflict do nothing`;
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, ${FORUM}, 'pvp'), (${GUILD}, ${FORUM}, 'pve'), (${GUILD}, ${FORUM}, 'pvx') on conflict do nothing`;
   const deps: Deps = { sql, rest, now: () => NOW };
   return { sql, deps, d: createDispatch(deps), calls };
 }
@@ -163,7 +163,7 @@ test("with no event forum for the type, Create says so on the card and keeps it"
   await d(press(`cc:type:${id}`, ["pve"]));
   await d(form(`ccd:${id}`, details));
   const r: any = await d(press(`cc:create:${id}`));
-  assert.ok(say(r).includes("No event forum takes PvE content"), say(r));
+  assert.ok(say(r).includes("No event forum is set for PvE content"), say(r));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.ok(await getDraft(sql, id, NOW));
 });
@@ -211,7 +211,7 @@ const resolvedForum = { channels: { [FORUM]: { id: FORUM, type: 15 } } };
 const setupForum = (d: any, type?: string) =>
   d(command("setup", [forumOpt("event-forum", FORUM), ...(type ? [{ name: "forum-type", type: 3, value: type }] : [])], {}, resolvedForum));
 
-test("setup event-forum registers the forum without a launcher post and lists the permissions to set, Pin Messages included", async () => {
+test("setup event-forum registers the forum for one type, the same forum can take more types, and there is no Any", async () => {
   const { d, sql, calls } = await setup();
   await sql`delete from event_forum`;
   const r: any = await setupForum(d, "pvp");
@@ -219,21 +219,40 @@ test("setup event-forum registers the forum without a launcher post and lists th
   assert.ok(r.data.content.includes("Create Posts") && r.data.content.includes("Manage Threads") && r.data.content.includes("Pin Messages"));
   assert.ok(r.data.content.includes("content-management channel"));
   assert.equal(calls.filter((c) => c.op === "createForumPost" || c.op === "editChannel").length, 0, "nothing is posted in the forum");
-  const [row] = await sql`select forum_id, type, launcher_thread_id from event_forum`;
-  assert.deepEqual([row!.forum_id, row!.type, row!.launcher_thread_id], [FORUM, "pvp", null]);
-  await setupForum(d);
-  assert.equal((await sql`select type from event_forum`)[0]!.type, null, "Any by default");
+  assert.deepEqual((await sql`select forum_id, type, launcher_thread_id from event_forum`).map((x) => [x.forum_id, x.type, x.launcher_thread_id]), [[FORUM, "pvp", null]]);
+  assert.ok(((await setupForum(d)) as any).data.content.includes("forum-type"), "the type must be given");
+  const more: any = await setupForum(d, "pvx");
+  assert.ok(more.data.content.includes("PvP, PvX"), more.data.content);
+  assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pvp", "pvx"], "one forum serves PvP and PvX");
+  assert.ok(((await setupForum(d, "any")) as any).data.content.includes("Pick PvP, PvE or PvX"));
+  const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pvx" }], {}, resolvedForum));
+  assert.ok(one.data.content.includes("still serves other types"), one.data.content);
+  assert.deepEqual((await sql`select type from event_forum`).map((x) => x.type), ["pvp"]);
   const cleared: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM)], {}, resolvedForum));
   assert.ok(cleared.data.content.includes("no longer an event forum"));
   assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
 });
 
+test("setting a type again moves it to the new forum; PvX has no fallback to another type's forum", async () => {
+  const { d, sql } = await setup();
+  await sql`delete from event_forum`;
+  await setupForum(d, "pvp");
+  const other = "300000002";
+  await d(command("setup", [forumOpt("event-forum", other), { name: "forum-type", type: 3, value: "pvp" }], {}, { channels: { [other]: { id: other, type: 15 } } }));
+  assert.deepEqual((await sql`select forum_id, type from event_forum`).map((x) => [x.forum_id, x.type]), [[other, "pvp"]]);
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvx"]));
+  await d(form(`ccd:${id}`, details));
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for PvX content"));
+});
+
 test("setup event-forum is for admins and forums only; an old launcher post is removed when the forum is set again", async () => {
   const { d, sql, calls } = await setup();
-  assert.ok(((await d(command("setup", [forumOpt("event-forum", FORUM)], { member: { user: { id: OTHER }, roles: [] } }, resolvedForum))) as any).data.content.includes("Only an admin"));
+  assert.ok(((await d(command("setup", [forumOpt("event-forum", FORUM), { name: "forum-type", type: 3, value: "pvp" }], { member: { user: { id: OTHER }, roles: [] } }, resolvedForum))) as any).data.content.includes("Only an admin"));
   assert.ok(((await d(command("setup", [forumOpt("event-forum", "c1")], {}, { channels: { c1: { type: 0 } } }))) as any).data.content.includes("forum channel"));
-  await sql`update event_forum set launcher_thread_id = 'old-launcher'`;
-  await setupForum(d);
+  await sql`delete from event_forum`;
+  await sql`insert into event_forum (guild_id, type, forum_id, launcher_thread_id) values (${GUILD}, 'pvp', ${FORUM}, 'old-launcher')`;
+  await setupForum(d, "pvp");
   assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "old-launcher"));
   assert.equal((await sql`select launcher_thread_id from event_forum`)[0]!.launcher_thread_id, null);
 });

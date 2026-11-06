@@ -6,7 +6,7 @@ import { hasManageServer, isAdmin } from "../domain/permissions.ts";
 import { subOption } from "../discord/modal.ts";
 import { deleteDashboard, getDashboard, setDashboardChannel, type Dashboard, type DashboardKind } from "../db/dashboard.ts";
 import { refreshDashboard } from "../jobs/dashboards.ts";
-import { deleteEventForum, getEventForum, listEventForums, saveEventForum, type EventForum } from "../db/eventForum.ts";
+import { deleteEventForum, forumsOf, getEventForum, listEventForums, saveEventForum, type EventForum, type ForumType } from "../db/eventForum.ts";
 import { TYPE_LABEL } from "../domain/kinds.ts";
 import { clearChangelogChannel, getChangelogChannel, setChangelogChannel } from "../db/changelog.ts";
 import { MAX_CTA_ROLES, clearCtaChannel, getCtaChannel, getCtaRoleIds, setCtaChannel, setCtaRoles } from "../db/cta.ts";
@@ -23,6 +23,13 @@ const KINDS: { kind: DashboardKind; label: string; set: string; clear: string; w
 // The panel: a role picker with the current admin roles already selected (ADR 0020, owner request 2026-10-08), and the
 // channels now in use (FR-043, FR-044).
 export type CtaSettings = { channel: string | null; roles: string[] };
+
+// One line per forum, naming each type it serves (ADR 0037): "#pvp-events · PvP, PvX".
+export function forumLines(forums: EventForum[]): string[] {
+  const byForum = new Map<string, ForumType[]>();
+  for (const f of forums) byForum.set(f.forumId, [...(byForum.get(f.forumId) ?? []), f.type]);
+  return [...byForum].map(([id, types]) => `<#${id}> · ${types.map((t) => TYPE_LABEL[t]).join(", ")}`);
+}
 
 export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null, cta: CtaSettings = { channel: null, roles: [] }) {
   const current = roleIds.length ? roleIds.map((r) => `<@&${r}>`).join(" ") : "none yet";
@@ -44,7 +51,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
       `Changelog channel: ${changelogChannel ? `<#${changelogChannel}>` : "none"}`,
       "",
       "**Event forums** (admins set them with `event-forum`; normal content is posted in the forum of its type)",
-      forums.length ? forums.map((f) => `<#${f.forumId}> · ${f.type ? TYPE_LABEL[f.type] : "Any type"}`).join("\n") : "none",
+      forums.length ? forumLines(forums).join("\n") : "none",
       "",
       "**CTA (call to arms)** (admins set the text channel with `cta-channel`)",
       `CTA channel: ${cta.channel ? `<#${cta.channel}>` : "none"}`,
@@ -110,22 +117,40 @@ export const FORUM_PERMISSIONS = [
 
 // Register an event forum (FR-053, changed 2026-11-06 by ADR 0036): normal content is posted in the forum of its type. There
 // is no launcher post any more; members create content with the buttons in the content-management channel.
-async function applyEventForum(deps: Deps, guildId: string, forumId: string, type: "pvp" | "pve" | null): Promise<string> {
-  const old = await getEventForum(deps.sql, guildId, forumId);
-  if (old?.launcherThreadId) await deps.rest.deleteChannel?.(old.launcherThreadId).catch(() => {});
+async function applyEventForum(deps: Deps, guildId: string, forumId: string, type: ForumType): Promise<string> {
+  for (const old of await forumsOf(deps.sql, guildId, forumId)) {
+    if (old.launcherThreadId) await deps.rest.deleteChannel?.(old.launcherThreadId).catch(() => {});
+  }
   await saveEventForum(deps.sql, { guildId, forumId, type, launcherThreadId: null });
+  const types = (await forumsOf(deps.sql, guildId, forumId)).map((f) => TYPE_LABEL[f.type]).join(", ");
   return [
-    `<#${forumId}> is an event forum (${type ? TYPE_LABEL[type] : "any type"}): ${type ? `${TYPE_LABEL[type]} and PvX` : "all"} content created with the buttons in the content-management channel is posted there.`,
+    `<#${forumId}> is now the event forum for ${TYPE_LABEL[type]} content (it serves: ${types}). Content of that type created with the buttons in the content-management channel is posted there. Run the command again with another \`forum-type\` to use the same forum for more types.`,
     FORUM_PERMISSIONS,
   ].join("\n");
 }
 
-async function clearEventForum(deps: Deps, guildId: string, forumId: string): Promise<string> {
-  const old = await getEventForum(deps.sql, guildId, forumId);
-  if (!old) return `<#${forumId}> was not an event forum.`;
-  if (old.launcherThreadId) await deps.rest.deleteChannel?.(old.launcherThreadId).catch(() => {});
-  await deleteEventForum(deps.sql, guildId, forumId);
-  return `<#${forumId}> is no longer an event forum. Give members Create Posts again if they should post there.`;
+// Without a type the forum stops serving every type; with one, only that type.
+// Adds and removes one CTA role at a time (a command option holds one role); the panel's picker sets the whole list.
+async function applyCtaRoles(deps: Deps, guildId: string, add: unknown, remove: unknown): Promise<string> {
+  const now = await getCtaRoleIds(deps.sql, guildId);
+  const next = new Set(now);
+  if (typeof add === "string") next.add(add);
+  if (typeof remove === "string") next.delete(remove);
+  if (next.size > MAX_CTA_ROLES) return `A server can have at most ${MAX_CTA_ROLES} CTA roles. Remove one first.`;
+  await setCtaRoles(deps.sql, guildId, [...next]);
+  const list = next.size ? [...next].map((r) => `<@&${r}>`).join(" ") : "none (only admins)";
+  return `CTA roles now: ${list}. Admins can always create a CTA.`;
+}
+
+async function clearEventForum(deps: Deps, guildId: string, forumId: string, type: ForumType | null): Promise<string> {
+  const old = (await forumsOf(deps.sql, guildId, forumId)).filter((f) => !type || f.type === type);
+  if (old.length === 0) return type ? `<#${forumId}> was not the event forum for ${TYPE_LABEL[type]}.` : `<#${forumId}> was not an event forum.`;
+  for (const f of old) if (f.launcherThreadId) await deps.rest.deleteChannel?.(f.launcherThreadId).catch(() => {});
+  await deleteEventForum(deps.sql, guildId, forumId, type);
+  const left = await getEventForum(deps.sql, guildId, forumId);
+  return left
+    ? `<#${forumId}> no longer takes ${type ? TYPE_LABEL[type] : "those"} content; it still serves other types.`
+    : `<#${forumId}> is no longer an event forum. Give members Create Posts again if they should post there.`;
 }
 
 export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
@@ -135,12 +160,14 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const forumType = subOption(i, "setup", "forum-type");
   const clearForum = subOption(i, "setup", "clear-event-forum");
   const forumGiven = forum !== undefined || clearForum !== undefined || forumType !== undefined;
+  const ctaRole = subOption(i, "setup", "cta-role");
+  const removeCtaRole = subOption(i, "setup", "remove-cta-role");
   const changelog = subOption(i, "setup", "changelog-channel");
   const clearChangelog = subOption(i, "setup", "clear-changelog") === true;
   const changelogGiven = changelog !== undefined || clearChangelog;
   const ctaChannel = subOption(i, "setup", "cta-channel");
   const clearCta = subOption(i, "setup", "clear-cta") === true;
-  const ctaGiven = ctaChannel !== undefined || clearCta;
+  const ctaGiven = ctaChannel !== undefined || clearCta || ctaRole !== undefined || removeCtaRole !== undefined;
   if (given.every((g) => g.channel === undefined && !g.clear) && !forumGiven && !changelogGiven && !ctaGiven) {
     if (!hasManageServer(i.member.permissions)) return reply(NOT_ALLOWED);
     return { type: CHANNEL_MESSAGE, data: { ...(await panelOf(deps, i.guild_id)), flags: EPHEMERAL } };
@@ -162,8 +189,15 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const isForum = (v: unknown): v is string => typeof v === "string" && SNOWFLAKE.test(v) && forums[v]?.type === 15;
   if (forum !== undefined && !isForum(forum)) return reply("Pick a forum channel of this server for `event-forum`.");
   if (clearForum !== undefined && !isForum(clearForum)) return reply("Pick a forum channel of this server for `clear-event-forum`.");
-  if (forumType !== undefined && forum === undefined) return reply("`forum-type` goes with `event-forum`.");
-  if (forumType !== undefined && forumType !== "any" && forumType !== "pvp" && forumType !== "pve") return reply("Pick Any, PvP or PvE.");
+  if (forumType !== undefined && forum === undefined && clearForum === undefined) return reply("`forum-type` goes with `event-forum` or `clear-event-forum`.");
+  if (forumType !== undefined && forumType !== "pvp" && forumType !== "pve" && forumType !== "pvx") return reply("Pick PvP, PvE or PvX.");
+  if (forum !== undefined && forumType === undefined) return reply("Pick the `forum-type` this forum is for: PvP, PvE or PvX. Run the command again to use the same forum for more types.");
+  if (forum !== undefined && clearForum !== undefined) return reply("Set a forum or clear one, not both.");
+  const resolvedRoles = (i.data as { resolved?: { roles?: Record<string, unknown> } } | undefined)?.resolved?.roles ?? {};
+  for (const [name, role] of [["cta-role", ctaRole], ["remove-cta-role", removeCtaRole]] as const) {
+    if (role !== undefined && (typeof role !== "string" || !SNOWFLAKE.test(role) || !(role in resolvedRoles))) return reply(`Pick a role of this server for \`${name}\`.`);
+    if (role === i.guild_id) return reply("@everyone cannot be a CTA role. Pick a specific role.");
+  }
   if (ctaChannel !== undefined && clearCta) return reply("Give a channel or clear it, not both.");
   if (ctaChannel !== undefined && (typeof ctaChannel !== "string" || !SNOWFLAKE.test(ctaChannel) || ![0, 5].includes(resolved[ctaChannel]?.type ?? -1))) {
     return reply("Pick a text or announcement channel of this server for `cta-channel`.");
@@ -171,12 +205,13 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const lines: string[] = [];
   if (typeof ctaChannel === "string") {
     await setCtaChannel(deps.sql, i.guild_id, ctaChannel);
-    lines.push(`<#${ctaChannel}> is the CTA channel: each Special content (CTA) is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Pick the roles that may create CTAs with \`/content setup\`.`);
+    lines.push(`<#${ctaChannel}> is the CTA channel: each Special content (CTA) is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Choose who may create CTAs with \`cta-role\`.`);
   } else if (clearCta) {
     lines.push((await clearCtaChannel(deps.sql, i.guild_id)) ? "CTA channel cleared: Special content (CTA) cannot be created until you set one." : "No CTA channel was set.");
   }
-  if (isForum(forum)) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType === "pvp" || forumType === "pve" ? forumType : null));
-  if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum));
+  if (typeof ctaRole === "string" || typeof removeCtaRole === "string") lines.push(await applyCtaRoles(deps, i.guild_id, ctaRole, removeCtaRole));
+  if (isForum(forum) && (forumType === "pvp" || forumType === "pve" || forumType === "pvx")) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType));
+  if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum, forumType === "pvp" || forumType === "pve" || forumType === "pvx" ? forumType : null));
   if (typeof changelog === "string") {
     await setChangelogChannel(deps.sql, i.guild_id, changelog);
     const forum = resolved[changelog]?.type === 15;

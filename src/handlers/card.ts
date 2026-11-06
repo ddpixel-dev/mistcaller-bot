@@ -23,7 +23,7 @@ import { canCreateCta } from "../domain/permissions.ts";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "This card expired or is not yours. Press **Normal content** or **Special content** in the content-management channel again.";
 
-type Opened = { targetForumId: string | null; forumType: "pvp" | "pve" | null; title: string | null; buildRef?: string | null; cta?: boolean };
+type Opened = { targetForumId: string | null; forumType: ContentType | null; title: string | null; buildRef?: string | null; cta?: boolean };
 
 // Open the creation card (FR-054): from the Normal content or Special content (CTA) button of the content-management channel.
 export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<InteractionResponse> {
@@ -208,7 +208,7 @@ async function destinationOf(deps: Deps, d: StoredDraft, type: ContentType): Pro
     return channel ? { ok: true, place: { channelId: channel } } : { ok: false, problem: "No CTA channel is set. Ask an admin to run `/content setup` with `cta-channel`." };
   }
   const forum = pickEventForum(await listEventForums(deps.sql, d.guildId), type);
-  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum takes ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\`.` };
+  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum is set for ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\` and \`forum-type\` ${TYPE_LABEL[type]}.` };
 }
 
 // A CTA is checked again at Create: the roles may have changed since the card was opened.

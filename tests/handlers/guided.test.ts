@@ -22,7 +22,7 @@ after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
-  await sql`insert into event_forum (guild_id, forum_id, type) values ('g1', 'fp', null) on conflict do nothing`;
+  await sql`insert into event_forum (guild_id, forum_id, type) values ('g1', 'fp', 'pvp'), ('g1', 'fp', 'pve'), ('g1', 'fp', 'pvx') on conflict do nothing`;
   const deps: Deps = { sql, rest, now: () => NOW };
   return { sql, deps, d: createDispatch(deps) };
 }

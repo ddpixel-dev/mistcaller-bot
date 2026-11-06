@@ -67,5 +67,5 @@ test("the command is registered and the statistics channel options are gone", ()
   const sub = (commands[0] as any).options as { name: string; options?: { name: string }[] }[];
   assert.ok(sub.some((o) => o.name === "stats"));
   const setupOptions = sub.find((o) => o.name === "setup")!.options!.map((o) => o.name);
-  assert.deepEqual(setupOptions, ["calendar-channel", "clear-calendar", "event-forum", "forum-type", "changelog-channel", "clear-changelog", "cta-channel", "clear-cta", "clear-event-forum"]);
+  assert.deepEqual(setupOptions, ["calendar-channel", "clear-calendar", "event-forum", "forum-type", "changelog-channel", "clear-changelog", "cta-channel", "cta-role", "remove-cta-role", "clear-cta", "clear-event-forum"]);
 });
