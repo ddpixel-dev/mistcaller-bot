@@ -1,3 +1,4 @@
+import { describeFill } from "../domain/fillmatch.ts";
 import { pingTargets } from "./ping.ts";
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
@@ -14,6 +15,7 @@ export type NewContent = {
   startsAt: Date;
   tier: string;
   hasLoot: boolean;
+  selection?: boolean; // the host picks the party (FR-058)
   createdBy: string;
   slots: SlotDef[];
   buildRef?: string | null;
@@ -58,10 +60,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).
@@ -90,7 +92,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const [slots, voteRows, waiting, fills] = await Promise.all([
+  const [slots, voteRows, waiting, fills, applied] = await Promise.all([
     sql`
       select s.id, s.position, s.role, s.weapon, s.duty, su.user_id, su.chosen_weapon
       from slot s
@@ -99,7 +101,8 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       order by s.position`,
     sql`select choice from vote where content_id = ${contentId}`,
     sql`select user_id, wait_role from signup where content_id = ${contentId} and status = 'waitlist' order by joined_at, user_id`,
-    sql`select user_id from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
+    sql`select user_id, fill_roles, fill_slots from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
+    sql`select user_id, fill_roles, fill_slots from signup where content_id = ${contentId} and status = 'applied' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const voteClosed = !isVoteOpen(c.starts_at, now);
@@ -125,7 +128,17 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       userId: s.user_id ?? null,
       chosenWeapon: s.chosen_weapon ?? null,
     })),
+    selection: c.selection === true,
+    applicants: applied.map((f) => {
+      const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
+      return { userId: f.user_id as string, wants: describeFill({ any: roles.length === 0 && slotIds.length === 0, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position) };
+    }),
     fills: fills.map((f) => f.user_id as string),
+    fillWants: Object.fromEntries(fills.map((f) => {
+      const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
+      const any = roles.length === 0 && slotIds.length === 0;
+      return [f.user_id as string, describeFill({ any, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position)];
+    })),
     buildRef: c.build_channel_id ?? null,
     pingLeft: (await pingTargets(sql, contentId, c.created_by ?? null)).length,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),

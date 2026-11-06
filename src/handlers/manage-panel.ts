@@ -35,7 +35,7 @@ function panel(view: RosterView, status: string | null = null) {
         components: [
           button("Edit", "✏️", `mg:e:${id}`, 1),
           // A green button (owner request 2026-10-24); the owner chose the ✍️ icon.
-          button("Add player", "✍️", `fa:${id}`, 3),
+          view.selection ? button(`Review applicants${view.applicants?.length ? ` (${view.applicants.length})` : ""}`, "📨", `fa:${id}`, 3) : button("Add player", "✍️", `fa:${id}`, 3),
           button("Remove player", "👢", `rm:${id}`), // a kick (owner request 2026-10-24)
           button("Set duty", "📯", `dt:${id}`),
           // Only while a position has no weapon (ADR 0029).
@@ -77,6 +77,16 @@ function editPanel(view: RosterView, note: string | null) {
           options: [
             { label: "Loot vote on", value: "1", default: view.hasLoot, emoji: { name: "💰" } },
             { label: "Loot vote off", value: "0", default: !view.hasLoot },
+          ],
+        }],
+      },
+      {
+        type: 1,
+        components: [{
+          type: 3, custom_id: `ed:s:${id}`, placeholder: "Sign-up",
+          options: [
+            { label: "Open sign-up", value: "0", default: !view.selection },
+            { label: "Selection (you pick the party)", value: "1", default: !!view.selection, emoji: { name: "🎯" } },
           ],
         }],
       },
@@ -170,6 +180,11 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
   } else if (parts[1] === "l" && (picked === "1" || picked === "0")) {
     if ((await updateContentSettings(deps.sql, id, { hasLoot: picked === "1" })) !== "ok") return reply(NOT_OPEN);
     note = `✅ Loot vote ${picked === "1" ? "on" : "off"}.`;
+  } else if (parts[1] === "s" && (picked === "1" || picked === "0")) {
+    const r = await updateContentSettings(deps.sql, id, { selection: picked === "1" });
+    if (r === "unavailable") return reply(NOT_OPEN);
+    if (r === "has_applicants") return reply(`${view.applicants?.length ?? "Some"} player(s) have applied. Accept or decline them first (Manage → Review applicants), then switch to open sign-up.`);
+    note = picked === "1" ? "✅ Selection on: players apply and you pick the party." : "✅ Open sign-up: players take their own position.";
   } else {
     return reply(INVALID);
   }

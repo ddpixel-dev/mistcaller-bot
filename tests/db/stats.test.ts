@@ -1,3 +1,4 @@
+import { WAITING } from "../helpers/fills.ts";
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
@@ -62,7 +63,7 @@ test("participants are distinct players on non-cancelled rosters; sign-ups count
   const c = await make({ threadId: "c", startsAt: new Date(NOW.getTime() + DAY) });
   await seat(a, 0, "p1"); await seat(a, 1, "p2");
   await seat(b, 0, "p1");
-  await joinFill(sql, { contentId: b, userId: "p3", guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: b, userId: "p3", guildId: "g1", now: NOW, pref: WAITING });
   await seat(c, 0, "p9");
   await sql`update content set status = 'cancelled' where id = ${c}`;
   await sql`insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role) values ('g1', ${a}, 'w1', null, 'waitlist', 'Tank')`;

@@ -281,9 +281,9 @@ test("a menu to join the waitlist lists only the roles with no open position", (
   ], waitlist: [{ userId: "9", role: "DPS" }] });
   const menu = byId(mixed, "wait:")[0]!;
   assert.equal(menu.custom_id, "wait:c1");
-  assert.deepEqual(menu.options.map((o: any) => o.value), ["Tank", "DPS"]);
-  assert.deepEqual(menu.options.map((o: any) => o.description), ["0 waiting", "1 waiting"]);
-  assert.ok(menu.options[0].label.startsWith("Tank (all taken)"));
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"], "Fill comes first (FR-057)");
+  assert.deepEqual(menu.options.slice(1).map((o: any) => o.description), ["0 waiting", "1 waiting"]);
+  assert.ok(menu.options[1].label.startsWith("Tank (all taken)"));
   assert.equal(byId(view({ slots: slots(4, 2) }), "wait:").length, 0);
   assert.equal(byId(view({ slots: slots(4, 4), startsAt: new Date("2020-01-01T00:00:00Z") }), "wait:").length, 1, "started but open");
   for (const over of [{ status: "locked" }, { status: "cancelled" }, { status: "done" }] as const) {
@@ -368,7 +368,7 @@ test("fills are listed under the rows; Leave and Ping count a fill; there is no 
   const none = view({ slots: slots(3, 0) });
   assert.ok(!raw(none).includes("🔁"));
   const v = view({ slots: slots(3, 0), fills: ["111111111111111111", "222222222222222222"] });
-  assert.ok(raw(v).includes("🔁 **Fill (2):** <@111111111111111111> · <@222222222222222222>"));
+  assert.ok(raw(v).includes("🔁 **Fill (2):** <@111111111111111111> (Any) · <@222222222222222222> (Any)"));
   assert.equal(byId(v, "fa:").length, 0, "Sign up player lives in the Manage panel (ADR 0028)");
   assert.equal(byId(v, "leave:")[0]!.disabled, false, "Leave is enabled by a fill alone");
   assert.equal(byId(v, "ping:")[0]!.disabled, false, "Ping is enabled by a fill alone");
@@ -409,7 +409,7 @@ test("a role-only slot reads Player's choice, then the holder's own weapon with 
   assert.ok(t.includes("3. 💚 Healer - Player's choice - <@222222222222222222>"));
   assert.ok(t.includes("4. ⚔️ DPS - Player's choice - Open - 📯 Caller"));
   const menu = byId(v, "join:")[0]!;
-  assert.deepEqual(menu.options.map((o: any) => o.label), ["Fill (play any position)", "1. Tank", "4. DPS - Caller"]);
+  assert.deepEqual(menu.options.map((o: any) => o.label), ["Fill (choose what you can play)", "1. Tank", "4. DPS - Caller"]);
   assert.deepEqual(menu.options[1].emoji, { name: "🛡️" });
   assert.deepEqual(discordProblems(msg(v)), []);
 });
@@ -439,28 +439,30 @@ test("a build reference that points at a message shows as a link, not a channel 
   assert.ok(!t.includes("<#123456789012345678/"), t);
 });
 
-// ---- FR-040: fills hold seats ----
+// ---- FR-057: no reserved seats ----
 
-test("the party count is seated players plus reserved fills, and the bar follows it", () => {
+test("the party count is the seated players; a waiting fill holds no seat", () => {
   const withFill = view({ slots: slots(10, 7), fills: ["9001"] });
-  assert.ok(txt(withFill).includes("Party (8/10)"), txt(withFill));
+  assert.ok(txt(withFill).includes("Party (7/10)"), txt(withFill));
   const many = view({ slots: slots(10, 7), fills: ["9001", "9002", "9003", "9004", "9005"] });
-  assert.ok(txt(many).includes("Party (10/10)"), "standby fills hold no seat, so the party never exceeds the positions");
-  assert.ok(txt(view({ slots: slots(10, 7) })).includes("Party (7/10)"));
+  assert.ok(txt(many).includes("Party (7/10)"));
 });
 
-test("the join menu closes when every free position is held for a fill; the waitlist menu then offers every role", () => {
+test("the join menu lists every open position whatever the fills; the waitlist menu offers Fill first, then the full roles", () => {
   const two = [...slots(2, 1, "Tank", "Mace"), ...slots(2, 1, "DPS", "Bow").map((s, n) => ({ ...s, id: `d${n}`, position: n + 3, userId: n === 0 ? "7" : null }))];
-  const open = view({ slots: two, fills: [] });
-  assert.equal(byId(open, "join:").length, 1);
-  const held = view({ slots: two, fills: ["9001", "9002"] }); // 2 open positions, 2 fills: both held
-  assert.equal(byId(held, "join:").length, 0, "no menu: nothing is left to pick");
-  const wait = byId(held, "wait:")[0]!;
-  assert.deepEqual(wait.options.map((o: any) => o.value), ["Tank", "DPS"], "no Fill on the waitlist menu (ADR 0028); a role with a position that is held can be waited for");
-  const spare = view({ slots: two, fills: ["9001"] });
-  assert.equal(byId(spare, "join:").length, 1, "2 open positions, 1 fill: one can still be picked");
-  assert.deepEqual(byId(spare, "wait:").length, 0);
-  assert.deepEqual(discordProblems(msg(held)), []);
+  const waitingFills = view({ slots: two, fills: ["9001", "9002"] });
+  assert.equal(byId(waitingFills, "join:").length, 1, "nothing is held back for a fill");
+  assert.deepEqual(byId(waitingFills, "wait:").length, 0, "every role still has an open position, so no waitlist menu");
+  const full = view({ slots: [...slots(2, 2, "Tank", "Mace"), ...slots(2, 2, "DPS", "Bow").map((s, n) => ({ ...s, id: `d${n}`, position: n + 3 }))] });
+  assert.equal(byId(full, "join:").length, 0);
+  const wait = byId(full, "wait:")[0]!;
+  assert.deepEqual(wait.options.map((o: any) => o.value), ["~fill", "Tank", "DPS"]);
+  assert.deepEqual(discordProblems(msg(full)), []);
+});
+
+test("a waiting fill is listed with what they asked for", () => {
+  const v = view({ slots: slots(3, 1), fills: ["9001", "9002"], fillWants: { "9001": "Healer, #7", "9002": "Any" } });
+  assert.ok(raw(v).includes("🔁 **Fill (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
 });
 
 // ---- the party strip was removed (ADR 0029): each row already shows its weapon icon ----
@@ -490,4 +492,22 @@ test("role icons: DTank has its own brick, Tank its shield, a Scout role the tel
   assert.equal(roleIcon("Tank"), "🛡️");
   assert.equal(roleIcon("Scout"), "🔭");
   assert.equal(roleIcon("Bow"), "🏹");
+});
+
+// ---- FR-058: selection mode ----
+
+test("a selection event says so in the post, lists the applicants with what they asked for, and has no waitlist menu", () => {
+  const v = view({ slots: slots(3, 3), selection: true, applicants: [{ userId: "9001", wants: "Healer, #7" }, { userId: "9002", wants: "Any" }] });
+  assert.ok(raw(v).includes("🎯 **Selection event:** signing up is an application. The host picks the party."));
+  assert.ok(raw(v).includes("📨 **Applicants (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
+  assert.equal(byId(v, "wait:").length, 0, "nobody is seated automatically, so there is nothing to wait for");
+  assert.equal(byId(v, "leave:")[0]!.disabled, false, "an applicant can withdraw");
+  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Selection event"));
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("in a selection event the join menu is for applying", () => {
+  const v = view({ slots: slots(3, 0), selection: true });
+  assert.ok(byId(v, "join:")[0]!.placeholder.startsWith("Apply for a position"));
+  assert.ok(byId(view({ slots: slots(3, 0) }), "join:")[0]!.placeholder.startsWith("Pick an open position"));
 });

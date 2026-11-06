@@ -159,7 +159,7 @@ test("Edit opens a private panel: the category and loot vote apply at once, Edit
   assert.equal(p.data.flags, 64);
   assert.deepEqual(discordProblems({ ...p.data, flags: 0 }), []);
   const ids = flatComponents(p.data).map((c) => c.custom_id).filter(Boolean);
-  assert.deepEqual(ids, [`ed:k:${id}`, `ed:l:${id}`, `mg:f:${id}`, `ed:b:${id}`]);
+  assert.deepEqual(ids, [`ed:k:${id}`, `ed:l:${id}`, `ed:s:${id}`, `mg:f:${id}`, `ed:b:${id}`]);
   const kinds = flatComponents(p.data).find((c) => c.custom_id === `ed:k:${id}`)!;
   assert.ok(kinds.options.some((o: any) => o.value === "zvz") && !kinds.options.some((o: any) => o.value === "world-boss"), "the type's own categories");
 
