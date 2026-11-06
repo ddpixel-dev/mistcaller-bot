@@ -177,9 +177,9 @@ test("forms opened before 0.23.0 still carry a category and build marker, and ar
 test("PvX has every PvP and PvE category once, sorted, and resolveKind accepts any of them", () => {
   const ids = kindsOf("pvx").map((k) => k.id);
   assert.equal(new Set(ids).size, ids.length);
-  // Every category once: Other, Hellgate and Ancient Lands are in both lists, and Training and Skirmish are left out to fit the 25-option menu.
-  assert.equal(ids.length, KINDS.filter((k) => k.type === "pvp").length + KINDS.filter((k) => k.type === "pve").length - 3 - 2);
-  assert.ok(!ids.includes("training") && !ids.includes("skirmish"));
+  // Every category once: Other, Hellgate and Ancient Lands are in both lists, and Training is left out to fit the 25-option menu.
+  assert.equal(ids.length, KINDS.filter((k) => k.type === "pvp").length + KINDS.filter((k) => k.type === "pve").length - 3 - 1);
+  assert.ok(!ids.includes("training"));
   assert.ok(ids.includes("zvz") && ids.includes("group-dungeon"), "sorted alphabetically since 0.29.1");
   assert.equal(ids.at(-1), "other");
   assert.ok(kindsOf("pvx").length <= 25);

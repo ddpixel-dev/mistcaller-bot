@@ -33,7 +33,6 @@ export const KINDS: KindDef[] = [
   { id: "dragon-sanctuary", label: "Dragon sanctuary", type: "pve", color: 0xc4702a, icon: "🐲" },
   { id: "hellgate", label: "Hellgate", type: "pve", color: 0xa8402a, icon: "🔥" },
   { id: "depths", label: "Depths", type: "pve", color: 0x7b6a3a, icon: "⛏️" },
-  { id: "avalonian-raid", label: "Avalonian raid", type: "pve", color: 0xa9830f, icon: "⚔️" },
   { id: "crystal-creatures", label: "Crystal creatures", type: "pve", color: 0xcfa83a, icon: "🔮" },
   { id: "ancient-lands", label: "Ancient Lands", type: "pve", color: 0xbf9b30, icon: "🗿" },
   { id: "ava-gold", label: "Ava Gold", type: "pve", color: 0xe6b422, icon: "💰" },
@@ -49,14 +48,14 @@ const LEGACY_KINDS: KindDef[] = [
   { id: "corrupted-dungeon", label: "Corrupted dungeon", type: "pve", color: 0x9c5a1a, icon: "💀" },
   { id: "fame-farming", label: "Fame farming", type: "pve", color: 0xe0b84a, icon: "🌾" },
   { id: "gold-chest", label: "Avalonian gold chest", type: "pve", color: 0xdaa520, icon: "💰" },
+  { id: "avalonian-raid", label: "Avalonian raid", type: "pve", color: 0xa9830f, icon: "⚔️" }, // retired 2026-11-06
 ];
 
 // PvX holds every PvP and PvE category (owner decision 2026-10-08), each once.
 const PVX_COLOR = 0x6f4fb0;
-// A menu holds 25 options, and the PvP and PvE lists together are 27 once a shared id is counted once, so PvX leaves
-// out Training and Skirmish (practice and small skirmishes, not mixed content). Content already saved as PvX with one of
-// them still shows its label (kindDef).
-const PVX_LEFT_OUT = new Set(["training", "skirmish"]);
+// A menu holds 25 options, and the PvP and PvE lists together are 26 once a shared id is counted once, so PvX leaves out
+// Training (practice, not mixed content). Content already saved as PvX Training still shows its label (kindDef).
+const PVX_LEFT_OUT = new Set(["training"]);
 // Alphabetical by label, Other last (owner request 2026-11-06), in every list including PvX.
 const alphabetical = (list: KindDef[]): KindDef[] =>
   [...list.filter((k) => k.id !== DEFAULT_KIND).sort((a, b) => a.label.localeCompare(b.label, "en")), ...list.filter((k) => k.id === DEFAULT_KIND)];

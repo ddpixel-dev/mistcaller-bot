@@ -131,9 +131,14 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     selection: c.selection === true,
     applicants: applied.map((f) => {
       const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
-      return { userId: f.user_id as string, wants: describeFill({ any: roles.length === 0 && slotIds.length === 0, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position) };
+      const pref = { any: roles.length === 0 && slotIds.length === 0, roles, slotIds };
+      return { userId: f.user_id as string, wants: describeFill(pref, (id) => slots.find((x) => x.id === id)?.position), pref };
     }),
     fills: fills.map((f) => f.user_id as string),
+    fillPrefs: Object.fromEntries(fills.map((f) => {
+      const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
+      return [f.user_id as string, { any: roles.length === 0 && slotIds.length === 0, roles, slotIds }];
+    })),
     fillWants: Object.fromEntries(fills.map((f) => {
       const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
       const any = roles.length === 0 && slotIds.length === 0;

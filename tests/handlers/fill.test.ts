@@ -47,7 +47,7 @@ const click = (customId: string, user: string, values?: unknown[], over: Partial
 const text = (r: any) => String(r.data.content ?? "");
 const rosterText = (body: any) => plain(textOf(body));
 
-test("choosing Fill opens a private panel with Any, the roles and the positions", async () => {
+test("choosing Fill opens a private panel with Any and the roles, and no single positions", async () => {
   const { d, id, slots } = await setup();
   const r: any = await d(click(`join:${id}`, A, ["fill"]));
   assert.equal(r.type, 4);
@@ -55,9 +55,8 @@ test("choosing Fill opens a private panel with Any, the roles and the positions"
   const menu = flatComponents(r.data).find((c) => c.custom_id === `fp:${id}`)!;
   assert.equal(menu.min_values, 1);
   assert.equal(menu.max_values, menu.options.length);
-  assert.deepEqual(menu.options.slice(0, 4).map((o: any) => o.value), ["any", "r:Tank", "r:Healer", "r:DPS"]);
-  assert.ok(menu.options.some((o: any) => o.value === `s:${slots[1]}` && o.label === "2. Healer"));
-  assert.ok(menu.options.length <= 25);
+  assert.deepEqual(menu.options.map((o: any) => o.value), ["any", "r:Tank", "r:Healer", "r:DPS"]);
+  assert.ok(!menu.options.some((o: any) => String(o.value).startsWith("s:")), "owner request 2026-11-06");
   assert.deepEqual(discordProblems({ ...r.data, flags: 0 }), []);
   assert.equal((await getRosterView(await testSql(), id, NOW))!.fills!.length, 0, "opening the panel signs nobody up");
 });
@@ -215,6 +214,7 @@ test("Add player: only the owner or an admin; fills first, then any member; then
   const { d, id, sql, edits, posts } = await setup();
   await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW, pref: WAITING });
   await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW, pref: WAITING });
+  await sql`update signup set fill_roles = null, fill_slots = null where status = 'fill'`; // waiting, but willing to play anything
   assert.ok(text(await d(click(`fa:${id}`, STRANGER, undefined, PANEL))).includes("Only the creator"));
 
   const panel: any = await d(click(`fa:${id}`, OWNER, undefined, PANEL));
