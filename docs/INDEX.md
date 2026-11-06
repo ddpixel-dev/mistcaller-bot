@@ -34,7 +34,10 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0032 Creation card and bot-made forum posts](decisions/0032-creation-card-and-forum-posts.md): one creation card with reacting menus; launcher posts in event forums; the bot creates each event's post
 - [0033 Start menus, Roles, locked launcher](decisions/0033-card-start-menus-locked-launcher.md): start as Day/Hour/Minute menus on a V2 card; Roles button; launcher "click here", locked, guidelines line
 - [0034 Tips under the buttons, dimmed Create](decisions/0034-card-tips-dimmed-create.md): start back in Details; 💡 tips after the buttons; Create dimmed until valid; 👢 Remove player
+- [0035 Fill preferences, selection mode](decisions/0035-fill-preferences-and-selection-mode.md): fill seated at once or waiting, no reserved seats; host-picked content
+- [0036 Creation hub, blank content](decisions/0036-creation-hub-and-blank-content.md): buttons in content-management, CTA by role, blank type
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
+- [Releases 0.29.0 to 0.32.0](plan/2026-11-06-releases-0.29-0.32.md): eleven owner requests, order and branches (FR-055 to FR-062)
 - [Creation card and bot-made forum posts](plan/2026-10-24-creation-card-and-forum-posts-design.md): design and plan (FR-053, FR-054)
 - [Release 0.21.0 plan](plan/2026-10-15-release-0.21.md): eleven owner requests, order and branches
 - [0025 Form retry; build reference](decisions/0025-form-retry-and-build-reference.md): Fix and retry button, one build-reference link option
