@@ -21,7 +21,7 @@ export function renderMePanel(view: RosterView, userId: string) {
   lines.push(
     mine
       ? `You are signed up as ${mine.position}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
-      : isFill ? "You are signed up as a fill: the owner places you in a position."
+      : isFill ? `You are waiting as a fill (${view.fillWants?.[userId] ?? "Any"}): you are seated as soon as a matching position is free.`
       : "You are not signed up.",
   );
   if (!open) lines.push("Signups and moves are closed.");
@@ -95,7 +95,6 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
     const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now(), promoted });
     if (result === "unchanged") return reply("You already hold this position.");
     if (result === "taken") return reply("That position is already taken. Pick another one.");
-    if (result === "reserved") return reply("Every free position is held for fill players who signed up earlier. Join the waitlist from the roster instead.");
     if (result === "locked") return reply("Signups are locked for this content.");
     if (result === "not_found") return reply(NOT_FOUND);
     return await refresh(deps, id, userId, promoted);

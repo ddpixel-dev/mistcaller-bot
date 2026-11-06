@@ -1,3 +1,4 @@
+import { WAITING } from "../helpers/fills.ts";
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
@@ -47,7 +48,7 @@ const seat = (sql: any, id: string, slot: string, user: string) => claimSlot(sql
 test("Remove player opens a private panel listing everyone on the roster: seated, fills and the waitlist", async () => {
   const { d, id, sql, slots } = await setup();
   await seat(sql, id, slots[0]!, A);
-  await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW, pref: WAITING });
   await seat(sql, id, slots[1]!, C);
   await joinWaitlist(sql, { contentId: id, userId: STRANGER, guildId: "g1", role: "Healer", now: NOW });
   const r: any = await d(click(`rm:${id}`, OWNER));
@@ -92,7 +93,7 @@ test("choosing a seated player removes them, serves the waitlist, refreshes the 
 
 test("a fill and a waiting member can be removed too, and someone no longer on the roster is refused", async () => {
   const { d, id, sql } = await setup();
-  await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: id, userId: A, guildId: "g1", now: NOW, pref: WAITING });
   await joinWaitlist(sql, { contentId: id, userId: B, guildId: "g1", role: "Tank", now: NOW }).catch(() => {});
   await sql`insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role) values ('g1', ${id}, ${B}, null, 'waitlist', 'Tank') on conflict do nothing`;
   assert.equal(((await d(click(`rm:p:${id}`, OWNER, [A], { message: { id: "p1", flags: 64 } }))) as any).type, 7);
@@ -107,7 +108,7 @@ test("a fill and a waiting member can be removed too, and someone no longer on t
 test("the roster has no Remove player button; it lives in the Manage panel (ADR 0028)", async () => {
   const { sql, id, slots } = await setup();
   await seat(sql, id, slots[0]!, A);
-  await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW });
+  await joinFill(sql, { contentId: id, userId: B, guildId: "g1", now: NOW, pref: WAITING });
   await sql`update content set has_loot = true`;
   const msg: any = renderRosterMessage((await getRosterView(sql, id, NOW))!);
   assert.equal(flatComponents(msg).find((c) => c.custom_id === `rm:${id}`), undefined);

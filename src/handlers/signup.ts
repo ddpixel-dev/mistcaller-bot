@@ -2,7 +2,8 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
-import { claimSlot, joinFill, joinWaitlist, leaveContent, type Promotion } from "../db/signup.ts";
+import { claimSlot, joinWaitlist, leaveContent, type Promotion } from "../db/signup.ts";
+import { openFillPanel } from "./fill-pref.ts";
 import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage } from "../render/roster.ts";
@@ -44,13 +45,12 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
   const values = (i.data as { values?: unknown } | undefined)?.values;
   if (!got || !userId || !guildId || !Array.isArray(values) || values.length !== 1) return reply(INVALID);
   const slotId = values[0];
-  if (slotId === FILL_VALUE) return await fill(deps, got[0]!, userId, guildId);
+  if (slotId === FILL_VALUE) return await openFillPanel(deps, got[0]!);
   if (typeof slotId !== "string" || !UUID.test(slotId)) return reply(INVALID);
   const promoted: Promotion[] = [];
   const result = await claimSlot(deps.sql, { contentId: got[0]!, slotId, userId, guildId, now: deps.now(), promoted });
   if (result === "unchanged") return reply("You already hold this position.");
   if (result === "taken") return reply("That position was just taken. Pick another one from the menu.");
-  if (result === "reserved") return reply("Every free position is held for fill players who signed up earlier. Join the waitlist instead.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);
   // A slot without a weapon (FR-030): update the roster through the API, and give the player a private weapon picker.
@@ -70,16 +70,6 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
   return await refreshed(deps, got[0]!, promoted);
 }
 
-// FR-032: sign up as Fill, a member without a position. The owner places fills later.
-async function fill(deps: Deps, contentId: string, userId: string, guildId: string): Promise<InteractionResponse> {
-  const promoted: Promotion[] = [];
-  const result = await joinFill(deps.sql, { contentId, userId, guildId, now: deps.now(), promoted });
-  if (result === "unchanged") return reply("You are already listed as a fill.");
-  if (result === "locked") return reply("Signups are locked for this content.");
-  if (result === "not_found") return reply(NOT_FOUND);
-  return await refreshed(deps, contentId, promoted);
-}
-
 // FR-007 (per role): wait for a role whose positions are all taken. A seat for that role goes to the first waiter.
 export async function handleWait(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (isOldRoster(i)) return reply(OLD_LAYOUT);
@@ -89,7 +79,7 @@ export async function handleWait(deps: Deps, i: Interaction): Promise<Interactio
   const values = (i.data as { values?: unknown } | undefined)?.values;
   if (!got || !userId || !guildId || !Array.isArray(values) || values.length !== 1) return reply(INVALID);
   const role = values[0];
-  if (role === WAIT_FILL_VALUE) return await fill(deps, got[0]!, userId, guildId);
+  if (role === WAIT_FILL_VALUE) return await openFillPanel(deps, got[0]!);
   if (typeof role !== "string" || role.length === 0 || role.length > 100) return reply(INVALID);
   const result = await joinWaitlist(deps.sql, { contentId: got[0]!, userId, guildId, role, now: deps.now() });
   if (result === "already") return reply(`You are already waiting for ${role}.`);
