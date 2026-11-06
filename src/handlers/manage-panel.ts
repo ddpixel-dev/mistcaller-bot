@@ -21,9 +21,10 @@ const ACTIONS: Record<string, Handler> = {
   f: openEditForm, l: handleLock, u: handleUnlock, n: handleEnd, c: handleCancel, a: handleAttendance, r: handleReopen,
 };
 
+const IN_PLACE = new Set(["l", "u", "n", "r"]);
 const button = (label: string, emoji: string, custom_id: string, style = 2) => ({ type: 2, style, label, emoji: { name: emoji }, custom_id });
 
-function panel(view: RosterView) {
+function panel(view: RosterView, status: string | null = null) {
   const id = view.id;
   const rows: unknown[] = view.status === "done"
     // A finished roster keeps Manage for what comes after the content (ADR 0029).
@@ -51,7 +52,7 @@ function panel(view: RosterView) {
         ],
       },
     ];
-  return { content: "🛠️ **Manage this content.** Only you can see this.", flags: EPHEMERAL, allowed_mentions: { parse: [] as [] }, components: rows };
+  return { content: `🛠️ **Manage this content.** Only you can see this.${status ? `\n${status}` : ""}`, flags: EPHEMERAL, allowed_mentions: { parse: [] as [] }, components: rows };
 }
 
 // The Edit panel (ADR 0029): the category and the loot vote as menus that apply at once, the form for the text, and a
@@ -113,7 +114,17 @@ export async function handleManageComponent(deps: Deps, i: Interaction): Promise
   // The panel must still belong to this post's content (a stale panel never acts on another one).
   const target = i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
   if (!target || target.id !== parts[2]) return reply(INVALID);
-  return await action(deps, i);
+  if (!IN_PLACE.has(parts[1]!)) return await action(deps, i);
+
+  // FR-056: Lock, Unlock, End and Reopen update this panel instead of sending another message, so the button flips.
+  const checked = await authorize(deps, i, target);
+  if (!checked.ok) return checked.response;
+  const result = await action(deps, i);
+  const status = result.type === CHANNEL_MESSAGE ? (result.data as { content?: string } | undefined)?.content : undefined;
+  const view = status ? await getRosterView(deps.sql, target.id, deps.now()) : null;
+  if (!status || !view || view.status === "cancelled") return result;
+  const { flags: _private, ...data } = panel(view, status);
+  return { type: UPDATE_MESSAGE, data };
 }
 
 async function applied(deps: Deps, view: RosterView): Promise<void> {
