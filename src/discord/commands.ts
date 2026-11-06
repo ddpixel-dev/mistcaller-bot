@@ -43,22 +43,6 @@ export const commands = [
           { type: 7, name: "clear-event-forum", description: "Stop using a forum for events (with forum-type: only that type)", required: false, channel_types: [15] },
         ],
       },
-      {
-        type: 2,
-        name: "preset",
-        description: "Saved slot presets (save and delete: Manage Server or an admin role)",
-        options: [
-          {
-            type: 1, name: "save", description: "Save this post's slots as a preset",
-            options: [{ type: 3, name: "name", description: "Preset name", required: true, max_length: 50 }],
-          },
-      { type: 1, name: "list", description: "Show the saved presets" },
-          {
-            type: 1, name: "delete", description: "Delete a preset",
-            options: [{ type: 3, name: "name", description: "Preset name", required: true, autocomplete: true }],
-          },
-        ],
-      },
       { type: 1, name: "me", description: "Your own place in this content: sign up, move or leave" },
       { type: 1, name: "list", description: "Live and upcoming content in this server, with links" },
       { type: 1, name: "stats", description: "This server's statistics, shown only to you" },

@@ -92,7 +92,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
   assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
   assert.deepEqual(setupOpts.find((o) => o.name === "cta-channel")!.channel_types, [0, 5], "the CTA channel is a text or announcement channel");
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["setup", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
 });
 
 test("the old server's command list is cleared with an empty PUT", () => {

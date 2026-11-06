@@ -53,6 +53,19 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
   const rows: unknown[] = [
     {
       type: 1,
+      components: [ctx.presets.length
+        ? {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Choose from preset (fills the whole card)",
+          options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
+        }
+        // Always shown and first (owner request 2026-11-07): with no presets it is dimmed and says how to save one.
+        : {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset: none saved yet", disabled: true,
+          options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
+        }],
+    },
+    {
+      type: 1,
       components: [{
         type: 3, custom_id: `cc:type:${id}`, placeholder: "Type of content",
         options: types.map((t: ContentType) => ({ label: TYPE_LABEL[t], value: t, emoji: { name: typeIcon(t) }, default: t === d.type })),
@@ -91,20 +104,10 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     },
     {
       type: 1,
-      components: [ctx.presets.length
-        ? {
-          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset (fills the slots)",
-          options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
-        }
-        // Always shown, so it never looks missing: with no presets it is dimmed and says how to save one (owner request 2026-11-07).
-        : {
-          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset: none saved yet", disabled: true,
-          options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
-        }],
-    },
-    {
-      type: 1,
-      components: [btn("Blank template", "📄", `cc:blank:${id}`)], // FR-060: skip the roster, go to the final form
+      components: [
+        btn("Blank template", "📄", `cc:blank:${id}`), // FR-060: skip the roster, go to the final form
+        { ...btn("Save as preset", "💾", `cc:savepreset:${id}`), disabled: needed.length > 0 }, // ADR 0039: only once the card is valid, like Create
+      ],
     },
     {
       type: 1,
@@ -133,9 +136,10 @@ export const NO_PRESET = "-";
 
 export const CARD_TIPS = [
   "-# 💡 Only you see this card.",
-  "-# 💡 Set the type, category and loot vote above, then press **Details** for the title, start time, gear tier and notes.",
+  "-# 💡 Pick a preset to fill the whole card at once, or set the type, category and loot vote, then press **Details** for the title, start time, gear tier and notes.",
   "-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
   "-# 💡 **Blank template** is a quick event without a roster: only a title, start, gear tier and description.",
+  "-# 💡 Admins: **Save as preset** (lit when the card is valid, like Create) keeps the whole card (not the start time) to pick again later.",
   "-# 💡 **Create** lights up once everything needed is set.",
 ].join("\n");
 // The pinned launcher post of an event forum (FR-053). The forum's list shows only a post's title and the start of

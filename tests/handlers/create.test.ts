@@ -102,7 +102,9 @@ test("command without a guild, or in a place that cannot hold a roster, is an ep
   assert.match(content(b), /server channel/);
 });
 
-const cardMenus = (r: any) => flatComponents(r.data).filter((c: any) => c.type === 3);
+const allMenus = (r: any) => flatComponents(r.data).filter((c: any) => c.type === 3);
+// The Preset menu is first on the card; the others keep their order without it.
+const cardMenus = (r: any) => allMenus(r).filter((c: any) => !String(c.custom_id).startsWith("cc:preset:"));
 
 test("the command opens the creation card: summary, Type and Category menus, Loot vote, and the buttons (ADR 0032)", async () => {
   const { deps } = await setup();
@@ -118,14 +120,15 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");
   assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
   assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
-  assert.equal(cardMenus(r).length, 5, "the dimmed Preset menu is on the card while the server has none");
+  assert.equal(allMenus(r).length, 5, "the dimmed Preset menu is on the card while the server has none");
+  assert.ok(String(allMenus(r)[0].custom_id).startsWith("cc:preset:"), "the Preset menu comes first");
 });
 
 test("with saved presets the card has a Preset menu", async () => {
   const { deps, sql } = await setup();
   await sql`insert into slot_preset (guild_id, name, slots, created_by) values ('g1', 'Ava', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
   const r: any = await handleCreateCommand(deps, command());
-  const preset = cardMenus(r)[4];
+  const preset = allMenus(r)[0];
   assert.deepEqual(preset.options.map((o: any) => [o.label, o.description]), [["Ava", "1 positions"]]);
   assert.deepEqual(discordProblems(r.data), []);
 });
