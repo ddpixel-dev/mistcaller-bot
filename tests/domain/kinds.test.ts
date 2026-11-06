@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010 and FR-023: 15 PvP and 14 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 15);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 14);
+test("the lists match ADR 0010 and FR-023: 17 PvP and 12 PvE kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 17);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 12);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -23,9 +23,9 @@ test("resolveKind defaults to Other, accepts matching kinds and refuses others",
   assert.deepEqual(resolveKind("pve", ""), { ok: true, value: "other" });
   assert.deepEqual(resolveKind("pvp", "zvz"), { ok: true, value: "zvz" });
   assert.deepEqual(resolveKind("pve", "other"), { ok: true, value: "other" });
-  const wrong = resolveKind("pvp", "mists");
+  const wrong = resolveKind("pvp", "world-boss");
   assert.equal(wrong.ok, false);
-  assert.match((wrong as { error: string }).error, /Mists is a PvE category/);
+  assert.match((wrong as { error: string }).error, /World boss is a PvE category/);
   assert.equal(resolveKind("pve", "bogus").ok, false);
 });
 
@@ -81,4 +81,23 @@ test("every category has one icon, and each type has a fallback icon", async () 
   assert.equal(kindIcon("pvp", "zvz"), "🏰");
   assert.equal(kindIcon("pve", "other"), "🐉");
   assert.equal(kindIcon("pvp", "nonsense"), "⚔️");
+});
+
+test("Mists and Corrupted dungeon are PvP categories now, and old PvE content keeps its label", () => {
+  for (const id of ["mists", "corrupted-dungeon"]) {
+    assert.ok(kindsOf("pvp").some((k) => k.id === id), `PvP ${id}`);
+    assert.ok(!kindsOf("pve").some((k) => k.id === id), `not PvE ${id}`);
+    assert.equal(resolveKind("pvp", id).ok, true);
+    assert.equal(resolveKind("pve", id).ok, false, "new PvE content cannot pick it");
+    assert.ok(kindDef("pve", id), "an old PvE post still shows its category");
+  }
+});
+
+test("every list is alphabetical by label with Other last, PvX included", () => {
+  for (const type of ["pvp", "pve", "pvx"] as const) {
+    const labels = kindsOf(type).map((k) => k.label);
+    assert.equal(labels.at(-1), "Other", type);
+    const rest = labels.slice(0, -1);
+    assert.deepEqual(rest, [...rest].sort((a, b) => a.localeCompare(b, "en")), type);
+  }
 });
