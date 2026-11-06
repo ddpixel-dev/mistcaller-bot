@@ -7,6 +7,7 @@ import { getManageTargetById } from "../db/manage.ts";
 import { announce, authorize, refreshRoster } from "./manage.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { escapeText } from "../render/roster.ts";
+import { fillMatches } from "../domain/fillmatch.ts";
 import { roleIcon } from "../render/theme.ts";
 import type { RosterView } from "../domain/types.ts";
 
@@ -71,7 +72,10 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
       ...(picked ? { default_values: [{ id: picked, type: "user" }] } : {}),
     }],
   });
-  const open = view.slots.filter((s) => s.userId === null).slice(0, 25);
+  // FR-057: for a fill or an applicant, only the open positions that match what they asked for; any other member can go anywhere.
+  const pref = chosen ? view.applicants?.find((a) => a.userId === chosen)?.pref ?? view.fillPrefs?.[chosen] ?? null : null;
+  const allOpen = view.slots.filter((s) => s.userId === null);
+  const open = allOpen.filter((s) => !pref || fillMatches(pref, s)).slice(0, 25);
   if (chosen && open.length > 0) {
     rows.push({
       type: 1,
@@ -85,7 +89,8 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
     });
   }
   const content = !chosen ? (applicants.length ? "Pick the player to accept: an applicant, a fill, or any member." : "Pick the player to sign up: a fill, or any member.")
-    : open.length > 0 ? `Now pick the position for <@${chosen}>.` : "There is no open position to place them in.";
+    : open.length > 0 ? `Now pick the position for <@${chosen}>${pref ? " (only the open positions that suit what they asked for)" : ""}.`
+    : allOpen.length > 0 ? `No open position suits what <@${chosen}> asked for. Add one with **Edit details**, or pick someone else.` : "There is no open position to place them in.";
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
 }
 
