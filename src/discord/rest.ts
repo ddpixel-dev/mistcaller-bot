@@ -27,6 +27,8 @@ export type Rest = {
   forumTags?(forumId: string): Promise<{ id: string; name: string }[]>;
   editChannel?(channelId: string, body: unknown): Promise<void>;
   deleteChannel?(channelId: string): Promise<void>;
+  // Pin a message in a post or channel (needs Pin Messages).
+  pinMessage?(channelId: string, messageId: string): Promise<void>;
 };
 
 export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -96,6 +98,15 @@ export function createRest(
     },
     async editChannel(channelId, body) {
       await call("PATCH", `/channels/${channelId}`, body);
+    },
+    // The current endpoint first; Discord still serves the older one if it does not know the new one.
+    async pinMessage(channelId, messageId) {
+      try {
+        await call("PUT", `/channels/${channelId}/messages/pins/${messageId}`, undefined);
+      } catch (err) {
+        if (!(err instanceof DiscordApiError) || (err.status !== 404 && err.status !== 405)) throw err;
+        await call("PUT", `/channels/${channelId}/pins/${messageId}`, undefined);
+      }
     },
     async deleteChannel(channelId) {
       await call("DELETE", `/channels/${channelId}`, undefined, [404]);

@@ -7,7 +7,7 @@ import { leaveContent, type Promotion } from "../db/signup.ts";
 import { announce, authorize, refreshRoster } from "./manage.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { names } from "./fill.ts";
-import { escapeText } from "../render/roster.ts";
+import { escapeText, rosterButton } from "../render/roster.ts";
 import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -78,7 +78,7 @@ export async function handleRemoveComponent(deps: Deps, i: Interaction): Promise
   const declined = (view.applicants ?? []).some((a) => a.userId === target);
   await announce(deps, view.threadId, declined
     ? `❌ <@${target}>, your application for **${escapeText(view.title)}** was declined by <@${i.member.user.id}>.`
-    : `➖ <@${target}> was removed from **${escapeText(view.title)}** by <@${i.member.user.id}>.`, [target]);
-  await announcePromotions(deps, view.threadId, view.title, promoted);
+    : `➖ <@${target}> was removed from **${escapeText(view.title)}** by <@${i.member.user.id}>.`, [target], rosterButton(view));
+  await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   return { type: UPDATE_MESSAGE, data: { content: `✅ <@${target}> was removed.`, components: [], allowed_mentions: { parse: [] } } };
 }

@@ -44,6 +44,7 @@ const click = (customId: string, user: string, values?: unknown[], over: Partial
   message: { id: "m1", flags: V2 }, member: who(user),
   data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) }, ...over,
 });
+const ROSTER_BUTTON = [{ type: 1, components: [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: "https://discord.com/channels/g1/t1/m1" }] }];
 const text = (r: any) => String(r.data.content ?? "");
 const rosterText = (body: any) => plain(textOf(body));
 
@@ -73,6 +74,7 @@ test("submitting Any seats the player at once, healers first, refreshes the rost
   assert.equal(posts.length, 1);
   assert.equal(posts[0]!.body.content, `🔁 <@${A}> joined as fill (Any) and was seated in position 2 · Healer.`);
   assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] }, "only the player is pinged");
+  assert.deepEqual(posts[0]!.body.components, ROSTER_BUTTON, "a button takes everyone back to the roster");
 });
 
 test("choosing roles and positions seats in the matching one; with no match the player waits and the roster says what they asked for", async () => {

@@ -186,6 +186,8 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
       postedId = (await deps.rest.createMessage(threadId, renderRosterMessage(view))).id;
     }
     await setMessageId(deps.sql, id, postedId);
+    // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
+    await deps.rest.pinMessage?.(threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
   } catch (err) {
     await deleteContent(deps.sql, id).catch((e) => {
       console.error(JSON.stringify({ evt: "cleanup_failed", error: errName(e) }));

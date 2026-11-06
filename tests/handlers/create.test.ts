@@ -2,7 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { discordProblems, flatComponents, modalProblems, rowsOf as rowsOfMsg, say, textOf } from "../helpers/discordLimits.ts";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { handleCreateCommand, handleCreateModal } from "../../src/handlers/create.ts";
+import { handleCreateCommand, handleCreateModal, publish } from "../../src/handlers/create.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
 import { createDispatch } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
@@ -459,4 +459,20 @@ test("the post's name is used as the title only in forum posts and threads", asy
   assert.equal(postTitle(at(11)), null);
   assert.equal(postTitle(at(11, "   ")), null);
   assert.equal(Array.from(postTitle(at(11, "x".repeat(150)))!).length, 100);
+});
+
+test("the roster is pinned in its post when it is created, and a failed pin does not stop the creation", async () => {
+  const { deps } = await setup();
+  const input = (thread: string) => ({
+    guildId: "g1", creator: "o", type: "pvp" as const, kind: "other", title: "Raid", notes: null, startsAt: new Date(NOW.getTime() + 3600000),
+    tier: "T8", slots: [{ role: "Tank", weapon: "Mace" }], hasLoot: false, buildRef: null, place: { threadId: thread },
+  });
+  const pins: [string, string][] = [];
+  const withPin = { ...deps, rest: { ...deps.rest, async pinMessage(c: string, m: string) { pins.push([c, m]); } } };
+  const r: any = await publish(withPin as any, input("thread-pin"));
+  assert.equal(r.ok, true);
+  assert.deepEqual(pins, [[r.threadId, r.messageId]]);
+  const failing = { ...deps, rest: { ...deps.rest, async pinMessage() { throw new Error("Missing Permissions"); } } };
+  const other: any = await publish(failing as any, input("thread-pin-2"));
+  assert.equal(other.ok, true, "the pin is a nicety");
 });
