@@ -12,12 +12,17 @@ import { cardIdOf, flatComponents, rowsOf, say, textOf } from "../helpers/discor
 import { weaponClass } from "../../src/domain/weapons.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
-const rest: Rest = { async createMessage() { return { id: "m1" }; }, async editMessage() {}, async deleteMessage() {} };
+let posts = 0;
+const rest: Rest = {
+  async createMessage() { return { id: "m1" }; }, async editMessage() {}, async deleteMessage() {},
+  async createForumPost() { return { id: `post${++posts}` }; }, async forumTags() { return []; },
+};
 beforeEach(async () => { await resetDb(await testSql()); });
 after(async () => { await (await testSql()).end(); });
 
 async function setup() {
   const sql = await testSql();
+  await sql`insert into event_forum (guild_id, forum_id, type) values ('g1', 'fp', null) on conflict do nothing`;
   const deps: Deps = { sql, rest, now: () => NOW };
   return { sql, deps, d: createDispatch(deps) };
 }
@@ -33,7 +38,8 @@ const form = (customId: string, fields: Record<string, string>, over: Partial<In
     data: { custom_id: customId, components: Object.entries(fields).map(([custom_id, value]) => ({ type: 1, components: [{ type: 4, custom_id, value }] })) },
     ...over,
   });
-const create = (over: Partial<Interaction> = {}) => base({ type: 2, data: { name: "content", options: [{ name: "create", type: 1 }] }, ...over });
+// The creation card opens from the Normal content button (FR-059).
+const create = (over: Partial<Interaction> = {}) => press("hub:n", undefined, over);
 const embed = (r: any) => ({ description: textOf(r.data), thumbnail: { url: flatComponents(r.data).find((c: any) => c.type === 11)?.media?.url } });
 const all = (r: any): any[] => flatComponents(r.data).filter((c: any) => typeof c.custom_id === "string");
 const find = (r: any, prefix: string) => all(r).find((c: any) => c.custom_id.startsWith(prefix));
@@ -284,21 +290,18 @@ test("only the owner in the same post can use a draft; expired drafts and tamper
   assert.ok(refused(await d(press(`gs:role:${id}`, ["Tank"]))));
 });
 
-test("Create and the command are refused while the post already has content", async () => {
+test("each Create makes its own post, so the same channel can host many events", async () => {
   const { sql, d } = await setup();
-  const { id } = await begin(d, "1");
-  await fillCard(d, id, "Tank", "Mace");
-  await d(press(`gs:done:${id}`));
-  await d(press(`cc:type:${id}`, ["pvp"]));
-  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-07 18:00", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
-  await createContent(sql, {
-    guildId: "g1", threadId: "t1", type: "pvp", title: "x", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"),
-    tier: "T8.0", hasLoot: false, createdBy: "u3", slots: [{ role: "R", weapon: "W" }],
-  });
-  for (const r of [await d(press(`cc:create:${id}`)), await d(create())] as any[]) {
-    assert.equal(r.data.flags, 64);
-    assert.ok(say(r).includes("already has content"), say(r));
+  for (const title of ["Raid one", "Raid two"]) {
+    const { id } = await begin(d, "1");
+    await fillCard(d, id, "Tank", "Mace");
+    await d(press(`gs:done:${id}`));
+    await d(press(`cc:type:${id}`, ["pvp"]));
+    await d(form(`ccd:${id}`, { title, start: "2026-10-07 18:00", tier: "T6.0", slots: "Tank - Mace", notes: "" }));
+    const r: any = await d(press(`cc:create:${id}`));
+    assert.ok(say(r).startsWith("✅ Created"), say(r));
   }
+  assert.deepEqual((await sql`select thread_id, own_post from content order by created_at`).map((c) => [c.thread_id.startsWith("post"), c.own_post]), [[true, true], [true, true]]);
 });
 
 import { discordProblems, modalProblems } from "../helpers/discordLimits.ts";

@@ -36,7 +36,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     ? ["⚠️ The typed slots could not be read; fix them in **Details**."]
     : d.slots.map((s, n) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`);
   const lines = [
-    `## ${d.type ? kindIcon(d.type, d.kind) : "🛠️"} Create event`,
+    `## ${d.cta ? "📣" : d.type ? kindIcon(d.type, d.kind) : "🛠️"} Create ${d.cta ? "CTA (call to arms)" : "event"}`,
     `📝 **Title** ${d.title ? escapeText(d.title) : NONE}`,
     `🕰️ **Start** ${start?.ok ? `${formatUtc(start.value)} · <t:${Math.floor(start.value.getTime() / 1000)}:f> your time` : d.startText ? escapeText(d.startText) : NONE}`,
     `⚙️ **Gear tier** ${d.gearTier ? escapeText(d.gearTier) : NONE}`,
@@ -98,6 +98,10 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     }] : []),
     {
       type: 1,
+      components: [btn("Blank template", "📄", `cc:blank:${id}`)], // FR-060: skip the roster, go to the final form
+    },
+    {
+      type: 1,
       components: [
         btn("Details", "✏️", `cc:details:${id}`, 1),
         btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
@@ -122,6 +126,7 @@ export const CARD_TIPS = [
   "-# 💡 Only you see this card.",
   "-# 💡 Set the type, category and loot vote above, then press **Details** for the title, start time, gear tier and notes.",
   "-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
+  "-# 💡 **Blank template** is a quick event without a roster: only a title, start, gear tier and description.",
   "-# 💡 **Create** lights up once everything needed is set.",
 ].join("\n");
 // The pinned launcher post of an event forum (FR-053). The forum's list shows only a post's title and the start of

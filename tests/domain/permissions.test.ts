@@ -36,3 +36,14 @@ test("presets and admin status follow the admin roles and Manage Server, not the
   assert.equal(canManagePresets(actor(), ["r1"]), false);
   assert.equal(isAdmin(actor({ roles: ["x"] }), ["r1"]), false);
 });
+
+import { canCreateCta } from "../../src/domain/permissions.ts";
+
+test("CTA content: admins always may, others need one of the CTA roles (FR-059)", () => {
+  const member = (roles: string[], permissions = "0") => ({ userId: "u", roles, permissions });
+  assert.equal(canCreateCta(member([], "32"), [], []), true, "Manage Server");
+  assert.equal(canCreateCta(member(["admins"]), ["admins"], []), true, "an admin role");
+  assert.equal(canCreateCta(member(["callers"]), ["admins"], ["callers", "x"]), true, "a CTA role");
+  assert.equal(canCreateCta(member(["other"]), ["admins"], ["callers"]), false);
+  assert.equal(canCreateCta(member([]), [], []), false, "nobody is allowed until roles are set");
+});

@@ -242,7 +242,7 @@ const LIST_LIMIT = 15;
 export async function handleListCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (!i.guild_id) return reply("Use this command inside the server.");
   const items = await listUpcoming(deps.sql, i.guild_id, LIST_LIMIT + 1);
-  if (items.length === 0) return reply("No live or upcoming content. Start one with `/content create` in a channel or post.");
+  if (items.length === 0) return reply("No live or upcoming content. Start one with **Normal content** in the content-management channel.");
   const lines = items.slice(0, LIST_LIMIT).map((c) => {
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
     const def = kindDef(c.type as ContentType, c.kind);

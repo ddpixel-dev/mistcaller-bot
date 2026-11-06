@@ -119,3 +119,8 @@ test("Avalonian raid is retired: not offered anywhere, but old content keeps its
   assert.ok(pvx.includes("skirmish") && !pvx.includes("training"));
   assert.ok(pvx.length <= 25);
 });
+
+test("the PvP category is called Outpost, in the singular", () => {
+  assert.equal(kindDef("pvp", "outposts")!.label, "Outpost");
+  assert.ok(!kindsOf("pvp").some((k) => k.label === "Outposts"));
+});
