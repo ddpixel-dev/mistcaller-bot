@@ -9,6 +9,9 @@ date: 2026-10-06
 
 Dated entries, newest first. Record what surprised us, what we would do differently, and any rule worth adding to `AGENTS.md`.
 
+## 2026-11-06: One over-long description stops every command from registering
+Discord answered status 400 for the whole command list because one option description had 106 characters (the limit is 100). Nothing in the build or the unit tests showed it; only registering did, after the release was already live. `tests/discord/commands-limits.test.ts` now checks every name, description and option order. Rule: a change to `src/discord/commands.ts` is not done until that test passes.
+
 ## 2026-10-08: A command can be visible where the bot is not a member
 - What happened: after the bot was invited to a second server, creating content kept failing with "Could not create the content right now". The bot's own guild list showed only the first server, so the invite had not made it a member there (an install to an account shows the slash commands, but the bot cannot post). In the first server, the bot also could not see the PvE forum.
 - What we learned: the interaction carries `app_permissions` and `authorizing_integration_owners`, so the bot can name the problem before saving anything. Listing `GET /users/@me/guilds` with the bot token is a quick check of where the bot really is.
@@ -53,4 +56,3 @@ Dated entries, newest first. Record what surprised us, what we would do differen
 - What we learned: a check on the clicked message is only right for controls that live on that message. Test the follow-up clicks of a private panel with the flags Discord really sends (64), not the roster's.
 - Follow-up: the check now applies to the button only, with a regression test in `tests/handlers/fill.test.ts`. Review any new handler that is reached from an ephemeral panel.
 
-- 2026-11-06: Discord rejects the whole command list (status 400) when one option description passes 100 characters, and nothing in the build shows it. Registering is the only check, so `tests/discord/commands-limits.test.ts` now checks every name, description and option order.
