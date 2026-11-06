@@ -143,3 +143,27 @@ test("the changelog channel may be a forum: each release becomes a post there", 
   assert.equal(created.length, 0);
   assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text, announcement or forum"));
 });
+
+test("the CTA channel is a text channel; the CTA roles are picked in the panel; both are shown", async () => {
+  const { rest } = fake();
+  const d = await deps(rest);
+  const r: any = await handleSetupCommand(d, setup([opt("cta-channel", CH1)], { permissions: "32" }));
+  assert.ok(text(r).includes(`<#${CH1}>`) && text(r).includes("Create Public Threads"), text(r));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-channel", FORUM)], { permissions: "32" }))).includes("text or announcement channel"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-channel", CH1)], { roles: ["999"] }))).includes("Only an admin"));
+  const click = (values: string[], over: Partial<Interaction> = {}): Interaction => ({
+    id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel_id: "c", member: { user: { id: "u1" }, roles: [], permissions: "32" },
+    data: { custom_id: "setup:cta", component_type: 6, values }, ...over,
+  } as Interaction);
+  const { handleSetupComponent } = await import("../../src/handlers/setup.ts");
+  const updated: any = await handleSetupComponent(d, click(["200000001", "200000002"]));
+  assert.ok(text(updated).includes("<@&200000001>") && text(updated).includes(`CTA channel: <#${CH1}>`));
+  const { getCtaRoleIds, getCtaChannel } = await import("../../src/db/cta.ts");
+  assert.deepEqual((await getCtaRoleIds(d.sql, GUILD)).sort(), ["200000001", "200000002"]);
+  assert.equal(await getCtaChannel(d.sql, GUILD), CH1);
+  assert.ok(text(await handleSetupComponent(d, click(["200000001"], { member: { user: { id: "u1" }, roles: [], permissions: "0" } }))).includes("Manage Server"));
+  assert.ok(text(await handleSetupComponent(d, click([GUILD]))).includes("@everyone"));
+  const cleared: any = await handleSetupCommand(d, setup([opt("clear-cta", true, 5)], { permissions: "32" }));
+  assert.ok(text(cleared).includes("cleared"));
+  assert.equal(await getCtaChannel(d.sql, GUILD), null);
+});
