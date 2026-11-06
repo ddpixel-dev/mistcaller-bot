@@ -41,15 +41,25 @@ function isBot(i: Interaction, userId: string): boolean {
 // The private Add player panel (FR-047; named Sign up player in 0.22.0): the players waiting as fills first, then a member picker for anyone else,
 // then (once a player is chosen) the open positions.
 async function panel(deps: Deps, view: RosterView, chosen: string | null) {
-  const fills = (view.fills ?? []).slice(0, 25);
-  const who = await names(deps, view.guildId, fills);
+  // Applicants of a host-selected event come first (FR-058), then the players waiting as fills.
+  const applicants = (view.applicants ?? []).slice(0, 25);
+  const waiting = (view.fills ?? []).slice(0, 25 - applicants.length);
+  const candidates = [...applicants.map((a) => a.userId), ...waiting];
+  const who = await names(deps, view.guildId, candidates);
+  const fills = candidates;
   const rows: unknown[] = [];
   if (fills.length > 0) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `fa:p:${view.id}`, placeholder: "A player waiting as a fill",
-        options: fills.map((u) => ({ label: (who[u] ?? `Member ${u.slice(-4)}`).slice(0, 100), value: u, default: u === chosen, emoji: { name: "🔁" } })),
+        type: 3, custom_id: `fa:p:${view.id}`, placeholder: applicants.length ? "An applicant or a player waiting as a fill" : "A player waiting as a fill",
+        options: [
+          ...applicants.map((a) => ({
+            label: (who[a.userId] ?? `Member ${a.userId.slice(-4)}`).slice(0, 100), value: a.userId, default: a.userId === chosen,
+            description: Array.from(`Applied: ${a.wants}`).slice(0, 100).join(""), emoji: { name: "📨" },
+          })),
+          ...waiting.map((u) => ({ label: (who[u] ?? `Member ${u.slice(-4)}`).slice(0, 100), value: u, default: u === chosen, emoji: { name: "🔁" } })),
+        ],
       }],
     });
   }
@@ -74,7 +84,7 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
       }],
     });
   }
-  const content = !chosen ? "Pick the player to sign up: a fill, or any member."
+  const content = !chosen ? (applicants.length ? "Pick the player to accept: an applicant, a fill, or any member." : "Pick the player to sign up: a fill, or any member.")
     : open.length > 0 ? `Now pick the position for <@${chosen}>.` : "There is no open position to place them in.";
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
 }
@@ -82,10 +92,13 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
 // The roster is refreshed and the thread is told who signed whom up (owner request 2026-10-24: very important).
 // Only the player is pinged; the host's name shows without a ping.
 async function finish(deps: Deps, view: RosterView, host: string, userId: string, r: Extract<AssignResult, { result: "ok" }>, promoted: Promotion[]): Promise<void> {
+  const accepted = (view.applicants ?? []).some((a) => a.userId === userId);
   await refreshRoster(deps, view.id);
   // A position without a weapon: the player's own pick was cleared by the move, so they choose again (ADR 0029).
   const pick = view.slots.some((s) => s.position === r.position && !s.weapon) ? " Pick your weapon with `/content me`." : "";
-  await announce(deps, view.threadId, `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId]);
+  await announce(deps, view.threadId, accepted
+    ? `✅ <@${host}> accepted <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`
+    : `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId]);
   await announcePromotions(deps, view.threadId, view.title, promoted);
 }
 

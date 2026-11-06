@@ -16,10 +16,12 @@ const INVALID = "That panel is out of date. Press **Manage** on the roster, then
 
 type Entry = { userId: string; where: string };
 
-// Everyone who can be removed, in the order the roster shows them: seated players, fills, then the waitlist.
+// Everyone who can be removed, in the order the roster shows them: seated players, applicants, fills, then the waitlist.
+// Removing an applicant declines the application (FR-058).
 function entries(view: RosterView): Entry[] {
   return [
     ...view.slots.filter((s) => s.userId !== null).map((s) => ({ userId: s.userId!, where: `Position ${s.position} · ${s.role}` })),
+    ...(view.applicants ?? []).map((a) => ({ userId: a.userId, where: `Applicant · ${a.wants}` })),
     ...(view.fills ?? []).map((u) => ({ userId: u, where: "Fill" })),
     ...(view.waitlist ?? []).map((w) => ({ userId: w.userId, where: `Waitlist · ${w.role}` })),
   ];
@@ -73,7 +75,10 @@ export async function handleRemoveComponent(deps: Deps, i: Interaction): Promise
   const result = await leaveContent(deps.sql, { contentId: id, userId: target, guildId: i.guild_id, now: deps.now(), promoted });
   if (result !== "left") return reply("That member is not on the roster any more.");
   await refreshRoster(deps, id);
-  await announce(deps, view.threadId, `➖ <@${target}> was removed from **${escapeText(view.title)}** by <@${i.member.user.id}>.`, [target]);
+  const declined = (view.applicants ?? []).some((a) => a.userId === target);
+  await announce(deps, view.threadId, declined
+    ? `❌ <@${target}>, your application for **${escapeText(view.title)}** was declined by <@${i.member.user.id}>.`
+    : `➖ <@${target}> was removed from **${escapeText(view.title)}** by <@${i.member.user.id}>.`, [target]);
   await announcePromotions(deps, view.threadId, view.title, promoted);
   return { type: UPDATE_MESSAGE, data: { content: `✅ <@${target}> was removed.`, components: [], allowed_mentions: { parse: [] } } };
 }

@@ -493,3 +493,21 @@ test("role icons: DTank has its own brick, Tank its shield, a Scout role the tel
   assert.equal(roleIcon("Scout"), "🔭");
   assert.equal(roleIcon("Bow"), "🏹");
 });
+
+// ---- FR-058: selection mode ----
+
+test("a selection event says so in the post, lists the applicants with what they asked for, and has no waitlist menu", () => {
+  const v = view({ slots: slots(3, 3), selection: true, applicants: [{ userId: "9001", wants: "Healer, #7" }, { userId: "9002", wants: "Any" }] });
+  assert.ok(raw(v).includes("🎯 **Selection event:** signing up is an application. The host picks the party."));
+  assert.ok(raw(v).includes("📨 **Applicants (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
+  assert.equal(byId(v, "wait:").length, 0, "nobody is seated automatically, so there is nothing to wait for");
+  assert.equal(byId(v, "leave:")[0]!.disabled, false, "an applicant can withdraw");
+  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Selection event"));
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("in a selection event the join menu is for applying", () => {
+  const v = view({ slots: slots(3, 0), selection: true });
+  assert.ok(byId(v, "join:")[0]!.placeholder.startsWith("Apply for a position"));
+  assert.ok(byId(view({ slots: slots(3, 0) }), "join:")[0]!.placeholder.startsWith("Pick an open position"));
+});

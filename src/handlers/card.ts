@@ -94,6 +94,11 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, { loot: value === "1" });
       return await showCard(deps, await reload(deps, d));
     }
+    case "sel": {
+      if (value !== "0" && value !== "1") return reply(EXPIRED);
+      await saveCard(deps.sql, d.id, { selection: value === "1" });
+      return await showCard(deps, await reload(deps, d));
+    }
     case "preset": {
       const preset = value ? await getPresetById(deps.sql, d.guildId, value) : null;
       if (!preset) return reply("That preset no longer exists.");
@@ -198,7 +203,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   const c = checked.value;
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, hasLoot: d.loot, buildRef: d.buildRef, place: d.targetForumId ? { forumId: d.targetForumId } : { threadId: d.threadId },
+    slots: c.slots, hasLoot: d.loot, selection: d.selection, buildRef: d.buildRef, place: d.targetForumId ? { forumId: d.targetForumId } : { threadId: d.threadId },
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);

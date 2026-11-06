@@ -5,6 +5,7 @@ import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
 import { claimSlot, leaveContent, type Promotion } from "../db/signup.ts";
 import { announcePromotions } from "./waitlist.ts";
+import { refreshRoster } from "./manage.ts";
 import type { RosterView } from "../domain/types.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 
@@ -21,6 +22,7 @@ export function renderMePanel(view: RosterView, userId: string) {
   lines.push(
     mine
       ? `You are signed up as ${mine.position}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
+      : (view.applicants ?? []).some((a) => a.userId === userId) ? `You applied (${view.applicants!.find((a) => a.userId === userId)!.wants}). The host picks the party.`
       : isFill ? `You are waiting as a fill (${view.fillWants?.[userId] ?? "Any"}): you are seated as soon as a matching position is free.`
       : "You are not signed up.",
   );
@@ -42,7 +44,7 @@ export function renderMePanel(view: RosterView, userId: string) {
   const live = view.status === "open" || view.status === "locked";
   const buttons: unknown[] = [{
     type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `me:leave:${view.id}`,
-    disabled: !(live && (mine || isFill)),
+    disabled: !(live && (mine || isFill || (view.applicants ?? []).some((a) => a.userId === userId))),
   }];
   // A position without a weapon: the holder can pick or change their own (FR-030).
   if (live && mine && !mine.weapon) buttons.push({ type: 2, style: 2, label: "Change weapon", emoji: { name: "⚔️" }, custom_id: `wp:open:${view.id}` });
@@ -95,6 +97,8 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
     const result = await claimSlot(deps.sql, { contentId: id, slotId, userId, guildId, now: deps.now(), promoted });
     if (result === "unchanged") return reply("You already hold this position.");
     if (result === "taken") return reply("That position is already taken. Pick another one.");
+    if (result === "selected") return reply("You already hold a position. In a host-selected event only the host can move you.");
+    if (result === "applied") { await refreshRoster(deps, id); return reply("📨 You applied for that position. The host picks the party; you are mentioned in the post when you are accepted."); }
     if (result === "locked") return reply("Signups are locked for this content.");
     if (result === "not_found") return reply(NOT_FOUND);
     return await refresh(deps, id, userId, promoted);

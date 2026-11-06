@@ -127,19 +127,31 @@ export async function cancelContent(sql: Sql, id: string): Promise<CancelResult>
   });
 }
 
-export type SettingsResult = "ok" | "unavailable";
+export type SettingsResult = "ok" | "unavailable" | "has_applicants";
 
 // The Edit panel (ADR 0029): the category, the loot vote and the build reference, each on its own, while open.
 // A field left out keeps its value; buildRef null removes the reference.
 export async function updateContentSettings(
-  sql: Sql, id: string, s: { kind?: string; hasLoot?: boolean; buildRef?: string | null },
+  sql: Sql, id: string, s: { kind?: string; hasLoot?: boolean; buildRef?: string | null; selection?: boolean },
 ): Promise<SettingsResult> {
   return await sql.begin(async (tx): Promise<SettingsResult> => {
-    const [c] = await tx`select status, kind, has_loot, build_channel_id from content where id = ${id} for update`;
+    const [c] = await tx`select status, kind, has_loot, build_channel_id, selection from content where id = ${id} for update`;
     if (!c || c.status !== "open") return "unavailable";
+    if (s.selection === false && c.selection) {
+      // FR-058: switching selection off with applicants waiting would strand them; the host reviews them first.
+      const [n] = await tx`select count(*)::int as n from signup where content_id = ${id} and status = 'applied'`;
+      if ((n!.n as number) > 0) return "has_applicants";
+    }
+    if (s.selection === true && !c.selection) {
+      // Waiting fills and waiters become applicants (nobody is seated automatically in a host-selected event).
+      await tx`
+        update signup set status = 'applied', fill_roles = case when status = 'waitlist' then array[wait_role] else fill_roles end, wait_role = null
+        where content_id = ${id} and status in ('waitlist', 'fill')`;
+    }
     await tx`
       update content set kind = ${s.kind ?? c.kind}, has_loot = ${s.hasLoot ?? c.has_loot},
-        build_channel_id = ${s.buildRef === undefined ? c.build_channel_id : s.buildRef}
+        build_channel_id = ${s.buildRef === undefined ? c.build_channel_id : s.buildRef},
+        selection = ${s.selection ?? c.selection}
       where id = ${id}`;
     return "ok";
   });

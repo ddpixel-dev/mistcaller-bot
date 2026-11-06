@@ -111,20 +111,21 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.equal(r.data.flags, 64 | (1 << 15), "private, Components V2");
   assert.deepEqual(discordProblems(r.data), []);
   assert.ok(say(r).includes("Create event"));
-  const [type, kind, loot] = cardMenus(r);
+  const [type, kind, loot, signup] = cardMenus(r);
   assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
   assert.equal(kind.disabled, true, "the category waits for the type");
   assert.deepEqual(loot.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]]);
+  assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");
   assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
   assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
-  assert.equal(cardMenus(r).length, 3, "no preset menu while the server has none");
+  assert.equal(cardMenus(r).length, 4, "no preset menu while the server has none");
 });
 
 test("with saved presets the card has a Preset menu", async () => {
   const { deps, sql } = await setup();
   await sql`insert into slot_preset (guild_id, name, slots, created_by) values ('g1', 'Ava', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
   const r: any = await handleCreateCommand(deps, command());
-  const preset = cardMenus(r)[3];
+  const preset = cardMenus(r)[4];
   assert.deepEqual(preset.options.map((o: any) => [o.label, o.description]), [["Ava", "1 positions"]]);
   assert.deepEqual(discordProblems(r.data), []);
 });
