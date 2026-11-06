@@ -5,7 +5,6 @@ import { reply } from "../discord/response.ts";
 import { subcommandName } from "../discord/modal.ts";
 import { handleHelpCommand } from "./help.ts";
 import { handleSetupCommand } from "./setup.ts";
-import { handlePresetCommand } from "./preset.ts";
 import { handleMeCommand } from "./me.ts";
 import { handleListCommand } from "./manage.ts";
 import { handleHistoryCommand } from "./attendance.ts";
@@ -15,7 +14,6 @@ import { handleHistoryCommand } from "./attendance.ts";
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
     case "setup": return await handleSetupCommand(deps, i);
-    case "preset": return await handlePresetCommand(deps, i);
     case "me": return await handleMeCommand(deps, i);
     case "list": return await handleListCommand(deps, i);
     case "help": return await handleHelpCommand(deps, i);

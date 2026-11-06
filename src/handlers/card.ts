@@ -5,7 +5,7 @@ import { modalValues, textInput } from "../discord/modal.ts";
 import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
-import { getPresetById, listPresets } from "../db/preset.ts";
+import { MAX_PRESETS, getPresetById, listPresets, savePreset, type PresetSettings } from "../db/preset.ts";
 import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
@@ -18,7 +18,9 @@ import { renderGuidedStep } from "../render/guided.ts";
 import { NOT_HERE, publish } from "./create.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getCtaRoleIds } from "../db/cta.ts";
-import { canCreateCta } from "../domain/permissions.ts";
+import { canCreateCta, canManagePresets } from "../domain/permissions.ts";
+import { parsePresetName } from "../domain/presets.ts";
+import { escapeText } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "This card expired or is not yours. Press **Plan Content** or **Schedule CTA** in the content-management channel again.";
@@ -105,13 +107,21 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       if (value === NO_PRESET) return reply("This server has no presets yet. Save one with `/content preset save`.");
       const preset = value ? await getPresetById(deps.sql, d.guildId, value) : null;
       if (!preset) return reply("That preset no longer exists.");
-      await saveCard(deps.sql, d.id, { slots: preset.slots.slice(0, 20), slotsText: null });
-      return await showCard(deps, await reload(deps, d), { note: `📋 Slots from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**.` });
+      await saveCard(deps.sql, d.id, { ...presetFields(preset.settings), slots: preset.slots.slice(0, 20), slotsText: null });
+      return await showCard(deps, await reload(deps, d), {
+        note: `📋 Filled from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**${preset.settings ? "" : " (slots only: it was saved before presets kept everything)"}.`,
+      });
     }
     case "details": return detailsForm(d);
     case "blank": {
       if (!d.cta && !d.type) return await showCard(deps, d, { problems: ["Pick the type of content (PvP or PvE) first, then press Blank."] });
       return blankForm(d);
+    }
+    case "savepreset": {
+      if (!(await mayManagePresets(deps, i))) return reply(NOT_PRESET_ADMIN);
+      const checked = validateCard(d, deps.now());
+      if (!checked.ok) return await showCard(deps, d, { problems: checked.problems });
+      return { type: MODAL, data: { custom_id: `ccp:${d.id}`, title: "Save as preset", components: [textInput("name", "Preset name", 50, { placeholder: "Ava roam" })] } };
     }
     case "build": {
       return {
@@ -287,3 +297,48 @@ export async function handleOldCreate(): Promise<InteractionResponse> {
   return reply("This is from an earlier version. Press **Plan Content** or **Schedule CTA** in the content-management channel.");
 }
 
+
+// Save as preset (ADR 0039): only admins (the admin roles, Manage Server or Administrator, like the setup), checked again when the form comes back.
+const NOT_PRESET_ADMIN = "Only admins (an admin role or Manage Server) can save presets.";
+
+async function mayManagePresets(deps: Deps, i: Interaction): Promise<boolean> {
+  const userId = i.member?.user?.id;
+  if (!i.guild_id || !userId) return false;
+  return canManagePresets({ userId, roles: i.member?.roles ?? [], permissions: i.member?.permissions }, await getAdminRoleIds(deps.sql, i.guild_id));
+}
+
+// ccp:<draft>: the Save as preset form. A name that exists is replaced.
+export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
+  if (prefix !== "ccp" || extra !== undefined) return reply(EXPIRED);
+  const d = await ownedDraft(deps, i, id);
+  const userId = i.member?.user?.id;
+  if (!d || !userId) return reply(EXPIRED);
+  if (!(await mayManagePresets(deps, i))) return reply(NOT_PRESET_ADMIN);
+  const name = parsePresetName(modalValues(i).name ?? "");
+  if (!name.ok) return await showCard(deps, d, { problems: [name.error] });
+  // Only a card that is valid for Create can be saved as a preset (owner request 2026-11-07): the same checks, again here.
+  const checked = validateCard(d, deps.now());
+  if (!checked.ok) return await showCard(deps, d, { problems: checked.problems });
+  const settings: PresetSettings = {
+    type: d.type, kind: d.kind, loot: d.loot, selection: d.selection, title: d.title, tier: d.gearTier, notes: d.notes, buildRef: d.buildRef,
+  };
+  const result = await savePreset(deps.sql, { guildId: d.guildId, name: name.value, slots: checked.value.slots, createdBy: userId, settings });
+  if (result === "full") return await showCard(deps, d, { problems: [`This server already has ${MAX_PRESETS} presets. Save under an existing name to replace one.`] });
+  const label = escapeText(name.value);
+  return await showCard(deps, await reload(deps, d), {
+    note: result === "replaced" ? `💾 The preset **${label}** was replaced with these ${checked.value.slots.length} positions.` : `💾 Saved the preset **${label}** with ${checked.value.slots.length} positions.`,
+  });
+}
+
+// What picking a preset sets on the card: everything it kept except the start time. A category that does not fit the type goes back to Other.
+function presetFields(s: PresetSettings | null) {
+  if (!s) return {};
+  const type = s.type ?? undefined;
+  const kind = type && s.kind && resolveKind(type, s.kind).ok ? s.kind : DEFAULT_KIND;
+  return {
+    ...(type ? { type, kind } : {}), loot: s.loot, selection: s.selection,
+    title: s.title, gearTier: s.tier, notes: s.notes, buildRef: s.buildRef,
+  };
+}
