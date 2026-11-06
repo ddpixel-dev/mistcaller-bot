@@ -29,16 +29,18 @@ export const commands = [
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
-          { type: 7, name: "event-forum", description: "A forum where the bot posts each normal event, by type (created with the buttons)", required: false, channel_types: [15] },
+          { type: 7, name: "event-forum", description: "A forum where the bot posts normal events of one type (use with forum-type)", required: false, channel_types: [15] },
           {
-            type: 3, name: "forum-type", description: "With event-forum: the content types it takes (default Any)", required: false,
-            choices: [{ name: "Any", value: "any" }, { name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
+            type: 3, name: "forum-type", description: "With event-forum: the type this forum is for. Repeat to use one forum for several", required: false,
+            choices: [{ name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }, { name: "PvX", value: "pvx" }],
           },
           { type: 7, name: "changelog-channel", description: "Where each release's changelog is posted: a channel, or a forum (one post per release)", required: false, channel_types: [0, 5, 15] },
           { type: 5, name: "clear-changelog", description: "Stop posting changelogs in this server", required: false },
           { type: 7, name: "cta-channel", description: "The text channel where each CTA (call to arms) is announced, with a thread for its roster", required: false, channel_types: [0, 5] },
+          { type: 8, name: "cta-role", description: "Add a role that may create CTA content (admins always may); repeat for more roles", required: false },
+          { type: 8, name: "remove-cta-role", description: "Remove a role from those that may create CTA content", required: false },
           { type: 5, name: "clear-cta", description: "Stop using a CTA channel (Special content cannot be created)", required: false },
-          { type: 7, name: "clear-event-forum", description: "Stop using a forum for events", required: false, channel_types: [15] },
+          { type: 7, name: "clear-event-forum", description: "Stop using a forum for events (with forum-type: only that type)", required: false, channel_types: [15] },
         ],
       },
       {

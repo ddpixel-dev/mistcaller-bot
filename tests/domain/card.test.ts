@@ -36,8 +36,8 @@ test("typed slots that do not parse are reported with the parser's reason, and a
 });
 
 test("a forum's type limits the content types: PvP or PvE with PvX, or all three", () => {
-  assert.deepEqual(typesFor("pvp"), ["pvp", "pvx"]);
-  assert.deepEqual(typesFor("pve"), ["pve", "pvx"]);
+  assert.deepEqual(typesFor("pvp"), ["pvp"]);
+  assert.deepEqual(typesFor("pvx"), ["pvx"]);
   assert.deepEqual(typesFor(null), ["pvp", "pve", "pvx"]);
 });
 
@@ -51,16 +51,13 @@ test("forum tags match the type or the category by name, ignoring case; at most 
 
 import { pickEventForum, validateBlank } from "../../src/domain/card.ts";
 
-test("normal content goes to the forum of its type, then a forum for any type, and PvX prefers a forum for any type", () => {
-  const forums = [{ forumId: "pvp-f", type: "pvp" as const }, { forumId: "pve-f", type: "pve" as const }];
+test("normal content goes to the forum set for its type and nowhere else; one forum may serve several types", () => {
+  const forums = [{ forumId: "pvp-f", type: "pvp" as const }, { forumId: "pve-f", type: "pve" as const }, { forumId: "pvp-f", type: "pvx" as const }];
   assert.equal(pickEventForum(forums, "pvp")?.forumId, "pvp-f");
   assert.equal(pickEventForum(forums, "pve")?.forumId, "pve-f");
-  assert.equal(pickEventForum([...forums, { forumId: "any-f", type: null }], "pvx")?.forumId, "any-f");
-  assert.equal(pickEventForum([...forums, { forumId: "any-f", type: null }], "pvp")?.forumId, "pvp-f", "an exact type wins");
-  assert.equal(pickEventForum([{ forumId: "any-f", type: null }], "pve")?.forumId, "any-f");
-  assert.equal(pickEventForum(forums, "pvx")?.forumId, "pvp-f", "PvX fits either, so the first forum takes it");
+  assert.equal(pickEventForum(forums, "pvx")?.forumId, "pvp-f", "PvX set to the PvP forum");
+  assert.equal(pickEventForum(forums.slice(0, 2), "pvx"), null, "no fallback to another type's forum");
   assert.equal(pickEventForum([], "pvp"), null);
-  assert.equal(pickEventForum([{ forumId: "pvp-f", type: "pvp" }], "pve"), null, "no forum takes PvE");
 });
 
 test("a blank content needs a type (CTA needs none: it is PvX), a title, a start and a gear tier; the description is optional", () => {

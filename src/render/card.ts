@@ -10,7 +10,7 @@ import { roleIcon } from "./theme.ts";
 
 export type CardContext = {
   presets: { id: string; name: string; count: number }[];
-  forumType: "pvp" | "pve" | null; // the event forum's type, when the card was opened from its launcher
+  forumType: ContentType | null; // the event forum's type, when the card was opened from its launcher
   problems?: string[];
   note?: string;
   now: Date;

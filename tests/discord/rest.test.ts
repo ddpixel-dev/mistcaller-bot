@@ -87,7 +87,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(commands[0]!.name, "content");
   assert.ok(!commands[0]!.options.some((o) => o.name === "create"), "content is created with the buttons in the content-management channel (ADR 0036)");
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["clear-cta", 5], ["clear-event-forum", 7],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["cta-role", 8], ["remove-cta-role", 8], ["clear-cta", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
   assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
