@@ -27,6 +27,8 @@ export type Rest = {
   forumTags?(forumId: string): Promise<{ id: string; name: string }[]>;
   editChannel?(channelId: string, body: unknown): Promise<void>;
   deleteChannel?(channelId: string): Promise<void>;
+  // A public thread started from a message of a channel; the thread has the id of the message (CTA announcements, ADR 0036).
+  startThread?(channelId: string, messageId: string, name: string): Promise<{ id: string }>;
   // Pin a message in a post or channel (needs Pin Messages).
   pinMessage?(channelId: string, messageId: string): Promise<void>;
 };
@@ -107,6 +109,10 @@ export function createRest(
         if (!(err instanceof DiscordApiError) || (err.status !== 404 && err.status !== 405)) throw err;
         await call("PUT", `/channels/${channelId}/pins/${messageId}`, undefined);
       }
+    },
+    async startThread(channelId, messageId, name) {
+      const out = (await call("POST", `/channels/${channelId}/messages/${messageId}/threads`, { name, auto_archive_duration: 10080 })) as { id: string };
+      return { id: out.id };
     },
     async deleteChannel(channelId) {
       await call("DELETE", `/channels/${channelId}`, undefined, [404]);

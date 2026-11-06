@@ -16,6 +16,8 @@ export type NewContent = {
   tier: string;
   hasLoot: boolean;
   selection?: boolean; // the host picks the party (FR-058)
+  cta?: boolean; // a call to arms, announced in the CTA channel, with a thread for its roster (FR-059)
+  blank?: boolean; // no roster: title, time, tier and description only (FR-060)
   createdBy: string;
   slots: SlotDef[];
   buildRef?: string | null;
@@ -60,10 +62,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).
@@ -75,7 +77,7 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
       weapon: s.weapon || null,
       duty: s.duty ?? null,
     }));
-    await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
+    if (rows.length > 0) await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
     return id;
   });
 }
@@ -129,6 +131,8 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       chosenWeapon: s.chosen_weapon ?? null,
     })),
     selection: c.selection === true,
+    cta: c.cta === true,
+    blank: c.blank === true,
     applicants: applied.map((f) => {
       const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
       const pref = { any: roles.length === 0 && slotIds.length === 0, roles, slotIds };

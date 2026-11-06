@@ -26,6 +26,7 @@ export type StoredDraft = GuidedDraft & {
   type: ContentType | null;
   loot: boolean;
   selection: boolean;
+  cta: boolean; // opened with Special content (FR-059): it is announced in the CTA channel, with a thread for its roster
   kind: string;
   buildRef: string | null;
   weaponClass: string | null;
@@ -46,6 +47,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   buildRef: r.build_channel_id ?? null,
   loot: r.loot,
   selection: r.selection === true,
+  cta: r.cta === true,
   kind: r.kind,
   count: r.count ?? null,
   slots: r.slots as SlotDef[],
@@ -65,15 +67,15 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
 // One draft per member per place: opening the creation card again starts over.
 export async function startCard(
   sql: Sql,
-  a: { guildId: string; userId: string; threadId: string; type: ContentType | null; title: string | null; startText: string; targetForumId?: string | null },
+  a: { guildId: string; userId: string; threadId: string; type: ContentType | null; title: string | null; startText: string; targetForumId?: string | null; cta?: boolean },
 ): Promise<string> {
   const [row] = await sql`
-    insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, slots, title, start_text, target_forum_id)
-    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, false, 'other', '[]'::jsonb, ${a.title}, ${a.startText}, ${a.targetForumId ?? null})
+    insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, slots, title, start_text, target_forum_id, cta)
+    values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, false, 'other', '[]'::jsonb, ${a.title}, ${a.startText}, ${a.targetForumId ?? null}, ${a.cta ?? false})
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = false, selection = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
       step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, gear_tier = null, title = excluded.title,
-      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, created_at = now()
+      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, created_at = now()
     returning id`;
   return row!.id;
 }

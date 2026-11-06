@@ -15,6 +15,8 @@ export const ANON_PROBE_TABLES = [
   "event_forum",
   "changelog_channel",
   "changelog_post",
+  "cta_channel",
+  "guild_cta_role",
   "schema_migrations",
 ] as const;
 

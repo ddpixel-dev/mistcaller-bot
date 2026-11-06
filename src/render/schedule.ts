@@ -8,6 +8,8 @@ import { escapeText, IS_COMPONENTS_V2 } from "./roster.ts";
 export type ScheduleEvent = {
   id: string; threadId: string; messageId: string | null; title: string; type: ContentType; kind: string;
   startsAt: Date; status: "open" | "locked"; party: number; total: number;
+  cta?: boolean; // a call to arms: listed first under its day (FR-059)
+  blank?: boolean; // no roster, so no party count (FR-060)
 };
 
 export const EVENTS_PER_MESSAGE = 12;
@@ -28,7 +30,7 @@ function eventText(e: ScheduleEvent, guildId: string): string {
   const title = Array.from(e.title).slice(0, 100).join("");
   return [
     `### \`${pad(e.startsAt.getUTCHours())}:${pad(e.startsAt.getUTCMinutes())}\` ${escapeText(title)} [Open ↗](${link})`,
-    `${kind} · 👥 ${e.party}/${e.total}${e.status === "locked" ? " · 🔒" : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
+    `${kind}${e.blank ? "" : ` · 👥 ${e.party}/${e.total}`}${e.status === "locked" ? " · 🔒" : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
   ].join("\n");
 }
 
@@ -38,6 +40,29 @@ const message = (parts: string[]) => ({
   components: [{ type: 17, accent_color: ACCENT, components: parts.map(textBlock) }],
   allowed_mentions: { parse: [] as [] },
 });
+
+// The creation buttons are a message of their own above the calendar (FR-059, ADR 0036, owner request 2026-11-06):
+// Normal content and Special content (CTA). It never changes, so the refresh leaves it alone.
+export function renderHub() {
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [{
+      type: 17,
+      accent_color: ACCENT,
+      components: [
+        textBlock("# ✨ Create content\nPress a button to set up an event. **Special content** is for admins and CTA roles."),
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: "Normal content", emoji: { name: "✨" }, custom_id: "hub:n" },
+            { type: 2, style: 1, label: "Special content (CTA)", emoji: { name: "📣" }, custom_id: "hub:c" },
+          ],
+        },
+      ],
+    }],
+    allowed_mentions: { parse: [] as [] },
+  };
+}
 
 type Group = { heading: string; events: ScheduleEvent[] };
 
@@ -59,7 +84,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   const shown = running.length + days.reduce((k, d) => k + d.events.length, 0);
   const updated = `-# Updated <t:${Math.floor(stamp.getTime() / 1000)}:R>`;
   if (shown === 0) {
-    return [message([`# 📅 Events Calendar\n${updated}`, "No live or upcoming events. Start one with `/content create` in a channel or post."])];
+    return [renderHub(), message([`# 📅 Events Calendar\n${updated}`, "No live or upcoming events. Press **Normal content** above to start one."])];
   }
 
   // Pack the groups into messages by event count and by text size. A day that continues repeats its heading.
@@ -76,8 +101,14 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
       if (lines.length > 0) page().push(`${heading}\n${lines.join("\n\n")}`);
       lines = [];
     };
-    for (const e of g.events) {
-      const text = eventText(e, guildId);
+    // Call-to-arms events come first, then the normal content; labelled only when the group needs telling apart (FR-059).
+    const ordered = [...g.events.filter((e) => e.cta), ...g.events.filter((e) => !e.cta)];
+    const hasCta = ordered.some((e) => e.cta);
+    for (const e of ordered) {
+      const firstCta = e.cta && e === ordered.find((x) => x.cta);
+      const firstNormal = !e.cta && hasCta && e === ordered.find((x) => !x.cta);
+      const label = firstCta ? "**📣 Call to arms**\n" : firstNormal ? "**Content**\n" : "";
+      const text = label + eventText(e, guildId);
       if (count >= EVENTS_PER_MESSAGE || size + text.length + heading.length + 4 > TEXT_BUDGET) {
         flush();
         pages.push([]);
@@ -93,10 +124,10 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
     flush();
   }
   const total = pages.length;
-  return pages.map((parts, i) => {
+  return [renderHub(), ...pages.map((parts, i) => {
     const head = i === 0
       ? `# 📅 Events Calendar\n${updated} · ${shown} event${shown === 1 ? "" : "s"} · times in UTC, with yours beside them`
       : `-# Events Calendar, continued (${i + 1}/${total})`;
     return message([head, ...parts]);
-  });
+  })];
 }

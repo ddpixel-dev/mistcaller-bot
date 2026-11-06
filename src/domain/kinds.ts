@@ -20,7 +20,7 @@ export const KINDS: KindDef[] = [
   { id: "arena", label: "Arena", type: "pvp", color: 0x4a5fa8, icon: "🏟️" },
   { id: "skirmish", label: "Skirmish", type: "pvp", color: 0x2f6f9f, icon: "🤺" },
   { id: "training", label: "Training", type: "pvp", color: 0x6d7fa3, icon: "🎯" },
-  { id: "outposts", label: "Outposts", type: "pvp", color: 0x3f7f8f, icon: "🛡️" },
+  { id: "outposts", label: "Outpost", type: "pvp", color: 0x3f7f8f, icon: "🛡️" },
   { id: "castle", label: "Castle", type: "pvp", color: 0x35508f, icon: "🏯" },
   { id: "mists", label: "Mists", type: "pvp", color: 0x5f8f6f, icon: "🌫️" },
   { id: "corrupted-dungeon", label: "Corrupted dungeon", type: "pvp", color: 0x8a4a3a, icon: "💀" },

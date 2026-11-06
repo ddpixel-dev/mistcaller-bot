@@ -89,7 +89,7 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
     return await sql.begin(async (tx): Promise<ClaimResult> => {
       if (a.promoted) a.promoted.length = 0; // a retried attempt starts clean
       // The content row is locked for update: the seat count below must not change under two simultaneous claims.
-      const [c] = await tx`select status, guild_id, selection from content where id = ${a.contentId} for update`;
+      const [c] = await tx`select status, guild_id, selection, created_by from content where id = ${a.contentId} for update`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
       const [s] = await tx`select id, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
@@ -100,7 +100,8 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
         where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
       if (prev && prev.status === "signed" && prev.slot_id === a.slotId) return "unchanged";
 
-      if (c.selection) {
+      // The owner is the host: signing up themselves seats them at once (owner request 2026-11-06).
+      if (c.selection && c.created_by !== a.userId) {
         // FR-058: an application holds no seat; the host picks. A seated player does not move themselves.
         if (prev?.status === "signed") return "selected";
         if (prev?.status === "applied" && (prev.fill_roles ?? []).length === 0 && (prev.fill_slots ?? []).length === 1 && prev.fill_slots[0] === a.slotId) return "unchanged";
@@ -206,12 +207,12 @@ export async function joinFill(
   return await sql.begin(async (tx): Promise<FillResult> => {
     if (a.promoted) a.promoted.length = 0;
     const pref = a.pref ?? ANY_FILL;
-    const [c] = await tx`select status, guild_id, selection from content where id = ${a.contentId} for update`;
+    const [c] = await tx`select status, guild_id, selection, created_by from content where id = ${a.contentId} for update`;
     if (!c || c.guild_id !== a.guildId) return { result: "not_found" };
     if (c.status !== "open") return { result: "locked" };
     const [prev] = await tx`
       select status, fill_roles, fill_slots from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
-    if (c.selection) {
+    if (c.selection && c.created_by !== a.userId) {
       // FR-058: in a host-selected event Fill is an application for what the player can play; nobody is seated.
       if (prev?.status === "signed") return { result: "selected" };
       if (prev?.status === "applied" && samePref(prefOf(prev as { fill_roles: string[] | null; fill_slots: string[] | null }), pref)) return { result: "unchanged" };

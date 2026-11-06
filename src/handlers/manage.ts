@@ -82,8 +82,9 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
         textInput("title", "Title", 100, { value: view.title }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { value: utcInput(view.startsAt) }),
         textInput("tier", "Gear Tier", 80, { value: view.tier }),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) }),
-        textInput("notes", "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
+        // A blank content has no slots (FR-060); its notes are the description.
+        ...(view.blank ? [] : [textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) })]),
+        textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
       ],
     },
   };
@@ -115,7 +116,8 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const title = parseTitle(v.title ?? "");
   const start = parseUtcStart(v.start ?? "", deps.now());
   const tier = parseGearTier(v.tier ?? "");
-  const slots = parseSlots(v.slots ?? "");
+  const isBlank = (await getRosterView(deps.sql, checked.target.id, deps.now()))?.blank === true;
+  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
   if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
@@ -242,7 +244,7 @@ const LIST_LIMIT = 15;
 export async function handleListCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   if (!i.guild_id) return reply("Use this command inside the server.");
   const items = await listUpcoming(deps.sql, i.guild_id, LIST_LIMIT + 1);
-  if (items.length === 0) return reply("No live or upcoming content. Start one with `/content create` in a channel or post.");
+  if (items.length === 0) return reply("No live or upcoming content. Start one with **Normal content** in the content-management channel.");
   const lines = items.slice(0, LIST_LIMIT).map((c) => {
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
     const def = kindDef(c.type as ContentType, c.kind);

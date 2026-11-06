@@ -26,7 +26,20 @@ const button = (label: string, emoji: string, custom_id: string, style = 2) => (
 
 function panel(view: RosterView, status: string | null = null) {
   const id = view.id;
-  const rows: unknown[] = view.status === "done"
+  const rows: unknown[] = view.blank && view.status !== "done"
+    // FR-060: no roster, so nobody to add, remove or give a duty.
+    ? [
+      { type: 1, components: [button("Edit", "✏️", `mg:e:${id}`, 1)] },
+      {
+        type: 1,
+        components: [
+          view.status === "locked" ? button("Unlock", "🔓", `mg:u:${id}`) : button("Lock", "🔒", `mg:l:${id}`),
+          button("End", "🏁", `mg:n:${id}`),
+          button("Cancel", "✖️", `mg:c:${id}`, 4),
+        ],
+      },
+    ]
+    : view.status === "done"
     // A finished roster keeps Manage for what comes after the content (ADR 0029).
     ? [{ type: 1, components: [button("Attendance", "📋", `mg:a:${id}`), button("Reopen", "🔁", `mg:r:${id}`)] }]
     : [
@@ -70,7 +83,7 @@ function editPanel(view: RosterView, note: string | null) {
           options: kindsOf(view.type).map((k) => ({ label: k.label, value: k.id, default: k.id === view.kind })),
         }],
       },
-      {
+      ...(view.blank ? [] : [{
         type: 1,
         components: [{
           type: 3, custom_id: `ed:l:${id}`, placeholder: "Loot vote",
@@ -79,8 +92,7 @@ function editPanel(view: RosterView, note: string | null) {
             { label: "Loot vote off", value: "0", default: !view.hasLoot },
           ],
         }],
-      },
-      {
+      }, {
         type: 1,
         components: [{
           type: 3, custom_id: `ed:s:${id}`, placeholder: "Sign-up",
@@ -89,7 +101,7 @@ function editPanel(view: RosterView, note: string | null) {
             { label: "Selection (you pick the party)", value: "1", default: !!view.selection, emoji: { name: "🎯" } },
           ],
         }],
-      },
+      }]),
       { type: 1, components: [button("Edit details", "📝", `mg:f:${id}`, 1), button("Build link", "🧰", `ed:b:${id}`)] },
     ],
   };

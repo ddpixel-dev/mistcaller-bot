@@ -89,6 +89,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
+    ...(view.cta ? [CTA_NOTE] : []),
     ...(view.selection ? [SELECTION_NOTE] : []),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
@@ -97,13 +98,17 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   ];
   const banner = statusBanner(view.status);
   if (banner) lines.push(banner);
-  if (notes && view.notes) lines.push(`📝 **Notes:** ${escapeText(view.notes)}`);
-  lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
+  if (notes && view.notes) lines.push(`📝 **${view.blank ? "Description" : "Notes"}:** ${escapeText(view.notes)}`);
+  // A blank content has no roster, so no party line (FR-060).
+  if (!view.blank) lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
   return lines.join("\n");
 }
 
+// FR-059: a call to arms says so in the post.
+export const CTA_NOTE = "📣 **Call to arms**";
+
 // FR-058: the disclaimer of a host-selected event, in the post itself.
-export const SELECTION_NOTE = "🎯 **Selection event:** the host picks the party.";
+export const SELECTION_NOTE = "⚠️ **Disclaimer:** the host picks the party.";
 
 const text = (content: string) => ({ type: 10, content });
 
@@ -120,6 +125,18 @@ export function renderRosterMessage(view: RosterView): {
 } {
   const filled = view.slots.filter((s) => s.userId !== null).length;
   const live = view.status === "open" || view.status === "locked";
+
+  // FR-060: a blank content is its details and a Manage button: no roster, menus, Leave, vote or Ping.
+  if (view.blank) {
+    const parts: unknown[] = [text(headerText(view, 0, true))];
+    if (live || view.status === "done") parts.push({ type: 1, components: [{ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` }] });
+    if (live) parts.push(text(OWNER_TIPS));
+    return {
+      flags: IS_COMPONENTS_V2,
+      components: [{ type: 17, accent_color: embedColor(view.type, view.status, view.kind), components: parts }],
+      allowed_mentions: { parse: [] },
+    };
+  }
 
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;

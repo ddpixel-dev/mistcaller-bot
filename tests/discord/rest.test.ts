@@ -84,17 +84,15 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(h["Content-Type"], "application/json");
   assert.equal(h["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
   assert.deepEqual(JSON.parse(r.init.body as string), commands);
-  const create = commands[0]!.options[0]!;
   assert.equal(commands[0]!.name, "content");
-  assert.equal(create.name, "create");
-  assert.deepEqual(create.options!.map((o) => o.name), ["build-reference"]);
-  assert.equal(create.options![0]!.type, 3);
+  assert.ok(!commands[0]!.options.some((o) => o.name === "create"), "content is created with the buttons in the content-management channel (ADR 0036)");
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["clear-event-forum", 7],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["clear-cta", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
   assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
+  assert.deepEqual(setupOpts.find((o) => o.name === "cta-channel")!.channel_types, [0, 5], "the CTA channel is a text or announcement channel");
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
 });
 
 test("the old server's command list is cleared with an empty PUT", () => {
@@ -194,4 +192,15 @@ test("pinMessage pins with the current endpoint and falls back to the older one 
   const rest = createRest("token", fetchFn, async () => {});
   await rest.pinMessage!("c1", "m1");
   assert.deepEqual(calls, ["PUT /channels/c1/messages/pins/m1", "PUT /channels/c1/pins/m1"]);
+});
+
+test("startThread starts a public thread from a message and returns its id", async () => {
+  const calls: { method: string; url: string; body: any }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: url.replace("https://discord.com/api/v10", ""), body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: "m9" }), { status: 201 });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  assert.deepEqual(await rest.startThread!("c1", "m9", "Call to arms"), { id: "m9" });
+  assert.deepEqual(calls, [{ method: "POST", url: "/channels/c1/messages/m9/threads", body: { name: "Call to arms", auto_archive_duration: 10080 } }]);
 });

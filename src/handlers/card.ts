@@ -3,10 +3,11 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, textInput } from "../discord/modal.ts";
 import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
-import { forumOfLauncher, getEventForum } from "../db/eventForum.ts";
+import { getEventForum, listEventForums } from "../db/eventForum.ts";
+import { getCtaChannel } from "../db/cta.ts";
 import { getPresetById, listPresets } from "../db/preset.ts";
-import { typesFor, validateCard } from "../domain/card.ts";
-import { DEFAULT_KIND, resolveKind } from "../domain/kinds.ts";
+import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
+import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
 import { formatSlotLines } from "../domain/slots.ts";
@@ -14,14 +15,17 @@ import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
 import { renderCard, v2Text } from "../render/card.ts";
 import { renderGuidedStep } from "../render/guided.ts";
-import { NOT_HERE, placeProblem, postTakenReply, postTitle, publish } from "./create.ts";
+import { NOT_HERE, publish } from "./create.ts";
+import { getAdminRoleIds } from "../db/settings.ts";
+import { getCtaRoleIds } from "../db/cta.ts";
+import { canCreateCta } from "../domain/permissions.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EXPIRED = "This card expired or is not yours. Run `/content create`, or press **Create event**, again.";
+const EXPIRED = "This card expired or is not yours. Press **Normal content** or **Special content** in the content-management channel again.";
 
-type Opened = { targetForumId: string | null; forumType: "pvp" | "pve" | null; title: string | null; buildRef?: string | null };
+type Opened = { targetForumId: string | null; forumType: "pvp" | "pve" | null; title: string | null; buildRef?: string | null; cta?: boolean };
 
-// Open the creation card (FR-054): from `/content create` in a channel or post, or from an event forum's launcher.
+// Open the creation card (FR-054): from the Normal content or Special content (CTA) button of the content-management channel.
 export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   const threadId = i.channel?.id;
@@ -29,7 +33,7 @@ export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<I
   const only = typesFor(o.forumType);
   const id = await startCard(deps.sql, {
     guildId: i.guild_id, userId, threadId, type: only.length === 1 ? only[0]! : null, title: o.title, startText: defaultStart(deps.now()),
-    targetForumId: o.targetForumId,
+    targetForumId: o.targetForumId, cta: o.cta ?? false,
   });
   if (o.buildRef) await saveCard(deps.sql, id, { buildRef: o.buildRef });
   const d = await getDraft(deps.sql, id, deps.now());
@@ -38,12 +42,10 @@ export async function openCard(deps: Deps, i: Interaction, o: Opened): Promise<I
   return { type: CHANNEL_MESSAGE, data: { ...data, flags: data.flags | EPHEMERAL } };
 }
 
-// lc:create: the Create event button of an event forum's pinned launcher post (FR-053).
-export async function handleLauncher(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  if (!i.guild_id || !i.channel?.id) return reply(NOT_HERE);
-  const forum = await forumOfLauncher(deps.sql, i.guild_id, i.channel.id);
-  if (!forum) return reply("This forum is no longer set up for events. Ask an admin to run `/content setup event-forum` again.");
-  return await openCard(deps, i, { targetForumId: forum.forumId, forumType: forum.type, title: null });
+// lc:create: the Create event button of an old launcher post. Launcher posts are gone since ADR 0036: content is created
+// with the buttons in the content-management channel.
+export async function handleLauncher(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {
+  return reply("Creating content has moved: use the **Normal content** or **Special content** buttons in the content-management channel.");
 }
 
 async function card(deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}) {
@@ -106,6 +108,10 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       return await showCard(deps, await reload(deps, d), { note: `📋 Slots from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**.` });
     }
     case "details": return detailsForm(d);
+    case "blank": {
+      if (!d.cta && !d.type) return await showCard(deps, d, { problems: ["Pick the type of content (PvP or PvE) first, then press Blank."] });
+      return blankForm(d);
+    }
     case "build": {
       return {
         type: MODAL,
@@ -190,20 +196,41 @@ export async function handleCardBuild(deps: Deps, i: Interaction): Promise<Inter
   return await showCard(deps, await reload(deps, d));
 }
 
-// Create: every problem is listed on the card; otherwise the roster is posted here, or in a new forum post.
+type Place = { forumId: string } | { channelId: string } | { threadId: string };
+type Destination = { ok: true; place: Place } | { ok: false; problem: string };
+
+// Where the content is posted (ADR 0036): a CTA in the CTA text channel (announced, with a thread for its roster), normal
+// content in the event forum of its type. A card opened from an old launcher post still goes to that launcher's forum.
+async function destinationOf(deps: Deps, d: StoredDraft, type: ContentType): Promise<Destination> {
+  if (d.targetForumId) return { ok: true, place: { forumId: d.targetForumId } };
+  if (d.cta) {
+    const channel = await getCtaChannel(deps.sql, d.guildId);
+    return channel ? { ok: true, place: { channelId: channel } } : { ok: false, problem: "No CTA channel is set. Ask an admin to run `/content setup` with `cta-channel`." };
+  }
+  const forum = pickEventForum(await listEventForums(deps.sql, d.guildId), type);
+  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum takes ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\`.` };
+}
+
+// A CTA is checked again at Create: the roles may have changed since the card was opened.
+async function ctaAllowed(deps: Deps, i: Interaction, d: StoredDraft): Promise<boolean> {
+  if (!d.cta) return true;
+  const actor = { userId: d.userId, roles: i.member?.roles ?? [], permissions: i.member?.permissions };
+  return canCreateCta(actor, await getAdminRoleIds(deps.sql, d.guildId), await getCtaRoleIds(deps.sql, d.guildId));
+}
+
+const NOT_CTA = "Special content (CTA) is for admins and members with a CTA role.";
+
+// Create: every problem is listed on the card; otherwise the roster is posted in a new forum post (FR-059).
 async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<InteractionResponse> {
   const checked = validateCard(d, deps.now());
   if (!checked.ok) return await showCard(deps, d, { problems: checked.problems });
-  const problem = placeProblem(i);
-  if (problem) return reply(problem);
-  if (!d.targetForumId) {
-    const taken = await postTakenReply(deps, d.guildId, d.threadId);
-    if (taken) return taken;
-  }
+  if (!(await ctaAllowed(deps, i, d))) return reply(NOT_CTA);
   const c = checked.value;
+  const where = await destinationOf(deps, d, c.type);
+  if (!where.ok) return await showCard(deps, d, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, hasLoot: d.loot, selection: d.selection, buildRef: d.buildRef, place: d.targetForumId ? { forumId: d.targetForumId } : { threadId: d.threadId },
+    slots: c.slots, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
@@ -211,8 +238,51 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   return { type: UPDATE_MESSAGE, data: v2Text(`✅ Created: ${link}`) };
 }
 
+// Blank (FR-060): the card's Blank button opens the final form with only title, start, gear tier and description; the
+// content has no roster. It reads and keeps the same fields as Details, so nothing typed is lost.
+function blankForm(d: StoredDraft): InteractionResponse {
+  return {
+    type: MODAL,
+    data: {
+      custom_id: `ccl:${d.id}`,
+      title: d.cta ? "Blank CTA" : "Blank content",
+      components: [
+        textInput("title", "Title", 100, { required: true, ...(d.title ? { value: d.title } : {}) }),
+        textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: true, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
+        textInput("tier", "Gear Tier", 80, { required: true, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
+        textInput("notes", "Description (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
+      ],
+    },
+  };
+}
+
+// ccl:<draft>: the Blank form. Problems are listed on the card; otherwise the content is posted.
+export async function handleBlankForm(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
+  if (prefix !== "ccl" || extra !== undefined) return reply(EXPIRED);
+  const d = await ownedDraft(deps, i, id);
+  if (!d) return reply(EXPIRED);
+  const v = modalValues(i);
+  await saveCard(deps.sql, d.id, { title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes) });
+  const fresh = await reload(deps, d);
+  const checked = validateBlank(fresh, fresh.cta, deps.now());
+  if (!checked.ok) return await showCard(deps, fresh, { problems: checked.problems });
+  if (!(await ctaAllowed(deps, i, fresh))) return reply(NOT_CTA);
+  const c = checked.value;
+  const where = await destinationOf(deps, fresh, c.type);
+  if (!where.ok) return await showCard(deps, fresh, { problems: [where.problem] });
+  const done = await publish(deps, {
+    guildId: fresh.guildId, creator: fresh.userId, type: c.type, kind: DEFAULT_KIND, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
+    slots: [], hasLoot: false, cta: fresh.cta, blank: true, buildRef: null, place: where.place,
+  });
+  if (!done.ok) return done.response;
+  await deleteDraft(deps.sql, d.id);
+  return { type: UPDATE_MESSAGE, data: v2Text(`✅ Created: https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`) };
+}
+
 // A form or panel of an earlier version (the first form, the create panel): it no longer exists.
 export async function handleOldCreate(): Promise<InteractionResponse> {
-  return reply("This is from an earlier version. Run `/content create` again.");
+  return reply("This is from an earlier version. Press **Normal content** or **Special content** in the content-management channel.");
 }
 

@@ -45,10 +45,10 @@ test("an admin sets the calendar channel: the calendar is posted there at once a
   const r: any = await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { permissions: "32" }));
   assert.equal(r.data.flags, 64);
   assert.ok(text(r).includes(`<#${CH1}>`) && text(r).toLowerCase().includes("calendar"));
-  assert.equal(created.length, 1);
-  assert.equal(created[0]!.channel, CH1);
-  assert.ok(JSON.stringify(created[0]!.body).includes("Events Calendar"));
-  assert.deepEqual((await getDashboard(d.sql, GUILD, "schedule"))!.messageIds, ["m1"]);
+  assert.equal(created.length, 2, "the creation buttons, then the calendar");
+  assert.equal(created[1]!.channel, CH1);
+  assert.ok(JSON.stringify(created[0]!.body).includes("hub:n") && JSON.stringify(created[1]!.body).includes("Events Calendar"));
+  assert.deepEqual((await getDashboard(d.sql, GUILD, "schedule"))!.messageIds, ["m1", "m2"]);
 });
 
 test("an admin role may set the calendar channel too; an ordinary member may not, and nothing is posted", async () => {
@@ -59,7 +59,7 @@ test("an admin role may set the calendar channel too; an ordinary member may not
   const refused: any = await handleSetupCommand(d, setup([opt("calendar-channel", CH2)], { roles: ["999"] }));
   assert.ok(text(refused).includes("Only an admin"));
   assert.equal((await getDashboard(d.sql, GUILD, "schedule"))!.channelId, CH1, "the refused change did nothing");
-  assert.equal(created.length, 1);
+  assert.equal(created.length, 2);
 });
 
 test("the admin roles panel still needs Manage Server itself", async () => {
@@ -93,12 +93,12 @@ test("moving the channel removes the bot's old messages; clear-calendar removes 
   const d = await deps(rest);
   await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { permissions: "32" }));
   await handleSetupCommand(d, setup([opt("calendar-channel", CH2)], { permissions: "32" }));
-  assert.deepEqual(deleted, [{ channel: CH1, message: "m1" }]);
-  assert.equal(created.length, 2);
+  assert.deepEqual(deleted, [{ channel: CH1, message: "m1" }, { channel: CH1, message: "m2" }]);
+  assert.equal(created.length, 4);
   assert.equal((await getDashboard(d.sql, GUILD, "schedule"))!.channelId, CH2);
   const cleared: any = await handleSetupCommand(d, setup([opt("clear-calendar", true, 5)], { permissions: "32" }));
   assert.ok(text(cleared).toLowerCase().includes("calendar"));
-  assert.deepEqual(deleted.at(-1), { channel: CH2, message: "m2" });
+  assert.deepEqual(deleted.slice(-2), [{ channel: CH2, message: "m3" }, { channel: CH2, message: "m4" }]);
   assert.equal(await getDashboard(d.sql, GUILD, "schedule"), null);
 });
 
@@ -114,7 +114,7 @@ test("the setup panel shows the channels now in use", async () => {
   const d = await deps(rest);
   await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { permissions: "32" }));
   const panel: any = await handleSetupCommand(d, setup([], { permissions: "32" }));
-  assert.ok(text(panel).includes(`Calendar channel: <#${CH1}>`) && !text(panel).includes("Statistics"));
+  assert.ok(text(panel).includes(`Content-management channel: <#${CH1}>`) && !text(panel).includes("Statistics"));
 });
 
 // FR-061: the changelog channel is set like the calendar channel, by admins, and nothing is posted when it is set.
@@ -142,4 +142,28 @@ test("the changelog channel may be a forum: each release becomes a post there", 
   assert.equal(await getChangelogChannel(d.sql, GUILD), FORUM);
   assert.equal(created.length, 0);
   assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text, announcement or forum"));
+});
+
+test("the CTA channel is a text channel; the CTA roles are picked in the panel; both are shown", async () => {
+  const { rest } = fake();
+  const d = await deps(rest);
+  const r: any = await handleSetupCommand(d, setup([opt("cta-channel", CH1)], { permissions: "32" }));
+  assert.ok(text(r).includes(`<#${CH1}>`) && text(r).includes("Create Public Threads"), text(r));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-channel", FORUM)], { permissions: "32" }))).includes("text or announcement channel"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-channel", CH1)], { roles: ["999"] }))).includes("Only an admin"));
+  const click = (values: string[], over: Partial<Interaction> = {}): Interaction => ({
+    id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel_id: "c", member: { user: { id: "u1" }, roles: [], permissions: "32" },
+    data: { custom_id: "setup:cta", component_type: 6, values }, ...over,
+  } as Interaction);
+  const { handleSetupComponent } = await import("../../src/handlers/setup.ts");
+  const updated: any = await handleSetupComponent(d, click(["200000001", "200000002"]));
+  assert.ok(text(updated).includes("<@&200000001>") && text(updated).includes(`CTA channel: <#${CH1}>`));
+  const { getCtaRoleIds, getCtaChannel } = await import("../../src/db/cta.ts");
+  assert.deepEqual((await getCtaRoleIds(d.sql, GUILD)).sort(), ["200000001", "200000002"]);
+  assert.equal(await getCtaChannel(d.sql, GUILD), CH1);
+  assert.ok(text(await handleSetupComponent(d, click(["200000001"], { member: { user: { id: "u1" }, roles: [], permissions: "0" } }))).includes("Manage Server"));
+  assert.ok(text(await handleSetupComponent(d, click([GUILD]))).includes("@everyone"));
+  const cleared: any = await handleSetupCommand(d, setup([opt("clear-cta", true, 5)], { permissions: "32" }));
+  assert.ok(text(cleared).includes("cleared"));
+  assert.equal(await getCtaChannel(d.sql, GUILD), null);
 });
