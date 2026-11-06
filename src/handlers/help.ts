@@ -21,7 +21,7 @@ export const HELP_TEXT = [
   "Press **Manage** on the roster. Only you see its panel:",
   "• **Edit:** category, loot vote, build link, and the details form.",
   "• **Add player** puts any member in an open position; the post says who added them. **Remove player** takes someone off.",
-  "• **Set duty** (Caller, Scout, Rat, Looter, Catcher). **Set weapon** gives a position without a weapon its weapon.",
+  "• **Set duty** (Caller, Scout, Rat, Looter, Catcher, Party or Main Healer). **Set weapon** fills a missing weapon.",
   "• **Lock** or **Unlock** signups, **End** (automatic 4 hours after the start), **Cancel**.",
   "• **Attendance** opens the form. On a finished roster, Manage offers Attendance and **Reopen**.",
   "• **Ping players** sends each player a private reminder once, so late joiners can be pinged later.",

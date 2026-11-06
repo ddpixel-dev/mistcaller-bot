@@ -7,6 +7,8 @@ export const DUTIES: DutyDef[] = [
   { id: "rat", label: "Rat", icon: "🐀" },
   { id: "looter", label: "Looter", icon: "💰" },
   { id: "catcher", label: "Catcher", icon: "🪝" },
+  { id: "party-healer", label: "Party Healer", icon: "💚" },
+  { id: "main-healer", label: "Main Healer", icon: "💖" },
 ];
 
 export const DUTY_WORD = "Duty";
