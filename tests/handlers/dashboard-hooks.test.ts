@@ -20,7 +20,7 @@ async function setup(withDashboard = true) {
   const sql = await testSql();
   const dash: { edits: any[]; created: any[] } = { edits: [], created: [] };
   const rest: Rest = {
-    async createMessage(channel, body) { if (channel === "dash") { dash.created.push(body); return { id: "dm1" }; } return { id: "roster1" }; },
+    async createMessage(channel, body) { if (channel === "dash") { dash.created.push(body); return { id: `dm${dash.created.length + dash.edits.length + 100}` }; } return { id: "roster1" }; },
     async editMessage(channel, _m, body) { if (channel === "dash") dash.edits.push(body); },
     async deleteMessage() {},
   };
@@ -56,7 +56,7 @@ const shown = (dash: { edits: any[] }) => JSON.stringify(dash.edits.at(-1) ?? ""
 test("cancelling an event removes it from the calendar at once", async () => {
   const { d, id, dash } = await setup();
   await d(press(`cancelyes:${id}`));
-  assert.equal(dash.edits.length, 1);
+  assert.equal(dash.edits.length, 2, "the buttons message and the calendar are both written");
   assert.ok(!shown(dash).includes("Original"));
 });
 
@@ -64,7 +64,7 @@ test("editing an event updates the calendar at once", async () => {
   const { d, id, dash } = await setup();
   const r: any = await d(submit(`edit:${id}:k`, { title: "Renamed", start: "2026-10-15 19:00", tier: "T8", slots: "Tank - Mace", notes: "" }));
   assert.ok(!String(r.data.content).includes("mistake"), String(r.data.content));
-  assert.equal(dash.edits.length, 1);
+  assert.equal(dash.edits.length, 2);
   assert.ok(shown(dash).includes("Renamed") && shown(dash).includes("19:00"));
 });
 
@@ -72,10 +72,10 @@ test("ending an event removes it, and reopening brings it back", async () => {
   const { d, dash, now } = await setup();
   now.t = new Date(START.getTime() + 10 * 60000);
   await d(cmd("end"));
-  assert.equal(dash.edits.length, 1);
+  assert.equal(dash.edits.length, 2);
   assert.ok(!shown(dash).includes("Original"));
   await d(cmd("reopen"));
-  assert.equal(dash.edits.length, 2);
+  assert.equal(dash.edits.length, 4);
   assert.ok(shown(dash).includes("Original"));
 });
 
@@ -86,7 +86,7 @@ test("creating an event adds it to the calendar at once", async () => {
   dash.edits.length = 0;
   const made: any = await d(submit("create:pvp:0:other", { title: "Brand new", start: "2026-10-16 18:00", tier: "T8", slots: "Tank - Mace", notes: "" }));
   assert.match(String(made.data.content), /Created|created/);
-  assert.equal(dash.edits.length, 1);
+  assert.equal(dash.edits.length, 2);
   assert.ok(shown(dash).includes("Brand new"));
 });
 

@@ -100,3 +100,18 @@ test("turning selection on turns waiting fills and waiters into applicants; turn
   assert.equal(await updateContentSettings(sql, id, { selection: false }), "ok");
   assert.equal((await view()).selection, false);
 });
+
+test("the owner of a selection event is not an applicant: signing up seats them at once, by position or as a fill", async () => {
+  const { sql, id, slots, view } = await setup();
+  assert.equal(await claim(sql, id, slots[0]!, OWNER), "claimed");
+  let v = await view();
+  assert.equal(v.slots[0]!.userId, OWNER);
+  assert.deepEqual(v.applicants, []);
+  assert.equal(await claim(sql, id, slots[2]!, OWNER), "moved", "the owner may also move themselves");
+  await leaveContent(sql, { contentId: id, userId: OWNER, guildId: G });
+  const r = await joinFill(sql, { contentId: id, userId: OWNER, guildId: G, now: NOW });
+  assert.equal(r.result, "seated");
+  v = await view();
+  assert.deepEqual([v.slots.filter((s) => s.userId === OWNER).length, v.applicants!.length], [1, 0]);
+  assert.equal(await claim(sql, id, slots[1]!, A), "applied", "everyone else still applies");
+});

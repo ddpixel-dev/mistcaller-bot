@@ -44,11 +44,11 @@ test("the first refresh posts the message and remembers it; the same schedule ag
   const { deps, sql, add } = await setup(rest);
   await add(1);
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "updated");
-  assert.equal(calls.created.length, 1);
+  assert.equal(calls.created.length, 2, "the creation buttons, then the calendar");
   assert.equal(calls.created[0]!.channel, "ch1");
-  assert.deepEqual((await stateOf(sql)).messageIds, ["m1"]);
+  assert.deepEqual((await stateOf(sql)).messageIds, ["m1", "m2"]);
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "unchanged");
-  assert.equal(calls.created.length + calls.edited.length, 1, "no second call");
+  assert.equal(calls.created.length + calls.edited.length, 2, "no second call");
 });
 
 test("a changed schedule edits the same message in place", async () => {
@@ -58,9 +58,8 @@ test("a changed schedule edits the same message in place", async () => {
   await refreshDashboard(deps, "g1", "schedule");
   await add(2);
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "updated");
-  assert.equal(calls.created.length, 1);
-  assert.equal(calls.edited.length, 1);
-  assert.deepEqual([calls.edited[0]!.channel, calls.edited[0]!.message], ["ch1", "m1"]);
+  assert.equal(calls.created.length, 2);
+  assert.deepEqual(calls.edited.map((e) => [e.channel, e.message]), [["ch1", "m1"], ["ch1", "m2"]], "the same messages, in place");
 });
 
 test("beyond 12 events a second message is posted, and it is deleted again when the events drop", async () => {
@@ -69,12 +68,12 @@ test("beyond 12 events a second message is posted, and it is deleted again when 
   const ids: string[] = [];
   for (let n = 1; n <= 14; n++) ids.push(await add(n));
   await refreshDashboard(deps, "g1", "schedule");
-  assert.equal(calls.created.length, 2);
-  assert.deepEqual((await stateOf(sql)).messageIds, ["m1", "m2"]);
+  assert.equal(calls.created.length, 3, "the buttons and two calendar messages");
+  assert.deepEqual((await stateOf(sql)).messageIds, ["m1", "m2", "m3"]);
   await sql`update content set status = 'cancelled' where id = any(${ids.slice(5)})`;
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "updated");
-  assert.deepEqual(calls.deleted, [{ channel: "ch1", message: "m2" }]);
-  assert.deepEqual((await stateOf(sql)).messageIds, ["m1"]);
+  assert.deepEqual(calls.deleted, [{ channel: "ch1", message: "m3" }]);
+  assert.deepEqual((await stateOf(sql)).messageIds, ["m1", "m2"]);
 });
 
 test("a message deleted by hand is posted again", async () => {
@@ -85,8 +84,8 @@ test("a message deleted by hand is posted again", async () => {
   await refreshDashboard(deps, "g1", "schedule");
   await add(2);
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "updated");
-  assert.equal(calls.created.length, 2, "the edit found no message, so a new one was posted");
-  assert.deepEqual((await stateOf(sql)).messageIds, ["m2"]);
+  assert.equal(calls.created.length, 4, "the edits found no messages, so new ones were posted");
+  assert.deepEqual((await stateOf(sql)).messageIds, ["m3", "m4"]);
   gone = false;
 });
 
@@ -99,7 +98,7 @@ test("when the bot cannot post, nothing is remembered and nothing throws; the ne
   assert.deepEqual(await stateOf(sql).then((s) => [s.messageIds, s.digest]), [[], ""]);
   fail = false;
   assert.equal(await refreshDashboard(deps, "g1", "schedule"), "updated");
-  assert.equal(calls.created.length, 1);
+  assert.equal(calls.created.length, 2);
 });
 
 test("a server without a schedule channel does nothing; other servers' events never appear", async () => {
@@ -108,7 +107,7 @@ test("a server without a schedule channel does nothing; other servers' events ne
   assert.equal(await refreshDashboard(deps, "g9", "schedule"), "none");
   await add(1, undefined, "g2");
   await refreshDashboard(deps, "g1", "schedule");
-  assert.ok(!JSON.stringify(calls.created[0]!.body).includes("Event 1"));
+  assert.ok(!JSON.stringify(calls.created.map((c) => c.body)).includes("Event 1"));
 });
 
 test("two refreshes at once post each message only once", async () => {
@@ -116,7 +115,7 @@ test("two refreshes at once post each message only once", async () => {
   const { deps, add } = await setup(rest);
   await add(1);
   await Promise.all([refreshDashboard(deps, "g1", "schedule"), refreshDashboard(deps, "g1", "schedule")]);
-  assert.equal(calls.created.length, 1);
+  assert.equal(calls.created.length, 2, "the buttons and the calendar, each once");
 });
 
 test("the quick refresh used after a command never throws and never waits longer than its limit", async () => {

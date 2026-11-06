@@ -1,3 +1,4 @@
+import { flatComponents } from "../helpers/discordLimits.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderSchedule, EVENTS_PER_MESSAGE, type ScheduleEvent } from "../../src/render/schedule.ts";
@@ -12,7 +13,8 @@ const event = (over: Partial<ScheduleEvent> = {}): ScheduleEvent => ({
   title: `Event ${n}`, type: "pvp", kind: "zvz", startsAt: new Date(NOW.getTime() + 2 * H), status: "open", party: 3, total: 10, ...over,
 });
 const at = (day: number, hour: number, minute = 0) => new Date(Date.UTC(2026, 9, 15 + day, hour, minute));
-const render = (events: ScheduleEvent[], stamp = NOW) => renderSchedule(events, "g1", NOW, stamp) as any[];
+// The calendar pages. The first message of renderSchedule is the creation hub (FR-059), tested on its own below.
+const render = (events: ScheduleEvent[], stamp = NOW) => (renderSchedule(events, "g1", NOW, stamp) as any[]).slice(1);
 const all = (bodies: any[]) => bodies.map((b) => plain(textOf(b))).join("\n=====\n");
 
 test("an empty calendar says so and how to start an event", () => {
@@ -20,7 +22,7 @@ test("an empty calendar says so and how to start an event", () => {
   assert.equal(bodies.length, 1);
   const t = all(bodies);
   assert.ok(t.includes("Events Calendar"));
-  assert.ok(t.includes("No live or upcoming events") && t.includes("/content create"));
+  assert.ok(t.includes("No live or upcoming events") && t.includes("Normal content"));
   assert.deepEqual(discordProblems(bodies[0]), []);
 });
 
@@ -107,4 +109,39 @@ test("the container uses the calendar colour, mentions nobody and is a Component
   assert.equal(b.components[0].type, 17);
   assert.equal(typeof b.components[0].accent_color, "number");
   assert.deepEqual(b.allowed_mentions, { parse: [] });
+});
+
+// ---- FR-059, FR-060: the creation buttons, CTA grouping, blank events ----
+
+test("a message of its own above the calendar holds the Normal content and Special content buttons", () => {
+  for (const events of [[event()], []]) {
+    const bodies = renderSchedule(events, "g1", NOW, NOW) as any[];
+    const buttons = flatComponents(bodies[0]).filter((c) => c.type === 2);
+    assert.deepEqual(buttons.map((b) => [b.label, b.custom_id, b.style]), [["Normal content", "hub:n", 3], ["Special content (CTA)", "hub:c", 1]]);
+    assert.ok(!all(bodies.slice(1)).includes("Normal content") || events.length === 0, "the calendar pages have no buttons");
+    assert.equal(flatComponents(bodies[1]).filter((c) => c.type === 2).length, 0);
+    assert.deepEqual(discordProblems(bodies[0]), []);
+  }
+  const same = JSON.stringify(renderSchedule([], "g1", NOW, NOW)[0]) === JSON.stringify(renderSchedule([event()], "g2", new Date(NOW.getTime() + 3600000), NOW)[0]);
+  assert.ok(same, "the hub message never changes, so refreshing the calendar leaves it as it is");
+});
+
+test("under each day, call-to-arms events come first in their own group, then the normal content", () => {
+  const t = all(render([
+    event({ title: "Normal early", startsAt: at(0, 13) }),
+    event({ title: "CTA late", startsAt: at(0, 20), cta: true }),
+    event({ title: "Normal only day", startsAt: at(1, 18) }),
+    event({ title: "CTA only day", startsAt: at(2, 18), cta: true }),
+  ]));
+  const today = t.slice(t.indexOf("Thu 15 Oct"), t.indexOf("Fri 16 Oct"));
+  assert.ok(today.indexOf("Call to arms") < today.indexOf("CTA late") && today.indexOf("CTA late") < today.indexOf("Content") && today.indexOf("Content") < today.indexOf("Normal early"), today);
+  const tomorrow = t.slice(t.indexOf("Fri 16 Oct"), t.indexOf("Sat 17 Oct"));
+  assert.ok(!tomorrow.includes("Call to arms") && !tomorrow.includes("Content"), "a day with one kind needs no group labels");
+  const third = t.slice(t.indexOf("Sat 17 Oct"));
+  assert.ok(third.includes("Call to arms") && third.indexOf("Call to arms") < third.indexOf("CTA only day"));
+});
+
+test("a blank event shows no party count", () => {
+  const t = all(render([event({ title: "Meet", blank: true, total: 0, party: 0 })]));
+  assert.ok(t.includes("Meet") && !t.includes("👥"), t);
 });

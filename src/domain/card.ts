@@ -56,3 +56,30 @@ export function matchTags(tags: { id: string; name: string }[], type: ContentTyp
   const wanted = new Set([TYPE_LABEL[type], ...(def && def.id !== "other" ? [def.label] : [])].map((n) => n.toLowerCase()));
   return tags.filter((t) => wanted.has(t.name.trim().toLowerCase())).map((t) => t.id).slice(0, 5);
 }
+
+// Where normal content is posted (ADR 0036): the event forum of its type, else a forum for any type. PvX fits either type,
+// so a forum for any type takes it first, then whichever forum comes first.
+export function pickEventForum<T extends { forumId: string; type: "pvp" | "pve" | null }>(forums: readonly T[], type: ContentType): T | null {
+  if (type === "pvx") return forums.find((f) => f.type === null) ?? forums[0] ?? null;
+  return forums.find((f) => f.type === type) ?? forums.find((f) => f.type === null) ?? null;
+}
+
+export type BlankInput = { type: ContentType | null; title: string | null; startText: string | null; gearTier: string | null; notes: string | null };
+export type BlankContent = { type: ContentType; title: string; startsAt: Date; tier: string; notes: string | null };
+
+// A blank content (FR-060) has no roster: title, start, gear tier and description. A CTA has no type to pick, so it is PvX.
+export function validateBlank(c: BlankInput, cta: boolean, now: Date): { ok: true; value: BlankContent } | { ok: false; problems: string[] } {
+  const problems: string[] = [];
+  const type: ContentType | null = c.type ?? (cta ? "pvx" : null);
+  if (!type) problems.push("Pick the type of content (PvP or PvE) first.");
+  const title = parseTitle(c.title ?? "");
+  if (!title.ok) problems.push(c.title ? title.error : "Add a title.");
+  const start = parseUtcStart(c.startText ?? "", now);
+  if (!start.ok) problems.push(start.error);
+  const tier = parseGearTier(c.gearTier ?? "");
+  if (!tier.ok) problems.push(tier.error);
+  const notes = parseNotes(c.notes ?? "");
+  if (!notes.ok) problems.push(notes.error);
+  if (problems.length > 0 || !type || !title.ok || !start.ok || !tier.ok || !notes.ok) return { ok: false, problems };
+  return { ok: true, value: { type, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value } };
+}

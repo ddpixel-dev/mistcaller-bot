@@ -499,12 +499,12 @@ test("role icons: DTank has its own brick, Tank its shield, a Scout role the tel
 
 test("a selection event says so in the post, lists the applicants with what they asked for, and has no waitlist menu", () => {
   const v = view({ slots: slots(3, 3), selection: true, applicants: [{ userId: "9001", wants: "Healer, #7" }, { userId: "9002", wants: "Any" }] });
-  assert.ok(raw(v).includes("🎯 **Selection event:** the host picks the party."));
+  assert.ok(raw(v).includes("⚠️ **Disclaimer:** the host picks the party."));
   assert.ok(raw(v).includes("\n\n📨 **Applicants"), "a blank line sets the applicants apart from the players");
   assert.ok(raw(v).includes("📨 **Applicants (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
   assert.equal(byId(v, "wait:").length, 0, "nobody is seated automatically, so there is nothing to wait for");
   assert.equal(byId(v, "leave:")[0]!.disabled, false, "an applicant can withdraw");
-  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Selection event"));
+  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Disclaimer"));
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
@@ -518,4 +518,23 @@ test("the roster button is a link button to the roster message, or to the post w
   const [row] = rosterButton({ guildId: "g1", threadId: "t1", messageId: "m1" }) as any[];
   assert.deepEqual(row.components, [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: "https://discord.com/channels/g1/t1/m1" }]);
   assert.equal((rosterButton({ guildId: "g1", threadId: "t1", messageId: null })[0] as any).components[0].url, "https://discord.com/channels/g1/t1");
+});
+
+// ---- FR-059, FR-060: CTA and blank content ----
+
+test("a CTA says so in the post", () => {
+  const v = view({ cta: true });
+  assert.ok(raw(v).includes("📣 **Call to arms**"));
+  assert.ok(!raw(view()).includes("Call to arms"));
+});
+
+test("a blank content has no roster: no party line, no menus, no Leave, Ping or vote; only Manage", () => {
+  const v = view({ blank: true, slots: [], hasLoot: true, notes: "Meet at the portal" });
+  const t = txt(v);
+  assert.ok(t.includes("Meet at the portal") && t.includes("Gear tier"));
+  assert.ok(!t.includes("Party (") && !t.includes("Waitlist"), t);
+  assert.equal(comps(v).filter((c) => c.type === 3).length, 0, "no menus");
+  const labels = comps(v).filter((c) => c.type === 2).map((c) => c.label);
+  assert.deepEqual(labels, ["Manage"]);
+  assert.deepEqual(discordProblems(msg(v)), []);
 });

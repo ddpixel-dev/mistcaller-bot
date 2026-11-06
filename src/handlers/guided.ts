@@ -13,7 +13,7 @@ import { showCard } from "./card.ts";
 import { v2Text } from "../render/card.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EXPIRED = "These steps expired or are not yours. Run `/content create` and start again.";
+const EXPIRED = "These steps expired or are not yours. Press **Normal content** in the content-management channel and start again.";
 
 const update = (d: StoredDraft): InteractionResponse => ({ type: UPDATE_MESSAGE, data: renderGuidedStep(d) });
 const picked = (d: GuidedDraft) => ({ count: d.count, slots: d.slots, step: d.step, role: d.role, weapon: d.weapon, duty: d.duty });

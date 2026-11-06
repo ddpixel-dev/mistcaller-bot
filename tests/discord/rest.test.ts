@@ -84,17 +84,14 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(h["Content-Type"], "application/json");
   assert.equal(h["User-Agent"], "DiscordBot (content-roster-bot, 0.1.0)");
   assert.deepEqual(JSON.parse(r.init.body as string), commands);
-  const create = commands[0]!.options[0]!;
   assert.equal(commands[0]!.name, "content");
-  assert.equal(create.name, "create");
-  assert.deepEqual(create.options!.map((o) => o.name), ["build-reference"]);
-  assert.equal(create.options![0]!.type, 3);
+  assert.ok(!commands[0]!.options.some((o) => o.name === "create"), "content is created with the buttons in the content-management channel (ADR 0036)");
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["clear-event-forum", 7],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["clear-cta", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
-  assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
-  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["create", "setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
+  assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum") || o.name === "cta-channel").map((o) => o.channel_types), [[15], [15], [15]], "forum channels only");
+  assert.deepEqual(commands[0]!.options.map((o) => o.name), ["setup", "preset", "me", "list", "stats", "history", "help"], "the host actions live in the Manage panel (ADR 0029)");
 });
 
 test("the old server's command list is cleared with an empty PUT", () => {

@@ -3,7 +3,6 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { reply } from "../discord/response.ts";
 import { subcommandName } from "../discord/modal.ts";
-import { handleCreateCommand } from "./create.ts";
 import { handleHelpCommand } from "./help.ts";
 import { handleSetupCommand } from "./setup.ts";
 import { handlePresetCommand } from "./preset.ts";
@@ -15,7 +14,6 @@ import { handleHistoryCommand } from "./attendance.ts";
 // Manage panel on the roster, not commands (ADR 0029). `weapon` and `slot` were removed in 0.25.0 (ADR 0031).
 export async function handleContentCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   switch (subcommandName(i)) {
-    case "create": return await handleCreateCommand(deps, i);
     case "setup": return await handleSetupCommand(deps, i);
     case "preset": return await handlePresetCommand(deps, i);
     case "me": return await handleMeCommand(deps, i);

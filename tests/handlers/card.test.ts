@@ -27,6 +27,7 @@ async function setup(o: { failEdit?: boolean; failPost?: boolean; renameFails?: 
     async editChannel(id, body) { calls.push({ op: "editChannel", args: [id, body] }); if (o.renameFails && (body as any).name) throw new Error("429"); },
     async deleteChannel(id) { calls.push({ op: "deleteChannel", args: [id] }); },
   };
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, ${FORUM}, null) on conflict do nothing`;
   const deps: Deps = { sql, rest, now: () => NOW };
   return { sql, deps, d: createDispatch(deps), calls };
 }
@@ -45,8 +46,9 @@ const menus = (r: any) => flatComponents(r.data).filter((c) => c.type === 3);
 const idOf = (r: any) => cardIdOf(r);
 const details = { title: "Ava roam", start: "2026-10-25 18:00", tier: "T8", slots: "Tank - Mace\nHealer", notes: "" };
 
-async function open(d: any, over: Partial<Interaction> = {}) {
-  const r: any = await d(command("create", [], over));
+// The card opens from a button of the content-management channel (FR-059).
+async function open(d: any, over: Partial<Interaction> = {}, which: "n" | "c" = "n") {
+  const r: any = await d(press(`hub:${which}`, undefined, over));
   return { r, id: idOf(r) };
 }
 
@@ -111,100 +113,67 @@ test("Create is dimmed and the card lists what is still needed; a forced click c
   }
 });
 
-test("Create in a channel posts the roster there, removes the draft and links it", async () => {
-  const { d, sql, calls } = await setup();
-  const { id } = await open(d);
-  await d(press(`cc:type:${id}`, ["pvp"]));
-  await d(form(`ccd:${id}`, details));
-  const r: any = await d(press(`cc:create:${id}`));
-  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/c1/m1`);
-  assert.equal(calls.filter((c) => c.op === "createMessage").length, 1);
-  const [row] = await sql`select thread_id, message_id, own_post, title from content`;
-  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.title], ["c1", "m1", false, "Ava roam"]);
-  assert.equal(await getDraft(sql, id, NOW), null);
-});
-
-// ---- event forums (FR-053) ----
-
-const forumOpt = (name: string, value: string) => ({ name, type: 7, value });
-const resolvedForum = { channels: { [FORUM]: { id: FORUM, type: 15 } } };
-const setupForum = (d: any, type?: string) =>
-  d(command("setup", [forumOpt("event-forum", FORUM), ...(type ? [{ name: "forum-type", type: 3, value: type }] : [])], {}, resolvedForum));
-
-test("setup event-forum posts and pins a Create event post, remembers the forum and lists the permissions to set", async () => {
-  const { d, sql, calls } = await setup();
-  const r: any = await setupForum(d, "pvp");
-  assert.equal(r.data.flags, 64);
-  assert.ok(r.data.content.includes("Create Posts") && r.data.content.includes("Manage Threads"));
-  const post = calls.find((c) => c.op === "createForumPost")!;
-  assert.equal(post.args[0], FORUM);
-  assert.equal(post.args[1].name, "📌 Create an event: click here");
-  assert.ok(post.args[1].message.content.startsWith("👉 Press **Create event**"), "the forum list shows what to do");
-  assert.ok(r.data.content.includes("Post Guidelines") && r.data.content.includes("<#post1>"));
-  assert.deepEqual(flatComponents(post.args[1].message).find((c) => c.type === 2)!.custom_id, "lc:create");
-  assert.deepEqual(calls.find((c) => c.op === "editChannel")!.args, ["post1", { flags: 2, locked: true }], "pinned and locked");
-  const [row] = await sql`select forum_id, type, launcher_thread_id from event_forum`;
-  assert.deepEqual([row!.forum_id, row!.type, row!.launcher_thread_id], [FORUM, "pvp", "post1"]);
-  await setupForum(d);
-  assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "post1"), "the old launcher is replaced");
-  assert.equal((await sql`select type from event_forum`)[0]!.type, null, "Any by default");
-  const cleared: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM)], {}, resolvedForum));
-  assert.ok(cleared.data.content.includes("no longer an event forum"));
-  assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
-});
-
-test("setup event-forum is for admins and forums only, and reports a forum the bot cannot post in", async () => {
-  const { d, sql } = await setup({ failPost: true });
-  assert.ok(((await d(command("setup", [forumOpt("event-forum", FORUM)], { member: { user: { id: OTHER }, roles: [] } }, resolvedForum))) as any).data.content.includes("Only an admin"));
-  assert.ok(((await d(command("setup", [forumOpt("event-forum", "c1")], {}, { channels: { c1: { type: 0 } } }))) as any).data.content.includes("forum channel"));
-  const r: any = await setupForum(d);
-  assert.ok(r.data.content.includes("could not create") && r.data.content.includes("Create Posts"));
-  assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
-});
-
-async function launcherCard(d: any, type?: string) {
-  await setupForum(d, type);
-  const inPost = { channel: { id: "post1", type: 11, parent_id: FORUM } };
-  const r: any = await d(press("lc:create", undefined, inPost));
-  return { r, id: idOf(r), inPost };
-}
-
-test("Create event opens the card in the launcher post; a PvP forum offers PvP and PvX; the command is refused there", async () => {
-  const { d } = await setup();
-  const { r, inPost } = await launcherCard(d, "pvp");
+test("Normal content opens a private card in the hub channel; it needs an event forum", async () => {
+  const { d, sql } = await setup();
+  const r: any = await d(press("hub:n"));
   assert.equal(r.type, 4);
   assert.equal(r.data.flags & 64, 64, "private");
-  assert.deepEqual(menus(r)[0].options.map((o: any) => o.value), ["pvp", "pvx"]);
-  assert.ok(((await d(command("create", [], inPost))) as any).data.content.includes("Create event"));
-  assert.ok(((await d(press("lc:create", undefined, { channel: { id: "elsewhere", type: 11 } }))) as any).data.content.includes("no longer set up"));
+  assert.ok(say(r).includes("Create event"));
+  assert.deepEqual(menus(r)[0].options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
+  const [draft] = await sql`select thread_id, cta from slot_draft`;
+  assert.deepEqual([draft!.thread_id, draft!.cta], ["c1", false]);
+  await sql`delete from event_forum`;
+  assert.ok(((await d(press("hub:n"))) as any).data.content.includes("No event forum is set"));
 });
 
-test("Create from a launcher makes a new post named after the title, with matching tags, the roster as its first message", async () => {
+test("Create posts the roster in a new post of the event forum of its type, with matching tags, and links it", async () => {
   const { d, sql, calls } = await setup();
-  const { id, inPost } = await launcherCard(d);
-  await d(press(`cc:type:${id}`, ["pvp"], inPost));
-  await d(press(`cc:kind:${id}`, ["zvz"], inPost));
-  await d(form(`ccd:${id}`, details, inPost));
-  const r: any = await d(press(`cc:create:${id}`, undefined, inPost));
-  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/post2/post2`);
+  await sql`delete from event_forum`;
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'pvp-forum', 'pvp'), (${GUILD}, 'pve-forum', 'pve')`;
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:kind:${id}`, ["zvz"]));
+  await d(form(`ccd:${id}`, details));
+  const r: any = await d(press(`cc:create:${id}`));
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/post1/post1`);
   const post = calls.filter((c) => c.op === "createForumPost").at(-1)!;
-  assert.deepEqual([post.args[0], post.args[1].name, post.args[1].applied_tags], [FORUM, "Ava roam", ["tag-pvp", "tag-zvz"]]);
+  assert.deepEqual([post.args[0], post.args[1].name, post.args[1].applied_tags], ["pvp-forum", "Ava roam", ["tag-pvp", "tag-zvz"]]);
   const edit = calls.filter((c) => c.op === "editMessage").at(-1)!;
-  assert.deepEqual(edit.args.slice(0, 2), ["post2", "post2"], "the post's first message becomes the roster");
+  assert.deepEqual(edit.args.slice(0, 2), ["post1", "post1"], "the post's first message becomes the roster");
   assert.ok(plain(textOf(edit.args[2])).includes("Ava roam"));
   assert.deepEqual(discordProblems(edit.args[2]), []);
-  const [row] = await sql`select thread_id, message_id, own_post from content`;
-  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post], ["post2", "post2", true]);
+  const [row] = await sql`select thread_id, message_id, own_post, cta, blank from content`;
+  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta, row!.blank], ["post1", "post1", true, false, false]);
+  assert.equal(await getDraft(sql, id, NOW), null);
+  // PvE goes to the PvE forum
+  const second = await open(d);
+  await d(press(`cc:type:${second.id}`, ["pve"]));
+  await d(form(`ccd:${second.id}`, { ...details, title: "Dungeon" }));
+  await d(press(`cc:create:${second.id}`));
+  assert.equal(calls.filter((c) => c.op === "createForumPost").at(-1)!.args[0], "pve-forum");
+});
+
+test("with no event forum for the type, Create says so on the card and keeps it", async () => {
+  const { d, sql } = await setup();
+  await sql`delete from event_forum`;
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'pvp-forum', 'pvp')`;
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pve"]));
+  await d(form(`ccd:${id}`, details));
+  const r: any = await d(press(`cc:create:${id}`));
+  assert.ok(say(r).includes("No event forum takes PvE content"), say(r));
+  assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
+  assert.ok(await getDraft(sql, id, NOW));
 });
 
 test("when the roster cannot be put in the new post, the post and the content are removed", async () => {
   const { d, sql, calls } = await setup({ failEdit: true });
-  const { id, inPost } = await launcherCard(d);
-  await d(press(`cc:type:${id}`, ["pve"], inPost));
-  await d(form(`ccd:${id}`, details, inPost));
-  const r: any = await d(press(`cc:create:${id}`, undefined, inPost));
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pve"]));
+  await d(form(`ccd:${id}`, details));
+  const r: any = await d(press(`cc:create:${id}`));
   assert.equal(r.data.flags, 64);
-  assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "post2"));
+  assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "post1"));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.ok(await getDraft(sql, id, NOW), "the card is kept to try again");
 });
@@ -213,15 +182,15 @@ test("editing the title renames a post the bot made; a refused rename is explain
   for (const renameFails of [false, true]) {
     await resetDb(await testSql());
     const { d, deps, sql, calls } = await setup({ renameFails });
-    const { id, inPost } = await launcherCard(d);
-    await d(press(`cc:type:${id}`, ["pvp"], inPost));
-    await d(form(`ccd:${id}`, details, inPost));
-    await d(press(`cc:create:${id}`, undefined, inPost));
+    const { id } = await open(d);
+    await d(press(`cc:type:${id}`, ["pvp"]));
+    await d(form(`ccd:${id}`, details));
+    await d(press(`cc:create:${id}`));
     const [{ id: contentId }] = await sql`select id from content`;
-    const edit = (title: string) => handleEditModal(deps, form(`edit:${contentId}:k`, { ...details, title }, { channel: { id: "post2", type: 11, parent_id: FORUM } }));
+    const edit = (title: string) => handleEditModal(deps, form(`edit:${contentId}:k`, { ...details, title }, { channel: { id: "post1", type: 11, parent_id: FORUM } }));
     const r: any = await edit("Ava roam 2");
     const renames = calls.filter((c) => c.op === "editChannel" && c.args[1].name);
-    assert.deepEqual(renames.map((c) => c.args), [["post2", { name: "Ava roam 2" }]]);
+    assert.deepEqual(renames.map((c) => c.args), [["post1", { name: "Ava roam 2" }]]);
     assert.equal(r.data.content.includes("two renames"), renameFails);
     await edit("Ava roam 2");
     assert.equal(calls.filter((c) => c.op === "editChannel" && c.args[1].name).length, 1, "same title: no rename");
@@ -231,6 +200,115 @@ test("editing the title renames a post the bot made; a refused rename is explain
   const own = await createContent(sql, { guildId: GUILD, threadId: "c9", type: "pvp", title: "Old", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"), tier: "T8", hasLoot: false, createdBy: OWNER, slots: [{ role: "Tank", weapon: "Mace" }] });
   await handleEditModal(deps, form(`edit:${own}:k`, { ...details, title: "New" }, { channel: { id: "c9", type: 0 } }));
   assert.equal(calls.filter((c) => c.op === "editChannel").length, 0);
+});
+
+// ---- the setup of forums (FR-053, changed by ADR 0036) ----
+
+const forumOpt = (name: string, value: string) => ({ name, type: 7, value });
+const resolvedForum = { channels: { [FORUM]: { id: FORUM, type: 15 } } };
+const setupForum = (d: any, type?: string) =>
+  d(command("setup", [forumOpt("event-forum", FORUM), ...(type ? [{ name: "forum-type", type: 3, value: type }] : [])], {}, resolvedForum));
+
+test("setup event-forum registers the forum without a launcher post and lists the permissions to set, Pin Messages included", async () => {
+  const { d, sql, calls } = await setup();
+  await sql`delete from event_forum`;
+  const r: any = await setupForum(d, "pvp");
+  assert.equal(r.data.flags, 64);
+  assert.ok(r.data.content.includes("Create Posts") && r.data.content.includes("Manage Threads") && r.data.content.includes("Pin Messages"));
+  assert.ok(r.data.content.includes("content-management channel"));
+  assert.equal(calls.filter((c) => c.op === "createForumPost" || c.op === "editChannel").length, 0, "nothing is posted in the forum");
+  const [row] = await sql`select forum_id, type, launcher_thread_id from event_forum`;
+  assert.deepEqual([row!.forum_id, row!.type, row!.launcher_thread_id], [FORUM, "pvp", null]);
+  await setupForum(d);
+  assert.equal((await sql`select type from event_forum`)[0]!.type, null, "Any by default");
+  const cleared: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM)], {}, resolvedForum));
+  assert.ok(cleared.data.content.includes("no longer an event forum"));
+  assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
+});
+
+test("setup event-forum is for admins and forums only; an old launcher post is removed when the forum is set again", async () => {
+  const { d, sql, calls } = await setup();
+  assert.ok(((await d(command("setup", [forumOpt("event-forum", FORUM)], { member: { user: { id: OTHER }, roles: [] } }, resolvedForum))) as any).data.content.includes("Only an admin"));
+  assert.ok(((await d(command("setup", [forumOpt("event-forum", "c1")], {}, { channels: { c1: { type: 0 } } }))) as any).data.content.includes("forum channel"));
+  await sql`update event_forum set launcher_thread_id = 'old-launcher'`;
+  await setupForum(d);
+  assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "old-launcher"));
+  assert.equal((await sql`select launcher_thread_id from event_forum`)[0]!.launcher_thread_id, null);
+});
+
+test("an old launcher button only points to the content-management channel", async () => {
+  const { d } = await setup();
+  assert.ok(((await d(press("lc:create"))) as any).data.content.includes("content-management channel"));
+});
+
+// ---- CTA and Blank (FR-059, FR-060) ----
+
+const CTA_FORUM = "300000000000000009";
+const member = (roles: string[], permissions = "0"): Partial<Interaction> => ({ member: { user: { id: OWNER }, roles, permissions } });
+
+test("Special content is for admins and CTA roles, and needs a CTA forum", async () => {
+  const { d, sql } = await setup();
+  assert.ok(((await d(press("hub:c", undefined, member([])))) as any).data.content.includes("admins and members with a CTA role"));
+  await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
+  assert.ok(((await d(press("hub:c", undefined, member(["callers"])))) as any).data.content.includes("No CTA forum is set"));
+  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  const byRole: any = await d(press("hub:c", undefined, member(["callers"])));
+  assert.equal(byRole.type, 4);
+  assert.ok(say(byRole).includes("Create CTA (call to arms)"));
+  assert.equal((await sql`select cta from slot_draft`)[0]!.cta, true);
+  const byAdmin: any = await d(press("hub:c", undefined, member([], "32")));
+  assert.equal(byAdmin.type, 4);
+});
+
+test("a CTA is created in the CTA forum, flagged, and the roles are checked again at Create", async () => {
+  const { d, sql, calls } = await setup();
+  await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
+  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  const { id } = await open(d, member(["callers"]), "c");
+  await d(press(`cc:type:${id}`, ["pvp"], member(["callers"])));
+  await d(form(`ccd:${id}`, details, member(["callers"])));
+  const denied: any = await d(press(`cc:create:${id}`, undefined, member([])));
+  assert.ok(denied.data.content.includes("admins and members with a CTA role"));
+  assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
+  const r: any = await d(press(`cc:create:${id}`, undefined, member(["callers"])));
+  assert.ok(say(r).startsWith("✅ Created"));
+  assert.equal(calls.filter((c) => c.op === "createForumPost").at(-1)!.args[0], CTA_FORUM);
+  assert.equal((await sql`select cta from content`)[0]!.cta, true);
+});
+
+test("Blank template: needs the type for normal content; opens a form with title, start, gear tier and description; posts a content without a roster", async () => {
+  const { d, sql, calls } = await setup();
+  const { id } = await open(d);
+  const noType: any = await d(press(`cc:blank:${id}`));
+  assert.equal(noType.type, 7);
+  assert.ok(say(noType).includes("Pick the type of content (PvP or PvE) first"));
+  await d(press(`cc:type:${id}`, ["pve"]));
+  const formResp: any = await d(press(`cc:blank:${id}`));
+  assert.equal(formResp.type, 9);
+  assert.equal(formResp.data.custom_id, `ccl:${id}`);
+  assert.deepEqual(formResp.data.components.map((r: any) => r.components[0].custom_id), ["title", "start", "tier", "notes"]);
+  const bad: any = await d(form(`ccl:${id}`, { title: "", start: "soon", tier: "", notes: "" }));
+  assert.equal(bad.type, 7);
+  assert.ok(say(bad).includes("Add a title"));
+  const ok: any = await d(form(`ccl:${id}`, { title: "Meet at the portal", start: "2026-10-25 18:00", tier: "T8", notes: "Bring food" }));
+  assert.ok(say(ok).startsWith("✅ Created"), say(ok));
+  const [row] = await sql`select blank, cta, type, title, notes from content`;
+  assert.deepEqual([row!.blank, row!.cta, row!.type, row!.title, row!.notes], [true, false, "pve", "Meet at the portal", "Bring food"]);
+  assert.equal((await sql`select count(*)::int as n from slot`)[0]!.n, 0);
+  const edit = calls.filter((c) => c.op === "editMessage").at(-1)!;
+  const buttons = flatComponents(edit.args[2]).filter((c: any) => c.type === 2).map((c: any) => c.label);
+  assert.deepEqual(buttons, ["Manage"]);
+});
+
+test("a blank CTA needs no type: it is PvX and goes to the CTA forum", async () => {
+  const { d, sql, calls } = await setup();
+  await sql`insert into cta_forum (guild_id, forum_id) values (${GUILD}, ${CTA_FORUM})`;
+  const { id } = await open(d, member([], "32"), "c");
+  const ok: any = await d(form(`ccl:${id}`, { title: "All hands", start: "2026-10-25 18:00", tier: "T8", notes: "" }, member([], "32")));
+  assert.ok(say(ok).startsWith("✅ Created"), say(ok));
+  const [row] = await sql`select blank, cta, type from content`;
+  assert.deepEqual([row!.blank, row!.cta, row!.type], [true, true, "pvx"]);
+  assert.equal(calls.filter((c) => c.op === "createForumPost").at(-1)!.args[0], CTA_FORUM);
 });
 
 test("Create lights up once the card is complete; the tips sit under the buttons after a divider, one 💡 per line", async () => {

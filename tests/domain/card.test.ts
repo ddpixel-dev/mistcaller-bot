@@ -48,3 +48,31 @@ test("forum tags match the type or the category by name, ignoring case; at most 
   assert.deepEqual(matchTags(tags, "pvx", "other"), []);
   assert.deepEqual(matchTags([], "pvp", "zvz"), []);
 });
+
+import { pickEventForum, validateBlank } from "../../src/domain/card.ts";
+
+test("normal content goes to the forum of its type, then a forum for any type, and PvX prefers a forum for any type", () => {
+  const forums = [{ forumId: "pvp-f", type: "pvp" as const }, { forumId: "pve-f", type: "pve" as const }];
+  assert.equal(pickEventForum(forums, "pvp")?.forumId, "pvp-f");
+  assert.equal(pickEventForum(forums, "pve")?.forumId, "pve-f");
+  assert.equal(pickEventForum([...forums, { forumId: "any-f", type: null }], "pvx")?.forumId, "any-f");
+  assert.equal(pickEventForum([...forums, { forumId: "any-f", type: null }], "pvp")?.forumId, "pvp-f", "an exact type wins");
+  assert.equal(pickEventForum([{ forumId: "any-f", type: null }], "pve")?.forumId, "any-f");
+  assert.equal(pickEventForum(forums, "pvx")?.forumId, "pvp-f", "PvX fits either, so the first forum takes it");
+  assert.equal(pickEventForum([], "pvp"), null);
+  assert.equal(pickEventForum([{ forumId: "pvp-f", type: "pvp" }], "pve"), null, "no forum takes PvE");
+});
+
+test("a blank content needs a type (CTA needs none: it is PvX), a title, a start and a gear tier; the description is optional", () => {
+  const NOW = new Date("2026-10-24T12:00:00Z");
+  const ok = validateBlank({ type: "pvp", title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: "bring food" }, false, NOW);
+  assert.deepEqual(ok.ok && [ok.value.type, ok.value.title, ok.value.tier, ok.value.notes], ["pvp", "Roam", "T8", "bring food"]);
+  assert.equal(validateBlank({ type: "pvp", title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: null }, false, NOW).ok, true, "no description is fine");
+  const noType = validateBlank({ type: null, title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: null }, false, NOW);
+  assert.deepEqual(noType, { ok: false, problems: ["Pick the type of content (PvP or PvE) first."] });
+  const cta = validateBlank({ type: null, title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: null }, true, NOW);
+  assert.equal(cta.ok && cta.value.type, "pvx");
+  const bad = validateBlank({ type: "pvp", title: null, startText: "soon", gearTier: null, notes: null }, false, NOW);
+  assert.equal(bad.ok, false);
+  assert.equal(!bad.ok && bad.problems.length, 3, "title, start and gear tier");
+});
