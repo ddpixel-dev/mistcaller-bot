@@ -89,6 +89,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
+    ...(view.selection ? [SELECTION_NOTE] : []),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
@@ -100,6 +101,9 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
   return lines.join("\n");
 }
+
+// FR-058: the disclaimer of a host-selected event, in the post itself.
+export const SELECTION_NOTE = "🎯 **Selection event:** signing up is an application. The host picks the party.";
 
 const text = (content: string) => ({ type: 10, content });
 
@@ -120,7 +124,7 @@ export function renderRosterMessage(view: RosterView): {
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;
   let notes = true;
-  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 50 + 20) + 2;
+  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 50 + 20) + Math.min(600, (view.applicants ?? []).length * 50 + 20) + 2;
   const fits = () => headerText(view, filled, notes).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
@@ -130,7 +134,12 @@ export function renderRosterMessage(view: RosterView): {
   const fillText = fills.length
     ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}> (${escapeText(view.fillWants?.[u] ?? "Any")})`).join(" · ")}`.slice(0, 600)
     : "";
+  const applicants = view.applicants ?? [];
+  const applicantText = applicants.length
+    ? `📨 **Applicants (${applicants.length}):** ${applicants.map((a) => `<@${a.userId}> (${escapeText(a.wants)})`).join(" · ")}`.slice(0, 600)
+    : "";
   const waitText = [
+    applicantText,
     fillText,
     waiting.length
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
@@ -149,7 +158,7 @@ export function renderRosterMessage(view: RosterView): {
     body.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `join:${view.id}`, placeholder: `Pick an open position (${open.length})`,
+        type: 3, custom_id: `join:${view.id}`, placeholder: view.selection ? `Apply for a position (${open.length})` : `Pick an open position (${open.length})`,
         options: [
           { label: "Fill (choose what you can play)", value: FILL_VALUE, emoji: { name: "🔁" } },
           ...open.slice(0, 24).map((s) => ({
@@ -165,7 +174,7 @@ export function renderRosterMessage(view: RosterView): {
   const fullRoles = [...new Set(view.slots.map((s) => s.role))].filter(
     (role) => !view.slots.some((s) => s.role === role && s.userId === null),
   );
-  if (view.status === "open" && fullRoles.length > 0) {
+  if (view.status === "open" && fullRoles.length > 0 && !view.selection) {
     body.push({
       type: 1,
       components: [{
@@ -183,7 +192,7 @@ export function renderRosterMessage(view: RosterView): {
   const buttons: unknown[] = [
     {
       type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
-      disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0)),
+      disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
     },
   ];
   if (view.hasLoot) buttons.push(...voteButtons(view));

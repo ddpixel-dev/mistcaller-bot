@@ -65,11 +65,15 @@ export async function handleFillChoice(deps: Deps, i: Interaction): Promise<Inte
   if (r.result === "not_found") return reply(NOT_FOUND);
   if (r.result === "locked") return reply("Signups are locked for this content.");
   if (r.result === "unchanged") return done("You are already waiting as a fill with those choices.");
+  if (r.result === "selected") return done("You already hold a position. In a host-selected event only the host can move you.");
 
   const view = await getRosterView(deps.sql, contentId, deps.now());
   await refreshRoster(deps, contentId);
   if (view) await announcePromotions(deps, view.threadId, view.title, promoted);
   const wanted = describeFill(pref, (id) => view?.slots.find((s) => s.id === id)?.position);
+  if (r.result === "applied") {
+    return done(`📨 You applied (${wanted}). The host picks the party; you are mentioned in the post when you are accepted.`);
+  }
   if (r.result === "seated") {
     // The post says what the player asked for and where they landed (owner request 2026-11-06).
     if (view) await announce(deps, view.threadId, fillSeatedLine(userId, wanted, { position: r.slot.position, role: r.slot.role, weapon: r.slot.weapon }), [userId]);

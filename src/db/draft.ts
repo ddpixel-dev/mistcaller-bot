@@ -10,6 +10,7 @@ export type CardFields = {
   type: ContentType | null;
   kind: string;
   loot: boolean;
+  selection: boolean; // the host picks the party (FR-058)
   title: string | null;
   startText: string | null;
   gearTier: string | null;
@@ -24,6 +25,7 @@ export type StoredDraft = GuidedDraft & {
   threadId: string;
   type: ContentType | null;
   loot: boolean;
+  selection: boolean;
   kind: string;
   buildRef: string | null;
   weaponClass: string | null;
@@ -43,6 +45,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   type: r.type === "pvp" || r.type === "pve" || r.type === "pvx" ? r.type : null,
   buildRef: r.build_channel_id ?? null,
   loot: r.loot,
+  selection: r.selection === true,
   kind: r.kind,
   count: r.count ?? null,
   slots: r.slots as SlotDef[],
@@ -68,7 +71,7 @@ export async function startCard(
     insert into slot_draft (guild_id, user_id, thread_id, type, loot, kind, slots, title, start_text, target_forum_id)
     values (${a.guildId}, ${a.userId}, ${a.threadId}, ${a.type}, false, 'other', '[]'::jsonb, ${a.title}, ${a.startText}, ${a.targetForumId ?? null})
     on conflict (guild_id, thread_id, user_id) do update set
-      type = excluded.type, loot = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
+      type = excluded.type, loot = false, selection = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
       step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, gear_tier = null, title = excluded.title,
       start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, created_at = now()
     returning id`;
@@ -83,7 +86,7 @@ export async function saveCard(sql: Sql, id: string, f: Partial<CardFields> & { 
   const slots = f.slots;
   await sql`
     update slot_draft set
-      type = ${pick(f.type, c.type)}, kind = ${pick(f.kind, c.kind)}, loot = ${pick(f.loot, c.loot)}, title = ${pick(f.title, c.title)},
+      type = ${pick(f.type, c.type)}, kind = ${pick(f.kind, c.kind)}, loot = ${pick(f.loot, c.loot)}, selection = ${pick(f.selection, c.selection)}, title = ${pick(f.title, c.title)},
       start_text = ${pick(f.startText, c.start_text)}, gear_tier = ${pick(f.gearTier, c.gear_tier)}, notes = ${pick(f.notes, c.notes)},
       slots_text = ${pick(f.slotsText, c.slots_text)}, build_channel_id = ${pick(f.buildRef, c.build_channel_id)},
       slots = ${slots ? sql.json(slots as never) : c.slots}, count = ${slots ? slots.length || null : c.count}, step = ${slots ? slots.length : c.step},

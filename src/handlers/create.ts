@@ -131,7 +131,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
 
 export type PublishInput = {
   guildId: string; creator: string; type: ContentType; kind: string; title: string; notes: string | null; startsAt: Date;
-  tier: string; slots: SlotDef[]; hasLoot: boolean; buildRef: string | null;
+  tier: string; slots: SlotDef[]; hasLoot: boolean; selection?: boolean; buildRef: string | null;
   // Where the roster goes: an existing channel or post, or a new post the bot creates in an event forum (ADR 0032).
   place: { threadId: string } | { forumId: string };
 };
@@ -167,7 +167,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   try {
     id = await createContent(deps.sql, {
       guildId: a.guildId, threadId, type: a.type, kind: a.kind, title: a.title, notes: a.notes, startsAt: a.startsAt, tier: a.tier,
-      buildRef: a.buildRef, hasLoot: a.hasLoot, createdBy: a.creator, slots: a.slots, ownPost, now: deps.now(),
+      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, createdBy: a.creator, slots: a.slots, ownPost, now: deps.now(),
     });
   } catch (err) {
     await dropPost();

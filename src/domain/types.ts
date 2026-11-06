@@ -27,6 +27,8 @@ export type RosterView = {
   status: ContentStatus;
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string }[];
+  selection?: boolean; // the host picks the party: signing up is an application (FR-058)
+  applicants?: { userId: string; wants: string }[]; // oldest first; they hold no seat
   fills?: string[]; // members waiting as a fill (no matching position was open), oldest first
   fillWants?: Record<string, string>; // what each waiting fill asked for: "Any", or "Healer, #7" (FR-057)
   buildRef?: string | null;

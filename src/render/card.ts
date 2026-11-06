@@ -42,6 +42,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `⚙️ **Gear tier** ${d.gearTier ? escapeText(d.gearTier) : NONE}`,
     `🗒️ **Notes** ${d.notes ? escapeText(d.notes).slice(0, 300) : NONE}`,
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
+    `🎯 **Sign-up** ${d.selection ? "Selection: players apply and you pick the party" : "Open: players take their own position"}`,
     `👥 **Slots (${d.slotsText !== null ? "?" : d.slots.length})**`,
     ...(slotLines.length ? slotLines : [NONE]),
     ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
@@ -75,6 +76,16 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         options: [
           { label: "Loot vote off", value: "0", default: !d.loot },
           { label: "Loot vote on (split or regear)", value: "1", emoji: { name: "💰" }, default: d.loot },
+        ],
+      }],
+    },
+    {
+      type: 1,
+      components: [{
+        type: 3, custom_id: `cc:sel:${id}`, placeholder: "Sign-up",
+        options: [
+          { label: "Open sign-up", value: "0", default: !d.selection },
+          { label: "Selection (you pick the party)", value: "1", emoji: { name: "🎯" }, default: d.selection },
         ],
       }],
     },
