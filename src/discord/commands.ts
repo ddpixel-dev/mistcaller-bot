@@ -36,7 +36,7 @@ export const commands = [
         options: [buildReferenceOption()],
       },
       {
-        type: 1, name: "setup", description: "Admin roles (Manage Server); the Events Calendar channel and event forums (admins)",
+        type: 1, name: "setup", description: "Admin roles (Manage Server); the Events Calendar, changelog channel and event forums (admins)",
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
@@ -45,6 +45,8 @@ export const commands = [
             type: 3, name: "forum-type", description: "With event-forum: the content types it takes (default Any)", required: false,
             choices: [{ name: "Any", value: "any" }, { name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
           },
+          { type: 7, name: "changelog-channel", description: "The channel where each release's changelog is posted", required: false, channel_types: [0, 5] },
+          { type: 5, name: "clear-changelog", description: "Stop posting changelogs in this server", required: false },
           { type: 7, name: "clear-event-forum", description: "Stop using a forum for events and remove its Create event post", required: false, channel_types: [15] },
         ],
       },

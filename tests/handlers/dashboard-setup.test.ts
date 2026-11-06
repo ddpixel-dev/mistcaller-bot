@@ -4,6 +4,7 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { handleSetupCommand } from "../../src/handlers/setup.ts";
 import { setAdminRoles } from "../../src/db/settings.ts";
 import { getDashboard } from "../../src/db/dashboard.ts";
+import { getChangelogChannel } from "../../src/db/changelog.ts";
 import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
 import type { Interaction } from "../../src/discord/types.ts";
@@ -113,4 +114,21 @@ test("the setup panel shows the channels now in use", async () => {
   await handleSetupCommand(d, setup([opt("calendar-channel", CH1)], { permissions: "32" }));
   const panel: any = await handleSetupCommand(d, setup([], { permissions: "32" }));
   assert.ok(text(panel).includes(`Calendar channel: <#${CH1}>`) && !text(panel).includes("Statistics"));
+});
+
+// FR-061: the changelog channel is set like the calendar channel, by admins, and nothing is posted when it is set.
+test("an admin sets and clears the changelog channel; it is shown in the panel; an ordinary member may not", async () => {
+  const { rest, created } = fake();
+  const d = await deps(rest);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", CH1)], { permissions: "32" }))).includes(`<#${CH1}>`));
+  assert.equal(await getChangelogChannel(d.sql, GUILD), CH1);
+  assert.equal(created.length, 0, "setting it posts nothing; the release script does");
+  const panel: any = await handleSetupCommand(d, setup([], { permissions: "32" }));
+  assert.ok(text(panel).includes(`Changelog channel: <#${CH1}>`));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", CH2)], { roles: ["999"] }))).includes("Only an admin"));
+  assert.equal(await getChangelogChannel(d.sql, GUILD), CH1);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("clear-changelog", true, 5)], { permissions: "32" }))).includes("cleared"));
+  assert.equal(await getChangelogChannel(d.sql, GUILD), null);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text or announcement"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", CH1), opt("clear-changelog", true, 5)], { permissions: "32" }))).includes("not both"));
 });
