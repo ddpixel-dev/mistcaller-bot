@@ -29,7 +29,7 @@ test("every problem is listed at once, in the card's order", () => {
 test("typed slots that do not parse are reported with the parser's reason, and a wrong-type category is refused", () => {
   const r = validateCard({ ...good, slotsText: "Tank - Mace (Captain)" }, NOW);
   assert.ok(!r.ok && r.problems.some((x) => /Unknown duty/.test(x)));
-  const k = validateCard({ ...good, kind: "mists" }, NOW);
+  const k = validateCard({ ...good, kind: "world-boss" }, NOW);
   assert.ok(!k.ok && k.problems.some((x) => /PvE category/.test(x)));
   const many = validateCard({ ...good, slots: Array.from({ length: 21 }, () => ({ role: "DPS", weapon: "" })) }, NOW);
   assert.ok(!many.ok && many.problems.some((x) => /20/.test(x)));

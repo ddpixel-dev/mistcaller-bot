@@ -161,7 +161,7 @@ test("Edit opens a private panel: the category and loot vote apply at once, Edit
   const ids = flatComponents(p.data).map((c) => c.custom_id).filter(Boolean);
   assert.deepEqual(ids, [`ed:k:${id}`, `ed:l:${id}`, `mg:f:${id}`, `ed:b:${id}`]);
   const kinds = flatComponents(p.data).find((c) => c.custom_id === `ed:k:${id}`)!;
-  assert.ok(kinds.options.some((o: any) => o.value === "zvz") && !kinds.options.some((o: any) => o.value === "mists"), "the type's own categories");
+  assert.ok(kinds.options.some((o: any) => o.value === "zvz") && !kinds.options.some((o: any) => o.value === "world-boss"), "the type's own categories");
 
   const k: any = await d(click(`ed:k:${id}`, OWNER, ["zvz"]));
   assert.equal(k.type, 7);
@@ -175,7 +175,7 @@ test("Edit opens a private panel: the category and loot vote apply at once, Edit
   assert.equal((await sql`select has_loot from content`)[0]!.has_loot, true);
   assert.ok(flatComponents(edits.at(-1)).some((c) => String(c.custom_id).startsWith("vote:")), "the vote buttons appear");
 
-  assert.ok(text(await d(click(`ed:k:${id}`, OWNER, ["mists"]))).includes("out of date"), "a PvE category on PvP content");
+  assert.ok(text(await d(click(`ed:k:${id}`, OWNER, ["world-boss"]))).includes("out of date"), "a PvE category on PvP content");
   assert.ok(text(await d(click(`ed:l:${id}`, OWNER, ["maybe"]))).includes("out of date"));
   assert.ok(text(await d(click(`ed:k:${id}`, STRANGER, ["other"]))).includes("Only the creator"));
   await sql`update content set status = 'locked'`;

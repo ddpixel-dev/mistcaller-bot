@@ -190,6 +190,6 @@ test("an edit form that carries a category (opened before 0.23.0) saves it; a wr
   const { deps, sql, id } = await setup();
   assert.equal(text(await handleEditModal(deps, modal(id, "k:hellgate", good))), "Content updated.");
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
-  assert.ok(text(await handleEditModal(deps, modal(id, "k:mists", good))).includes("PvE category"));
+  assert.ok(text(await handleEditModal(deps, modal(id, "k:world-boss", good))).includes("PvE category"));
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
 });

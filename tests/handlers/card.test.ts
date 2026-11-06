@@ -59,12 +59,12 @@ test("the Category menu follows the Type: only that type's categories, and a cat
   assert.equal(r.type, 7);
   let kind = menus(r)[1];
   assert.equal(kind.disabled, false);
-  assert.ok(kind.options.some((o: any) => o.value === "zvz") && !kind.options.some((o: any) => o.value === "mists"));
+  assert.ok(kind.options.some((o: any) => o.value === "zvz") && !kind.options.some((o: any) => o.value === "world-boss"));
   r = await d(press(`cc:kind:${id}`, ["zvz"]));
   assert.ok(say(r).startsWith("## 🏰"), "the card's heading shows the category's icon");
   r = await d(press(`cc:type:${id}`, ["pve"]));
   kind = menus(r)[1];
-  assert.ok(kind.options.some((o: any) => o.value === "mists") && !kind.options.some((o: any) => o.value === "zvz"));
+  assert.ok(kind.options.some((o: any) => o.value === "world-boss") && !kind.options.some((o: any) => o.value === "zvz"));
   assert.equal((await getDraft(sql, id, NOW))!.kind, "other");
   assert.equal(((await d(press(`cc:kind:${id}`, ["zvz"]))) as any).data.flags, 64, "a PvP category on PvE is refused");
   assert.equal(((await d(press(`cc:type:${id}`, ["moon"]))) as any).data.flags, 64);
