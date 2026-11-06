@@ -29,7 +29,8 @@ function fake(opts: { createFails?: boolean } = {}) {
   return { rest, created, deleted };
 }
 const deps = async (rest: Rest): Promise<Deps> => ({ sql: await testSql(), rest, now: () => NOW });
-const channels = { [CH1]: { id: CH1, type: 0 }, [CH2]: { id: CH2, type: 5 }, [VOICE]: { id: VOICE, type: 2 } };
+const FORUM = "300000000000000004";
+const channels = { [CH1]: { id: CH1, type: 0 }, [CH2]: { id: CH2, type: 5 }, [VOICE]: { id: VOICE, type: 2 }, [FORUM]: { id: FORUM, type: 15 } };
 const setup = (options: unknown[] = [], over: { permissions?: string; roles?: string[] } = {}): Interaction => ({
   id: "i", type: 2, application_id: "a", token: "t", guild_id: GUILD, channel_id: "c",
   member: { user: { id: "u1" }, roles: over.roles ?? [], permissions: over.permissions ?? "0" },
@@ -129,6 +130,16 @@ test("an admin sets and clears the changelog channel; it is shown in the panel; 
   assert.equal(await getChangelogChannel(d.sql, GUILD), CH1);
   assert.ok(text(await handleSetupCommand(d, setup([opt("clear-changelog", true, 5)], { permissions: "32" }))).includes("cleared"));
   assert.equal(await getChangelogChannel(d.sql, GUILD), null);
-  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text or announcement"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text, announcement or forum"));
   assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", CH1), opt("clear-changelog", true, 5)], { permissions: "32" }))).includes("not both"));
+});
+
+test("the changelog channel may be a forum: each release becomes a post there", async () => {
+  const { rest, created } = fake();
+  const d = await deps(rest);
+  const r: any = await handleSetupCommand(d, setup([opt("changelog-channel", FORUM)], { permissions: "32" }));
+  assert.ok(text(r).includes(`<#${FORUM}>`) && text(r).toLowerCase().includes("forum"), text(r));
+  assert.equal(await getChangelogChannel(d.sql, GUILD), FORUM);
+  assert.equal(created.length, 0);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("changelog-channel", VOICE)], { permissions: "32" }))).includes("text, announcement or forum"));
 });

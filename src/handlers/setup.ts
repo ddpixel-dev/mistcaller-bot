@@ -147,8 +147,8 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
     }
   }
   if (changelog !== undefined && clearChangelog) return reply("Give a channel or clear it, not both.");
-  if (changelog !== undefined && (typeof changelog !== "string" || !SNOWFLAKE.test(changelog) || ![0, 5].includes(resolved[changelog]?.type ?? -1))) {
-    return reply(BAD_CHANNEL);
+  if (changelog !== undefined && (typeof changelog !== "string" || !SNOWFLAKE.test(changelog) || ![0, 5, 15].includes(resolved[changelog]?.type ?? -1))) {
+    return reply("Pick a text, announcement or forum channel of this server.");
   }
   const forums = (i.data as { resolved?: { channels?: Record<string, { type?: number }> } } | undefined)?.resolved?.channels ?? {};
   const isForum = (v: unknown): v is string => typeof v === "string" && SNOWFLAKE.test(v) && forums[v]?.type === 15;
@@ -161,7 +161,10 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum));
   if (typeof changelog === "string") {
     await setChangelogChannel(deps.sql, i.guild_id, changelog);
-    lines.push(`Changelog channel set to <#${changelog}>: each release's changelog is posted there. Give the bot View Channel and Send Messages in it.`);
+    const forum = resolved[changelog]?.type === 15;
+    lines.push(forum
+      ? `Changelog forum set to <#${changelog}>: each release becomes a new post there. Give the bot View Channel, Create Posts and Send Messages in Posts in it.`
+      : `Changelog channel set to <#${changelog}>: each release's changelog is posted there. Give the bot View Channel and Send Messages in it.`);
   } else if (clearChangelog) {
     lines.push((await clearChangelogChannel(deps.sql, i.guild_id)) ? "Changelog channel cleared: changelogs are no longer posted here." : "The changelog channel was not set.");
   }
