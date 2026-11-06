@@ -90,7 +90,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.deepEqual(create.options!.map((o) => o.name), ["build-reference"]);
   assert.equal(create.options![0]!.type, 3);
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["clear-event-forum", 7],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
   assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");

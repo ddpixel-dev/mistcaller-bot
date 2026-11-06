@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010: 12 PvP and 9 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 12);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 9);
+test("the lists match ADR 0010 and FR-023: 15 PvP and 14 PvE kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 15);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 14);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -29,14 +29,31 @@ test("resolveKind defaults to Other, accepts matching kinds and refuses others",
   assert.equal(resolveKind("pve", "bogus").ok, false);
 });
 
-test("Avalonian gold chest is a PvE category, listed before Other, and PvX has it too", () => {
-  const pve = kindsOf("pve").map((k) => k.id);
-  assert.ok(pve.includes("gold-chest"));
-  assert.equal(pve.at(-1), "other");
+test("Fame farming and Avalonian gold chest are no longer offered, but old content keeps its label", () => {
+  for (const id of ["fame-farming", "gold-chest"]) {
+    assert.ok(!kindsOf("pve").some((k) => k.id === id) && !kindsOf("pvx").some((k) => k.id === id), id);
+    assert.equal(resolveKind("pve", id).ok, false, "new content cannot pick it");
+    assert.ok(kindDef("pve", id), "an old post still shows its category");
+  }
   assert.equal(kindDef("pve", "gold-chest")!.label, "Avalonian gold chest");
-  assert.ok(kindsOf("pvx").some((k) => k.id === "gold-chest"));
-  assert.equal(resolveKind("pve", "gold-chest").ok, true);
-  assert.equal(resolveKind("pvp", "gold-chest").ok, false);
+  assert.equal(kindDef("pve", "fame-farming")!.label, "Fame farming");
+});
+
+test("the new PvE and PvP categories (FR-023), Ancient Lands and Hellgate in both, each before Other", () => {
+  const pvp = kindsOf("pvp").map((k) => k.id);
+  const pve = kindsOf("pve").map((k) => k.id);
+  for (const id of ["static-dungeon", "dragon-sanctuary", "hellgate", "depths", "avalonian-raid", "crystal-creatures", "ancient-lands"]) assert.ok(pve.includes(id), `PvE ${id}`);
+  for (const id of ["outposts", "castle", "ancient-lands", "hellgate"]) assert.ok(pvp.includes(id), `PvP ${id}`);
+  assert.ok(!pvp.includes("static-dungeon") && !pve.includes("castle") && !pve.includes("outposts"));
+  assert.equal(pvp.at(-1), "other");
+  assert.equal(pve.at(-1), "other");
+  assert.equal(resolveKind("pve", "ancient-lands").ok && resolveKind("pvp", "ancient-lands").ok, true);
+  assert.equal(kindDef("pve", "depths")!.label, "Depths");
+  assert.equal(kindDef("pve", "hellgate")!.label, "Hellgate");
+  const pvx = kindsOf("pvx").map((k) => k.id);
+  assert.equal(new Set(pvx).size, pvx.length, "a shared id is listed once");
+  assert.ok(pvx.length <= 25, "a menu holds 25 options at most");
+  assert.ok(pvx.includes("castle") && pvx.includes("depths") && pvx.includes("ancient-lands") && pvx.at(-1) === "other");
 });
 
 test("Ava Gank is a PvP category and Ava Gold a PvE one, each before Other, and PvX has both", () => {

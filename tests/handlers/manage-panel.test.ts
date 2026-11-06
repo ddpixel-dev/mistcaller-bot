@@ -135,7 +135,7 @@ test("Set duty: a position, then a duty (Catcher included) or Clear; the roster 
   assert.equal(picked.type, 7);
   const duties = picked.data.components.at(-1).components[0];
   assert.equal(duties.custom_id, `dt:d:${id}:3`);
-  assert.deepEqual(duties.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher", "Clear"]);
+  assert.deepEqual(duties.options.map((o: any) => o.label), ["Caller", "Scout", "Rat", "Looter", "Catcher", "Party Healer", "Main Healer", "Clear"]);
   assert.deepEqual(discordProblems({ ...picked.data, flags: 0 }), []);
 
   const done: any = await d(click(`dt:d:${id}:3`, OWNER, ["catcher"]));
@@ -229,4 +229,36 @@ test("Set weapon on an empty position posts nothing", async () => {
   assert.equal((await d(click(`sw:w:${id}:3:Bow`, OWNER, [bow.base])) as any).type, 7);
   assert.equal((await sql`select weapon from slot where position = 3`)[0]!.weapon, bow.name);
   assert.equal(posts.length, 0);
+});
+
+// FR-056: Lock, Unlock, End and Reopen update the panel itself, so the button flips without reopening Manage.
+test("Lock turns the panel's button into Unlock in place, and Unlock turns it back", async () => {
+  const { d, id } = await setup();
+  const locked: any = await d(click(`mg:l:${id}`, OWNER));
+  assert.equal(locked.type, 7, "the panel message is updated, not a second message sent");
+  assert.ok(text(locked).includes("Roster locked"));
+  assert.ok(labels(locked).includes("Unlock") && !labels(locked).includes("Lock"));
+  assert.deepEqual(discordProblems({ ...locked.data, flags: 0 }), []);
+  const open: any = await d(click(`mg:u:${id}`, OWNER));
+  assert.equal(open.type, 7);
+  assert.ok(text(open).includes("Roster unlocked"));
+  assert.ok(labels(open).includes("Lock") && !labels(open).includes("Unlock"));
+});
+
+test("Reopen and a refused action also update the panel in place", async () => {
+  const { d, id, sql } = await setup(new Date(START.getTime() + 60000));
+  await sql`update content set status = 'done', ended_at = ${new Date(START.getTime() + 30000)}`;
+  const reopened: any = await d(click(`mg:r:${id}`, OWNER));
+  assert.equal(reopened.type, 7);
+  assert.ok(text(reopened).includes("Content reopened") && labels(reopened).includes("Lock"));
+  const again: any = await d(click(`mg:u:${id}`, OWNER));
+  assert.equal(again.type, 7);
+  assert.ok(text(again).includes("not locked"));
+});
+
+test("a stranger's click on a panel action still gets a private refusal, not the panel", async () => {
+  const { d, id } = await setup();
+  const r: any = await d(click(`mg:l:${id}`, STRANGER));
+  assert.equal(r.type, 4);
+  assert.ok(text(r).includes("Only the creator"));
 });

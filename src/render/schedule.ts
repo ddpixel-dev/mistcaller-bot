@@ -2,7 +2,7 @@ import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
 import { escapeText, IS_COMPONENTS_V2 } from "./roster.ts";
 
-// FR-043: the calendar channel's message(s): the next 7 days, one section per day that has events, with the events
+// FR-043, FR-062: the calendar channel's message(s): the next 7 days, one section per day that has events, with the events
 // already running on top. Each event shows its UTC time as a column, its party, the viewer's own time and a link to
 // its roster. Days without events are left out.
 export type ScheduleEvent = {
@@ -14,7 +14,6 @@ export const EVENTS_PER_MESSAGE = 12;
 export const CALENDAR_DAYS = 7;
 const TEXT_BUDGET = 3500; // under Discord's 4000 for the whole message
 const ACCENT = 0xc9a227;
-const TYPE_ICON: Record<ContentType, string> = { pvp: "⚔️", pve: "🐉", pvx: "🌐" };
 const DAY = 24 * 3600000;
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -28,8 +27,8 @@ function eventText(e: ScheduleEvent, guildId: string): string {
   const link = e.messageId ? `https://discord.com/channels/${guildId}/${e.threadId}/${e.messageId}` : `https://discord.com/channels/${guildId}/${e.threadId}`;
   const title = Array.from(e.title).slice(0, 100).join("");
   return [
-    `\`${pad(e.startsAt.getUTCHours())}:${pad(e.startsAt.getUTCMinutes())}\` ${TYPE_ICON[e.type]} **${escapeText(title)}** [Open ↗](${link})`,
-    `-# ${kind} · 👥 ${e.party}/${e.total}${e.status === "locked" ? " · 🔒" : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
+    `### \`${pad(e.startsAt.getUTCHours())}:${pad(e.startsAt.getUTCMinutes())}\` ${escapeText(title)} [Open ↗](${link})`,
+    `${kind} · 👥 ${e.party}/${e.total}${e.status === "locked" ? " · 🔒" : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
   ].join("\n");
 }
 
@@ -50,7 +49,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   const days: Group[] = Array.from({ length: CALENDAR_DAYS }, (_, i) => {
     const d = new Date(today + i * DAY);
     const tag = i === 0 ? " · Today" : i === 1 ? " · Tomorrow" : "";
-    return { heading: `### 📆 ${WEEKDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}${tag}`, events: [] };
+    return { heading: `## 📆 ${WEEKDAY[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}${tag}`, events: [] };
   });
   for (const e of sorted) {
     if (e.startsAt.getTime() <= now.getTime()) continue;
@@ -64,7 +63,7 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   }
 
   // Pack the groups into messages by event count and by text size. A day that continues repeats its heading.
-  const groups: Group[] = [...(running.length ? [{ heading: "### 🔴 Live now", events: running }] : []), ...days];
+  const groups: Group[] = [...(running.length ? [{ heading: "## 🔴 Live now", events: running }] : []), ...days];
   const pages: string[][] = [[]];
   let count = 0;
   let size = 0;
