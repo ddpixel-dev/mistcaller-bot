@@ -298,11 +298,11 @@ status: built, live in 0.29.0
 Lock, Unlock, End, Cancel and Reopen in the Manage panel shall update that panel (the button changes, one status line) instead of sending another message.
 
 ### FR-057: Fill with preferences
-status: planned, release 0.30.0 (ADR 0035); supersedes FR-032 and FR-040
+status: built, release 0.30.0 (ADR 0035; migration 0025); supersedes FR-032 and FR-040
 A member may sign up as a fill for Any position, chosen roles, or chosen positions. The bot seats them at once in the first open matching position (Any: Healer, Tank, DTank, Support, DPS) or lists them as a waiting fill and seats the first waiting player a freed position fits, in join order. Each fill seating is announced in the content's post, mentioning only that player, with what they asked for and the position they got. A waiting player may choose Fill. No seat is reserved for a fill.
 
 ### FR-058: Selection mode
-status: planned, release 0.30.0 (ADR 0035)
+status: built, release 0.30.0 (ADR 0035; migration 0026)
 Content may be marked as selection content (a toggle on creation and in the Edit panel). Its post says the host picks the party. Signing up is an application that holds no seat; applicants are listed; the host accepts (seating the player) or declines in a Review applicants panel, and the applicant is mentioned in the post. Turning the toggle off with applicants waiting asks the host to review them first.
 
 ### FR-059: Creation hub
