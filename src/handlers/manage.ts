@@ -54,9 +54,9 @@ export async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   }
 }
 
-export async function announce(deps: Deps, threadId: string, text: string, users: string[]): Promise<void> {
+export async function announce(deps: Deps, threadId: string, text: string, users: string[], components?: unknown[]): Promise<void> {
   try {
-    await deps.rest.createMessage(threadId, { content: text, allowed_mentions: { users } });
+    await deps.rest.createMessage(threadId, { content: text, allowed_mentions: { users }, ...(components ? { components } : {}) });
   } catch (err) {
     console.error(JSON.stringify({ evt: "announce_failed", name: err instanceof Error ? err.name : "unknown" }));
   }

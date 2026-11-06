@@ -184,3 +184,14 @@ test("memberName prefers the nickname, then the display name, then the username,
   assert.equal(await name({ code: 10007, message: "Unknown Member" }, 404), null);
   assert.equal(await name({}), null);
 });
+
+test("pinMessage pins with the current endpoint and falls back to the older one when Discord does not know it", async () => {
+  const calls: string[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push(`${init.method} ${url.replace("https://discord.com/api/v10", "")}`);
+    return url.includes("/messages/pins/") ? new Response("{}", { status: 404 }) : new Response(null, { status: 204 });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  await rest.pinMessage!("c1", "m1");
+  assert.deepEqual(calls, ["PUT /channels/c1/messages/pins/m1", "PUT /channels/c1/pins/m1"]);
+});

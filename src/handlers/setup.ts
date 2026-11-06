@@ -86,7 +86,7 @@ async function applyChannel(deps: Deps, guildId: string, k: (typeof KINDS)[numbe
 export const FORUM_PERMISSIONS = [
   "**Set these permissions in the forum** (Edit Channel → Permissions):",
   "• @everyone: deny **Create Posts**, allow **Send Messages in Posts**.",
-  "• The bot's role: allow **Create Posts**, **Send Messages in Posts** and **Manage Threads**.",
+  "• The bot's role: allow **Create Posts**, **Send Messages in Posts**, **Manage Threads** and **Pin Messages** (it pins each roster).",
 ].join("\n");
 
 // Register an event forum (FR-053): replace its launcher post, post a new one and pin it.

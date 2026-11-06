@@ -1,3 +1,4 @@
+import { rosterButton } from "../../src/render/roster.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IS_COMPONENTS_V2, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
@@ -511,4 +512,10 @@ test("in a selection event the join menu is for applying", () => {
   const v = view({ slots: slots(3, 0), selection: true });
   assert.ok(byId(v, "join:")[0]!.placeholder.startsWith("Apply for a position"));
   assert.ok(byId(view({ slots: slots(3, 0) }), "join:")[0]!.placeholder.startsWith("Pick an open position"));
+});
+
+test("the roster button is a link button to the roster message, or to the post when the message id is not known", () => {
+  const [row] = rosterButton({ guildId: "g1", threadId: "t1", messageId: "m1" }) as any[];
+  assert.deepEqual(row.components, [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: "https://discord.com/channels/g1/t1/m1" }]);
+  assert.equal((rosterButton({ guildId: "g1", threadId: "t1", messageId: null })[0] as any).components[0].url, "https://discord.com/channels/g1/t1");
 });
