@@ -29,7 +29,7 @@ export const commands = [
         options: [
           { type: 7, name: "calendar-channel", description: "The channel where the bot keeps the Events Calendar of live and upcoming events", required: false, channel_types: [0, 5] },
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
-          { type: 7, name: "event-forum", description: "A forum where the bot makes each event's post (normal content created from the content-management channel)", required: false, channel_types: [15] },
+          { type: 7, name: "event-forum", description: "A forum where the bot posts each normal event, by type (created with the buttons)", required: false, channel_types: [15] },
           {
             type: 3, name: "forum-type", description: "With event-forum: the content types it takes (default Any)", required: false,
             choices: [{ name: "Any", value: "any" }, { name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
