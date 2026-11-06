@@ -45,9 +45,9 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   return { ok: true, value: { type: c.type, kind: kind.value, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value, slots } };
 }
 
-// A forum's type limits the content types offered (owner decision 2026-10-24): PvX fits either, null means any.
-export function typesFor(forumType: "pvp" | "pve" | null): ContentType[] {
-  return forumType ? [forumType, "pvx"] : ["pvp", "pve", "pvx"];
+// A card opened for one forum's type offers that type only (ADR 0037); with none, every type.
+export function typesFor(forumType: ContentType | null): ContentType[] {
+  return forumType ? [forumType] : ["pvp", "pve", "pvx"];
 }
 
 // The forum's tags named like the type ("PvP") or the category ("ZvZ"), ignoring case. Discord allows five per post.
@@ -57,11 +57,9 @@ export function matchTags(tags: { id: string; name: string }[], type: ContentTyp
   return tags.filter((t) => wanted.has(t.name.trim().toLowerCase())).map((t) => t.id).slice(0, 5);
 }
 
-// Where normal content is posted (ADR 0036): the event forum of its type, else a forum for any type. PvX fits either type,
-// so a forum for any type takes it first, then whichever forum comes first.
-export function pickEventForum<T extends { forumId: string; type: "pvp" | "pve" | null }>(forums: readonly T[], type: ContentType): T | null {
-  if (type === "pvx") return forums.find((f) => f.type === null) ?? forums[0] ?? null;
-  return forums.find((f) => f.type === type) ?? forums.find((f) => f.type === null) ?? null;
+// Where normal content is posted (ADR 0037): the event forum set for its type, nothing else.
+export function pickEventForum<T extends { forumId: string; type: ContentType }>(forums: readonly T[], type: ContentType): T | null {
+  return forums.find((f) => f.type === type) ?? null;
 }
 
 export type BlankInput = { type: ContentType | null; title: string | null; startText: string | null; gearTier: string | null; notes: string | null };

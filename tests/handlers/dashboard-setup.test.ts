@@ -34,7 +34,7 @@ const channels = { [CH1]: { id: CH1, type: 0 }, [CH2]: { id: CH2, type: 5 }, [VO
 const setup = (options: unknown[] = [], over: { permissions?: string; roles?: string[] } = {}): Interaction => ({
   id: "i", type: 2, application_id: "a", token: "t", guild_id: GUILD, channel_id: "c",
   member: { user: { id: "u1" }, roles: over.roles ?? [], permissions: over.permissions ?? "0" },
-  data: { name: "content", options: [{ name: "setup", type: 1, options }], resolved: { channels } },
+  data: { name: "content", options: [{ name: "setup", type: 1, options }], resolved: { channels, roles: { "200000001": { id: "200000001" }, "200000002": { id: "200000002" }, [GUILD]: { id: GUILD } } } },
 });
 const opt = (name: string, value: unknown, type = 7) => ({ name, type, value });
 const text = (r: any) => String(r.data.content);
@@ -166,4 +166,21 @@ test("the CTA channel is a text channel; the CTA roles are picked in the panel; 
   const cleared: any = await handleSetupCommand(d, setup([opt("clear-cta", true, 5)], { permissions: "32" }));
   assert.ok(text(cleared).includes("cleared"));
   assert.equal(await getCtaChannel(d.sql, GUILD), null);
+});
+
+test("cta-role adds one role and remove-cta-role removes one, with no need for the panel; admins only", async () => {
+  const { rest } = fake();
+  const d = await deps(rest);
+  const { getCtaRoleIds } = await import("../../src/db/cta.ts");
+  const admin = { permissions: "32" };
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000001", 8)], admin))).includes("<@&200000001>"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000002", 8)], admin))).includes("<@&200000002>"));
+  assert.deepEqual((await getCtaRoleIds(d.sql, GUILD)).sort(), ["200000001", "200000002"]);
+  const gone = text(await handleSetupCommand(d, setup([opt("remove-cta-role", "200000001", 8)], admin)));
+  assert.ok(!gone.includes("<@&200000001>") && gone.includes("<@&200000002>"), gone);
+  assert.deepEqual(await getCtaRoleIds(d.sql, GUILD), ["200000002"]);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", GUILD, 8)], admin))).includes("@everyone"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000009", 8)], admin))).includes("Pick a role of this server"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-role", "200000001", 8)], { roles: ["999"] }))).includes("Only an admin"));
+  assert.deepEqual(await getCtaRoleIds(d.sql, GUILD), ["200000002"], "a refused call changes nothing");
 });
