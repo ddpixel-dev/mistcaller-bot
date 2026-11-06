@@ -9,7 +9,7 @@ export const HELP_TEXT = [
   "",
   "### Everyone",
   "• **Join:** pick an open position in the menu on the roster. Picking another one moves you. If the position has no weapon, you can choose yours.",
-  "• **Fill:** choose Fill if you can play any position. You hold a seat until the owner places you.",
+  "• **Fill:** pick what you can play. You are seated at once (healers first) or when a spot frees up.",
   "• **Leave** takes you off the roster. **Waitlist:** when a role is full, join its waitlist and you are seated when a spot frees up.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
   "• **Create event** (pinned in event forums) or `/content create` (in a channel or post) opens your creation card: menus and start, **Details**, **Roles** for the slots, then **Create**.",

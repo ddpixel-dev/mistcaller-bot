@@ -1,3 +1,4 @@
+import { describeFill } from "../domain/fillmatch.ts";
 import { pingTargets } from "./ping.ts";
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
@@ -99,7 +100,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       order by s.position`,
     sql`select choice from vote where content_id = ${contentId}`,
     sql`select user_id, wait_role from signup where content_id = ${contentId} and status = 'waitlist' order by joined_at, user_id`,
-    sql`select user_id from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
+    sql`select user_id, fill_roles, fill_slots from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const voteClosed = !isVoteOpen(c.starts_at, now);
@@ -126,6 +127,11 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       chosenWeapon: s.chosen_weapon ?? null,
     })),
     fills: fills.map((f) => f.user_id as string),
+    fillWants: Object.fromEntries(fills.map((f) => {
+      const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
+      const any = roles.length === 0 && slotIds.length === 0;
+      return [f.user_id as string, describeFill({ any, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position)];
+    })),
     buildRef: c.build_channel_id ?? null,
     pingLeft: (await pingTargets(sql, contentId, c.created_by ?? null)).length,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),

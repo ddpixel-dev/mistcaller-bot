@@ -51,7 +51,7 @@ test("the schedule lists open and locked events that started or start within 7 d
   void live; void soon; void week;
 });
 
-test("the schedule's party count is seated players plus reserved fills, like the roster", async () => {
+test("the schedule's party count is the seated players, like the roster; a waiting fill holds no seat", async () => {
   const sql = await testSql();
   const id = await createContent(sql, {
     guildId: "g1", threadId: "t1", type: "pve", title: "Dungeon", notes: null, startsAt: new Date(NOW.getTime() + H), tier: "T8", hasLoot: false,
@@ -61,5 +61,5 @@ test("the schedule's party count is seated players plus reserved fills, like the
   await claimSlot(sql, { contentId: id, slotId: slot, userId: "a", guildId: "g1", now: NOW });
   await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'f1', null, 'fill'), ('g1', ${id}, 'f2', null, 'fill'), ('g1', ${id}, 'f3', null, 'fill')`;
   const [e] = await listSchedule(sql, "g1", NOW);
-  assert.deepEqual([e!.party, e!.total], [3, 3], "1 seated + min(3 fills, 2 open)");
+  assert.deepEqual([e!.party, e!.total], [1, 3], "1 seated; three waiting fills hold no seat");
 });
