@@ -7,7 +7,7 @@ import { openFillPanel } from "./fill-pref.ts";
 import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
-import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage } from "../render/roster.ts";
+import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
@@ -34,7 +34,7 @@ function ids(i: Interaction, prefix: string, parts: number): string[] | null {
 async function refreshed(deps: Deps, id: string, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
-  await announcePromotions(deps, view.threadId, view.title, promoted);
+  await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   return { type: UPDATE_MESSAGE, data: renderRosterMessage(view) };
 }
 
@@ -69,7 +69,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
     if (view?.messageId) {
       try {
         await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
-        await announcePromotions(deps, view.threadId, view.title, promoted);
+        await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
         return pickerResponse(got[0]!, `You are in **${slot.position}. ${escapeText(slot.role)}**. Which weapon will you bring? This is optional.`);
       } catch (err) {
         console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));

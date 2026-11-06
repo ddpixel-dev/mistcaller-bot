@@ -6,6 +6,7 @@ import { joinFill, type Promotion } from "../db/signup.ts";
 import { describeFill, MAX_FILL_VALUES, parseFillValues } from "../domain/fillmatch.ts";
 import type { RosterView } from "../domain/types.ts";
 import { roleIcon } from "../render/theme.ts";
+import { rosterButton } from "../render/roster.ts";
 import { announce, refreshRoster } from "./manage.ts";
 import { announcePromotions, fillSeatedLine } from "./waitlist.ts";
 
@@ -59,14 +60,14 @@ export async function handleFillChoice(deps: Deps, i: Interaction): Promise<Inte
 
   const view = await getRosterView(deps.sql, contentId, deps.now());
   await refreshRoster(deps, contentId);
-  if (view) await announcePromotions(deps, view.threadId, view.title, promoted);
+  if (view) await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   const wanted = describeFill(pref, (id) => view?.slots.find((s) => s.id === id)?.position);
   if (r.result === "applied") {
     return done(`📨 You applied (${wanted}). The host picks the party; you are mentioned in the post when you are accepted.`);
   }
   if (r.result === "seated") {
     // The post says what the player asked for and where they landed (owner request 2026-11-06).
-    if (view) await announce(deps, view.threadId, fillSeatedLine(userId, wanted, { position: r.slot.position, role: r.slot.role, weapon: r.slot.weapon }), [userId]);
+    if (view) await announce(deps, view.threadId, `${fillSeatedLine(userId, wanted, { position: r.slot.position, role: r.slot.role, weapon: r.slot.weapon })}`, [userId], rosterButton(view));
     const pick = r.slot.weapon ? "" : " Pick your weapon with `/content me`.";
     return done(`✅ You are seated in position ${r.slot.position} (${r.slot.role}).${pick}`);
   }

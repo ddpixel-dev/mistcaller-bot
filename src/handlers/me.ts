@@ -7,7 +7,7 @@ import { claimSlot, leaveContent, type Promotion } from "../db/signup.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
 import type { RosterView } from "../domain/types.ts";
-import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOT_FOUND = "This content or position no longer exists.";
@@ -65,7 +65,7 @@ export async function handleMeCommand(deps: Deps, i: Interaction): Promise<Inter
 async function refresh(deps: Deps, id: string, userId: string, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
-  await announcePromotions(deps, view.threadId, view.title, promoted);
+  await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   try {
     if (view.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
   } catch (err) {

@@ -6,7 +6,7 @@ import { getRosterView } from "../db/content.ts";
 import { getManageTargetById } from "../db/manage.ts";
 import { announce, authorize, refreshRoster } from "./manage.ts";
 import { announcePromotions } from "./waitlist.ts";
-import { escapeText } from "../render/roster.ts";
+import { escapeText, rosterButton } from "../render/roster.ts";
 import { fillMatches } from "../domain/fillmatch.ts";
 import { roleIcon } from "../render/theme.ts";
 import type { RosterView } from "../domain/types.ts";
@@ -103,8 +103,8 @@ async function finish(deps: Deps, view: RosterView, host: string, userId: string
   const pick = view.slots.some((s) => s.position === r.position && !s.weapon) ? " Pick your weapon with `/content me`." : "";
   await announce(deps, view.threadId, accepted
     ? `✅ <@${host}> accepted <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`
-    : `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId]);
-  await announcePromotions(deps, view.threadId, view.title, promoted);
+    : `📝 <@${host}> signed up <@${userId}> for position ${r.position} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId], rosterButton(view));
+  await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
 }
 
 // fa:<content> (open the panel), fa:p:<content> (a fill chosen), fa:u:<content> (a member picked),

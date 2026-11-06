@@ -38,6 +38,7 @@ const click = (customId: string, user: string, values?: unknown[], over: Partial
   data: { custom_id: customId, component_type: values ? 3 : 2, ...(values ? { values } : {}) }, ...over,
 });
 const PANEL = { message: { id: "p1", flags: 64 } };
+const ROSTER_BUTTON = [{ type: 1, components: [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: "https://discord.com/channels/g1/t1/m1" }] }];
 const text = (r: any) => String(r.data.content ?? "");
 const labels = (r: any) => flatComponents(r.data).filter((c) => c.type === 2).map((c) => c.label);
 
@@ -80,6 +81,7 @@ test("the host reviews applicants in the Add player panel, accepts one into a po
   assert.deepEqual(v.applicants, []);
   assert.equal(posts[0]!.body.content, `✅ <@${OWNER}> accepted <@${A}> for position 2 (💚 Healer).`);
   assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] });
+  assert.deepEqual(posts[0]!.body.components, ROSTER_BUTTON);
 });
 
 test("declining is Remove player: the application goes and the applicant is told in the post", async () => {

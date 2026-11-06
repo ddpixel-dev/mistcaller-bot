@@ -215,3 +215,12 @@ export function renderRosterMessage(view: RosterView): {
     allowed_mentions: { parse: [] },
   };
 }
+
+// A link back to the roster, for the bot's own posts in the thread: the roster scrolls away as people talk. A link button
+// sits under the message instead of adding a line of text (owner request 2026-11-06).
+export function rosterUrl(v: { guildId: string; threadId: string; messageId: string | null }): string {
+  return `https://discord.com/channels/${v.guildId}/${v.threadId}${v.messageId ? `/${v.messageId}` : ""}`;
+}
+export function rosterButton(v: { guildId: string; threadId: string; messageId: string | null }): unknown[] {
+  return [{ type: 1, components: [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: rosterUrl(v) }] }];
+}
