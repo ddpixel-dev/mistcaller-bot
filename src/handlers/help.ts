@@ -25,10 +25,10 @@ export const HELP_TEXT = [
   "• **Lock** or **Unlock** signups, **End** (automatic 4 hours after the start), **Cancel**.",
   "• **Attendance** opens the form. On a finished roster, Manage offers Attendance and **Reopen**.",
   "• **Ping players** sends each player a private reminder once, so late joiners can be pinged later.",
-  "• `/content preset` lists, saves and deletes slot presets; pick one in the first create form.",
+  "• Pick a saved preset on the creation card to fill the slots. Admins save and delete them with **Manage presets** there.",
   "",
   "### Admins (an admin role or Manage Server)",
-  "• Everything the owner can do, on any content, and `/content history` for any member. Saving and deleting presets.",
+  "• Everything the owner can do, on any content, and `/content history` for any member. Saving presets.",
   "• `/content setup` sets admin roles, channels, the forum per type (PvP, PvE, PvX) and CTA roles.",
 ].join("\n");
 

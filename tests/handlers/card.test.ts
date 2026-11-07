@@ -44,7 +44,8 @@ const form = (customId: string, fields: Record<string, string>, over: Partial<In
   base({ type: 5, data: { custom_id: customId, components: Object.entries(fields).map(([custom_id, value]) => ({ type: 1, components: [{ type: 4, custom_id, value }] })) }, ...over });
 const command = (sub: string, options: unknown[] = [], over: Partial<Interaction> = {}, resolved?: unknown) =>
   base({ type: 2, data: { name: "content", options: [{ name: sub, type: 1, options }], ...(resolved ? { resolved } : {}) }, ...over });
-const menus = (r: any) => flatComponents(r.data).filter((c) => c.type === 3);
+// The Preset menu is first on the card, so the other menus keep their old order without it.
+const menus = (r: any) => flatComponents(r.data).filter((c) => c.type === 3 && !String(c.custom_id).startsWith("cc:preset:"));
 const idOf = (r: any) => cardIdOf(r);
 const details = { title: "Ava roam", start: "2026-10-25 18:00", tier: "T8", slots: "Tank - Mace\nHealer", notes: "" };
 
@@ -399,4 +400,160 @@ test("with no presets the card still shows a dimmed Preset menu that says how to
   const forced: any = await d(press(`cc:preset:${id}`, ["-"]));
   assert.ok(forced.data.content.includes("no presets yet"), forced.data.content);
   assert.equal((await sql`select count(*)::int as n from slot_draft where slots_text is not null`)[0]!.n, 0);
+});
+
+// ---- presets keep the whole card (ADR 0039) ----
+
+test("the Preset menu is the first menu on the card", async () => {
+  const { d } = await setup();
+  const r: any = await d(press("hub:n"));
+  const all = flatComponents(r.data).filter((c: any) => c.type === 3);
+  assert.ok(String(all[0].custom_id).startsWith("cc:preset:"), "Choose from preset comes first");
+  assert.ok(String(all[1].custom_id).startsWith("cc:type:"));
+});
+
+test("a preset saved from a valid card fills the type, category, loot vote, sign-up, title, tier, notes and slots on a new card, but not the start", async () => {
+  const { d, sql } = await setup();
+  const first = (await open(d)).id as string;
+  await d(form(`ccd:${first}`, { ...details, title: "Ava roam", tier: "T8.3", notes: "Bring food" }));
+  await d(press(`cc:type:${first}`, ["pvp"]));
+  await d(press(`cc:kind:${first}`, ["zvz"]));
+  await d(press(`cc:loot:${first}`, ["1"]));
+  await d(press(`cc:sel:${first}`, ["1"]));
+  assert.ok(say((await d(form(`ccp:${first}`, { name: "Ava roam" }, admin))) as any).includes("Saved the preset"));
+  const [row] = await sql`select settings from slot_preset`;
+  assert.deepEqual(row!.settings, { type: "pvp", kind: "zvz", loot: true, selection: true, title: "Ava roam", tier: "T8.3", notes: "Bring food", buildRef: null });
+  // a new card: one pick sets everything
+  const second: any = await open(d);
+  const [{ id: presetId }] = await sql`select id from slot_preset`;
+  const r: any = await d(press(`cc:preset:${second.id}`, [presetId]));
+  assert.ok(say(r).includes("Filled from the preset"), say(r));
+  const draft = (await getDraft(sql, second.id, NOW))!;
+  assert.deepEqual([draft.type, draft.kind, draft.loot, draft.selection, draft.title, draft.gearTier, draft.notes], ["pvp", "zvz", true, true, "Ava roam", "T8.3", "Bring food"]);
+  assert.deepEqual(draft.slots.map((s) => s.role), ["Tank", "Healer"]);
+  assert.notEqual(draft.startText, "2026-10-25 18:00", "the start time is not part of a preset");
+  assert.deepEqual(discordProblems(r.data), []);
+});
+
+test("an older preset with no settings still fills the slots only", async () => {
+  const { d, sql } = await setup();
+  await sql`insert into slot_preset (guild_id, name, slots, created_by) values (${GUILD}, 'Old', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pve"]));
+  const [{ id: presetId }] = await sql`select id from slot_preset`;
+  const r: any = await d(press(`cc:preset:${id}`, [presetId]));
+  assert.ok(say(r).includes("slots only"));
+  const draft = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([draft.type, draft.slots.map((s) => s.role)], ["pve", ["Tank"]]);
+});
+
+// ---- Manage presets (ADR 0039) ----
+
+const admin = { member: { user: { id: OWNER }, roles: [], permissions: "32" } };
+const plainMember = { member: { user: { id: OWNER }, roles: [], permissions: "0" } };
+const labels = (r: any) => flatComponents(r.data).filter((c: any) => c.type === 2).map((c: any) => c.label);
+const button = (r: any, label: string) => flatComponents(r.data).find((c: any) => c.type === 2 && c.label === label)!;
+
+async function validCard(d: any) {
+  const { id } = await open(d);
+  await d(form(`ccd:${id}`, details));
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:kind:${id}`, ["zvz"]));
+  return id as string;
+}
+
+test("Manage presets sits beside Blank template and opens a panel in place with Save as preset, Delete preset and Back", async () => {
+  const { d } = await setup();
+  const { r, id } = await open(d);
+  assert.deepEqual(labels(r).slice(0, 2), ["Blank template", "Manage presets"]);
+  const panel: any = await d(press(`cc:presets:${id}`, undefined, admin));
+  assert.equal(panel.type, 7, "it replaces the card in the same message");
+  assert.deepEqual(labels(panel), ["Save as preset", "Delete preset", "Back to the card"]);
+  assert.ok(say(panel).includes("saves this card as it is now, if it is valid") && say(panel).includes("The start time is not saved"));
+  assert.deepEqual(discordProblems(panel.data), []);
+  const back: any = await d(press(`cc:back:${id}`, undefined, admin));
+  assert.ok(labels(back).includes("Manage presets") && labels(back).includes("Create"), "Back shows the card again");
+});
+
+test("Manage presets is only for the configured roles: an admin role, Manage Server or Administrator; every step checks", async () => {
+  const { d, sql } = await setup();
+  const id = await validCard(d);
+  const { savePreset } = await import("../../src/db/preset.ts");
+  await savePreset(sql, { guildId: GUILD, name: "Ava", slots: [{ role: "R", weapon: "W" }], createdBy: OWNER });
+  const [{ id: avaId }] = await sql`select id from slot_preset`;
+  for (const [custom, values] of [[`cc:presets:${id}`, undefined], [`cc:savepreset:${id}`, undefined], [`cc:delpreset:${id}`, undefined], [`cc:delpick:${id}`, [avaId]], [`cc:delyes:${id}:${avaId}`, undefined]] as const) {
+    assert.ok(((await d(press(custom, values as any, plainMember))) as any).data.content.includes("Only admins"), custom);
+  }
+  assert.ok(((await d(form(`ccp:${id}`, { name: "Sneaky" }, plainMember))) as any).data.content.includes("Only admins"));
+  assert.deepEqual((await sql`select name from slot_preset`).map((x) => x.name), ["Ava"], "nothing changed");
+  await sql`insert into guild_admin_role (guild_id, role_id) values (${GUILD}, 'officer')`;
+  const officer = { member: { user: { id: OWNER }, roles: ["officer"], permissions: "0" } };
+  assert.equal(((await d(press(`cc:presets:${id}`, undefined, officer))) as any).type, 7, "a configured admin role opens it");
+  const administrator = { member: { user: { id: OWNER }, roles: [], permissions: "8" } };
+  assert.equal(((await d(press(`cc:presets:${id}`, undefined, administrator))) as any).type, 7);
+});
+
+test("Save as preset is lit only when the card is valid, opens a name form, and saves; the same name replaces", async () => {
+  const { d, sql } = await setup();
+  const { id: bad } = await open(d);
+  const notReady: any = await d(press(`cc:presets:${bad}`, undefined, admin));
+  assert.equal(button(notReady, "Save as preset").disabled, true);
+  assert.ok(say(notReady).includes("not ready to save yet") && say(notReady).includes("Add a title"), say(notReady));
+  const forced: any = await d(press(`cc:savepreset:${bad}`, undefined, admin));
+  assert.equal(forced.type, 7, "a forced click opens no form");
+  assert.equal(((await d(form(`ccp:${bad}`, { name: "Nope" }, admin))) as any).type, 7);
+  assert.equal((await sql`select count(*)::int as n from slot_preset`)[0]!.n, 0);
+
+  const id = await validCard(d);
+  const ready: any = await d(press(`cc:presets:${id}`, undefined, admin));
+  assert.equal(button(ready, "Save as preset").disabled, false);
+  const modal: any = await d(press(`cc:savepreset:${id}`, undefined, admin));
+  assert.equal(modal.type, 9);
+  assert.equal(modal.data.custom_id, `ccp:${id}`);
+  const saved: any = await d(form(`ccp:${id}`, { name: "Ava roam" }, admin));
+  assert.equal(saved.type, 7);
+  assert.ok(say(saved).includes("Saved the preset") && say(saved).includes("2 positions"), say(saved));
+  assert.equal(button(saved, "Delete preset").disabled, false, "there is something to delete now");
+  assert.deepEqual(discordProblems(saved.data), []);
+  assert.ok(say((await d(form(`ccp:${id}`, { name: "ava ROAM" }, admin))) as any).includes("was replaced"));
+  assert.equal((await sql`select count(*)::int as n from slot_preset`)[0]!.n, 1);
+  assert.ok(say((await d(form(`ccp:${id}`, { name: "   " }, admin))) as any).includes("needs a name"));
+  const stranger = { member: { user: { id: OTHER }, roles: [], permissions: "32" } };
+  assert.ok(((await d(form(`ccp:${id}`, { name: "Mine" }, stranger))) as any).data.content.includes("expired or is not yours"));
+});
+
+test("a full server (25 presets) can still replace a name but not add one", async () => {
+  const { d, sql } = await setup();
+  const { savePreset } = await import("../../src/db/preset.ts");
+  for (let n = 0; n < 25; n++) await savePreset(sql, { guildId: GUILD, name: `p${n}`, slots: [{ role: "R", weapon: "W" }], createdBy: OWNER });
+  const id = await validCard(d);
+  assert.ok(say((await d(form(`ccp:${id}`, { name: "one more" }, admin))) as any).includes("25 presets"));
+  assert.ok(say((await d(form(`ccp:${id}`, { name: "P3" }, admin))) as any).includes("was replaced"));
+});
+
+test("Delete preset: pick, confirm, gone; Keep it deletes nothing; only this server's presets; dimmed with none", async () => {
+  const { d, sql } = await setup();
+  const { savePreset } = await import("../../src/db/preset.ts");
+  const { id } = await open(d);
+  assert.equal(button((await d(press(`cc:presets:${id}`, undefined, admin))) as any, "Delete preset").disabled, true, "dimmed with none");
+  for (const name of ["Ava", "Roam"]) await savePreset(sql, { guildId: GUILD, name, slots: [{ role: "R", weapon: "W" }], createdBy: OWNER });
+  await savePreset(sql, { guildId: "other-guild", name: "Theirs", slots: [{ role: "R", weapon: "W" }], createdBy: OWNER });
+  const pick: any = await d(press(`cc:delpreset:${id}`, undefined, admin));
+  const menu = flatComponents(pick.data).find((c: any) => c.type === 3)!;
+  assert.deepEqual(menu.options.map((o: any) => o.label), ["Ava", "Roam"], "this server's presets only");
+  const [{ id: avaId }] = await sql`select id from slot_preset where name = 'Ava'`;
+  const confirm: any = await d(press(menu.custom_id, [avaId], admin));
+  assert.ok(say(confirm).includes("Delete the preset **Ava**?"));
+  assert.equal(button(confirm, "Delete").style, 4);
+  const kept: any = await d(press(button(confirm, "Keep it").custom_id, undefined, admin));
+  assert.ok(labels(kept).includes("Save as preset"), "Keep it goes back to the panel");
+  assert.equal((await sql`select count(*)::int as n from slot_preset where guild_id = ${GUILD}`)[0]!.n, 2);
+  const done: any = await d(press(button(confirm, "Delete").custom_id, undefined, admin));
+  assert.ok(say(done).includes("Deleted the preset **Ava**"), say(done));
+  assert.deepEqual((await sql`select name from slot_preset where guild_id = ${GUILD}`).map((x) => x.name), ["Roam"]);
+  assert.ok(say((await d(press(button(confirm, "Delete").custom_id, undefined, admin))) as any).includes("no longer exists"), "a second press is harmless");
+  const [{ id: theirs }] = await sql`select id from slot_preset where guild_id = 'other-guild'`;
+  assert.ok(say((await d(press(`cc:delyes:${id}:${theirs}`, undefined, admin))) as any).includes("no longer exists"), "another server's preset");
+  assert.equal((await sql`select count(*)::int as n from slot_preset where guild_id = 'other-guild'`)[0]!.n, 1);
+  assert.ok(((await d(press(`cc:delyes:${id}:not-a-uuid`, undefined, admin))) as any).data.content.includes("expired or is not yours"));
 });

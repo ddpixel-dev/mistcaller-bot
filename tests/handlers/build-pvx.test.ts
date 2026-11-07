@@ -196,7 +196,7 @@ test("the creation card offers PvX with every category", async () => {
   const opened: any = await handleCreateCommand(deps, cmd("create"));
   const id = cardIdOf(opened);
   const r: any = await d({ id: "i", type: 3, application_id: "a", token: "t", guild_id: GUILD, channel: { id: "c1", type: 0 }, member: who("boss"), data: { custom_id: `cc:type:${id}`, component_type: 3, values: ["pvx"] } } as Interaction);
-  const kinds = flatComponents(r.data).filter((c: any) => c.type === 3)[1].options;
+  const kinds = flatComponents(r.data).filter((c: any) => c.type === 3 && String(c.custom_id).startsWith("cc:kind:"))[0].options;
   assert.equal(kinds.length, kindsOf("pvx").length);
 });
 

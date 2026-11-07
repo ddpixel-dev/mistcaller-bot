@@ -53,6 +53,19 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
   const rows: unknown[] = [
     {
       type: 1,
+      components: [ctx.presets.length
+        ? {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Choose from preset (fills the whole card)",
+          options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
+        }
+        // Always shown and first (owner request 2026-11-07): with no presets it is dimmed and says how to save one.
+        : {
+          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset: none saved yet", disabled: true,
+          options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
+        }],
+    },
+    {
+      type: 1,
       components: [{
         type: 3, custom_id: `cc:type:${id}`, placeholder: "Type of content",
         options: types.map((t: ContentType) => ({ label: TYPE_LABEL[t], value: t, emoji: { name: typeIcon(t) }, default: t === d.type })),
@@ -91,20 +104,10 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     },
     {
       type: 1,
-      components: [ctx.presets.length
-        ? {
-          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset (fills the slots)",
-          options: ctx.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
-        }
-        // Always shown, so it never looks missing: with no presets it is dimmed and says how to save one (owner request 2026-11-07).
-        : {
-          type: 3, custom_id: `cc:preset:${id}`, placeholder: "Preset: none saved yet", disabled: true,
-          options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
-        }],
-    },
-    {
-      type: 1,
-      components: [btn("Blank template", "📄", `cc:blank:${id}`)], // FR-060: skip the roster, go to the final form
+      components: [
+        btn("Blank template", "📄", `cc:blank:${id}`), // FR-060: skip the roster, go to the final form
+        btn("Manage presets", "💾", `cc:presets:${id}`), // ADR 0039: admins save the card as a preset or delete one
+      ],
     },
     {
       type: 1,
@@ -133,9 +136,10 @@ export const NO_PRESET = "-";
 
 export const CARD_TIPS = [
   "-# 💡 Only you see this card.",
-  "-# 💡 Set the type, category and loot vote above, then press **Details** for the title, start time, gear tier and notes.",
+  "-# 💡 Pick a preset to fill the whole card at once, or set the type, category and loot vote, then press **Details** for the title, start time, gear tier and notes.",
   "-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
   "-# 💡 **Blank template** is a quick event without a roster: only a title, start, gear tier and description.",
+  "-# 💡 Admins: **Manage presets** saves this card as a preset (once it is valid) or deletes one.",
   "-# 💡 **Create** lights up once everything needed is set.",
 ].join("\n");
 // The pinned launcher post of an event forum (FR-053). The forum's list shows only a post's title and the start of
@@ -150,4 +154,45 @@ export function renderLauncher() {
     components: [{ type: 1, components: [{ type: 2, style: 3, label: "Create event", emoji: { name: "✨" }, custom_id: "lc:create" }] }],
     allowed_mentions: { parse: [] as [] },
   };
+}
+
+// The Manage presets panel (ADR 0039): it replaces the card in the same message, with Back to return. Admins only (the handler checks).
+export type PresetView =
+  | { kind: "main"; ready: boolean; problems: string[]; hasPresets: boolean; note?: string }
+  | { kind: "pick"; presets: { id: string; name: string; count: number }[] }
+  | { kind: "confirm"; presetId: string; name: string };
+
+export function renderPresetPanel(id: string, v: PresetView) {
+  const body: unknown[] = [];
+  if (v.kind === "main") {
+    body.push(
+      { type: 10, content: [
+        "## 💾 Manage presets",
+        ...(v.note ? [v.note, ""] : []),
+        "**Save as preset** saves this card as it is now, if it is valid (the same checks as Create): type, category, loot vote, sign-up, title, gear tier, notes, build link and positions. The start time is not saved.",
+        "**Delete preset** removes a saved preset, after you confirm.",
+        ...(v.ready ? [] : ["", "⚠️ **The card is not ready to save yet:**", ...v.problems.map((p) => `⚠️ ${p}`)]),
+      ].join("\n").slice(0, 3000) },
+      { type: 1, components: [
+        { ...btn("Save as preset", "💾", `cc:savepreset:${id}`, 1), disabled: !v.ready },
+        { ...btn("Delete preset", "🗑️", `cc:delpreset:${id}`), disabled: !v.hasPresets },
+        btn("Back to the card", "↩️", `cc:back:${id}`),
+      ] },
+    );
+  } else if (v.kind === "pick") {
+    body.push(
+      { type: 10, content: "## 🗑️ Delete a preset\nChoose the preset to delete. You will be asked to confirm." },
+      { type: 1, components: [{
+        type: 3, custom_id: `cc:delpick:${id}`, placeholder: "Choose the preset to delete",
+        options: v.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
+      }] },
+      { type: 1, components: [btn("Back", "↩️", `cc:presets:${id}`)] },
+    );
+  } else {
+    body.push(
+      { type: 10, content: `## 🗑️ Delete the preset **${v.name}**?\nThis cannot be undone.` },
+      { type: 1, components: [btn("Delete", "🗑️", `cc:delyes:${id}:${v.presetId}`, 4), btn("Keep it", "↩️", `cc:presets:${id}`)] },
+    );
+  }
+  return { flags: IS_COMPONENTS_V2, components: [{ type: 17, components: body }], allowed_mentions: { parse: [] as [] } };
 }
