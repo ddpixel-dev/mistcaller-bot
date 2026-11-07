@@ -63,6 +63,10 @@ export async function getPreset(sql: Sql, guildId: string, name: string): Promis
   return r ? toPreset(r) : null;
 }
 
+export async function deletePreset(sql: Sql, guildId: string, id: string): Promise<boolean> {
+  return (await sql`delete from slot_preset where guild_id = ${guildId} and id = ${id} returning id`).length > 0;
+}
+
 export async function getPresetById(sql: Sql, guildId: string, id: string): Promise<Preset | null> {
   const [r] = await sql`select * from slot_preset where guild_id = ${guildId} and id = ${id}`;
   return r ? toPreset(r) : null;
