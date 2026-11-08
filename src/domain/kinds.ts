@@ -24,6 +24,7 @@ export const KINDS: KindDef[] = [
   { id: "castle", label: "Castle", type: "pvp", color: 0x35508f, icon: "🏯" },
   { id: "mists", label: "Mists", type: "pvp", color: 0x5f8f6f, icon: "🌫️" },
   { id: "corrupted-dungeon", label: "Corrupted dungeon", type: "pvp", color: 0x8a4a3a, icon: "💀" },
+  { id: "depths", label: "Depths", type: "pvp", color: 0x7b6a3a, icon: "⛏️" },
   { id: "ancient-lands", label: "Ancient Lands", type: "pvp", color: 0x7a5fa8, icon: "🗿" },
   { id: DEFAULT_KIND, label: "Other", type: "pvp", color: 0x2b4db0, icon: "⚔️" },
   { id: "group-dungeon", label: "Group dungeon", type: "pve", color: 0xc9a227, icon: "🏚️" },
@@ -31,8 +32,6 @@ export const KINDS: KindDef[] = [
   { id: "world-boss", label: "World boss", type: "pve", color: 0xd4a017, icon: "🐉" },
   { id: "static-dungeon", label: "Static dungeon", type: "pve", color: 0xb98a2e, icon: "🏛️" },
   { id: "dragon-sanctuary", label: "Dragon sanctuary", type: "pve", color: 0xc4702a, icon: "🐲" },
-  { id: "hellgate", label: "Hellgate", type: "pve", color: 0xa8402a, icon: "🔥" },
-  { id: "depths", label: "Depths", type: "pve", color: 0x7b6a3a, icon: "⛏️" },
   { id: "crystal-creatures", label: "Crystal creatures", type: "pve", color: 0xcfa83a, icon: "🔮" },
   { id: "ancient-lands", label: "Ancient Lands", type: "pve", color: 0xbf9b30, icon: "🗿" },
   { id: "ava-gold", label: "Ava Gold", type: "pve", color: 0xe6b422, icon: "💰" },
@@ -46,6 +45,9 @@ const LEGACY_KINDS: KindDef[] = [
   // Moved to PvP on 2026-11-06; PvE content made before keeps its label.
   { id: "mists", label: "Mists", type: "pve", color: 0x8f9e3a, icon: "🌫️" },
   { id: "corrupted-dungeon", label: "Corrupted dungeon", type: "pve", color: 0x9c5a1a, icon: "💀" },
+  // Moved to PvP on 2026-11-08 (Hellgate was already a PvP category); PvE content made before keeps its label.
+  { id: "hellgate", label: "Hellgate", type: "pve", color: 0xa8402a, icon: "🔥" },
+  { id: "depths", label: "Depths", type: "pve", color: 0x7b6a3a, icon: "⛏️" },
   { id: "fame-farming", label: "Fame farming", type: "pve", color: 0xe0b84a, icon: "🌾" },
   { id: "gold-chest", label: "Avalonian gold chest", type: "pve", color: 0xdaa520, icon: "💰" },
   { id: "avalonian-raid", label: "Avalonian raid", type: "pve", color: 0xa9830f, icon: "⚔️" }, // retired 2026-11-06

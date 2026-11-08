@@ -193,3 +193,24 @@ test("an edit form that carries a category (opened before 0.23.0) saves it; a wr
   assert.ok(text(await handleEditModal(deps, modal(id, "k:world-boss", good))).includes("PvE category"));
   assert.equal((await getRosterView(sql, id, NOW))!.kind, "hellgate");
 });
+
+// Content stays live after its start (FR-024), so a host must still be able to edit it. The form is prefilled with the
+// current start, which is then in the past: an unchanged start must pass, a new start must still be in the future.
+test("an admin can edit started content when the start time is left as it is", async () => {
+  const { sql, deps, id } = await setup();
+  const late: Deps = { ...deps, now: () => new Date("2026-12-01T19:00:00Z") };
+  const values = { ...good, title: "Ganking", start: "2026-12-01 18:00", slots: "Tank - Mace\nHealer - Holy", notes: "new notes" };
+  const r: any = await handleEditModal(late, { ...modal(id, "k", values), member: who("titanium", ["officer"]) });
+  assert.ok(String(text(r)).startsWith("Content updated"), text(r));
+  const [row] = await sql`select notes, starts_at from content where id = ${id}`;
+  assert.equal(row!.notes, "new notes");
+  assert.equal(row!.starts_at.toISOString(), "2026-12-01T18:00:00.000Z", "the start is untouched");
+});
+
+test("started content: a new start time must still be in the future", async () => {
+  const { deps, id } = await setup();
+  const late: Deps = { ...deps, now: () => new Date("2026-12-01T19:00:00Z") };
+  const values = { ...good, title: "Ganking", start: "2026-12-01 17:00", slots: "Tank - Mace\nHealer - Holy" };
+  const r: any = await handleEditModal(late, modal(id, "k", values, "boss"));
+  assert.ok(String(text(r)).includes("not in the future"), text(r));
+});

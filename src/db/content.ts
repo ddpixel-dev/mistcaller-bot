@@ -149,6 +149,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
       return [f.user_id as string, describeFill({ any, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position)];
     })),
     buildRef: c.build_channel_id ?? null,
+    ownerId: c.created_by ?? null,
     pingLeft: (await pingTargets(sql, contentId, c.created_by ?? null)).length,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
