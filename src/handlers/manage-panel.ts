@@ -47,12 +47,12 @@ function panel(view: RosterView, status: string | null = null) {
         type: 1,
         components: [
           button("Edit", "✏️", `mg:e:${id}`, 1),
-          // A green button (owner request 2026-10-24); the owner chose the ✍️ icon.
-          view.selection ? button(`Review applicants${view.applicants?.length ? ` (${view.applicants.length})` : ""}`, "📨", `fa:${id}`, 3) : button("Add player", "✍️", `fa:${id}`, 3),
+          // A host-selected event also has Review applicants, for the people who applied only (FR-065); Assign player is for
+          // any member. Green buttons (owner request 2026-10-24); the owner chose the ✍️ icon.
+          ...(view.selection ? [{ ...button(`Review applicants${view.applicants?.length ? ` (${view.applicants.length})` : ""}`, "📨", `fa:r:${id}`, 3), disabled: !view.applicants?.length }] : []),
+          button("Assign player", "✍️", `fa:${id}`, 3),
           button("Remove player", "👢", `rm:${id}`), // a kick (owner request 2026-10-24)
           button("Set duty", "📯", `dt:${id}`),
-          // Only while a position has no weapon (ADR 0029).
-          ...(view.slots.some((s) => !s.weapon) ? [button("Set weapon", "🗡️", `sw:${id}`)] : []),
         ],
       },
       {
@@ -62,6 +62,8 @@ function panel(view: RosterView, status: string | null = null) {
           button("End", "🏁", `mg:n:${id}`),
           button("Cancel", "✖️", `mg:c:${id}`, 4),
           button("Attendance", "📋", `mg:a:${id}`),
+          // Only while a position has no weapon (ADR 0029); in row 2 so row 1 keeps room for Review applicants.
+          ...(view.slots.some((s) => !s.weapon) ? [button("Set weapon", "🗡️", `sw:${id}`)] : []),
         ],
       },
     ];

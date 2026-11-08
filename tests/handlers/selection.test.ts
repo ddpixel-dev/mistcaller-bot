@@ -62,17 +62,28 @@ test("Fill in a selection event is an application too, with the player's choices
   assert.equal(posts.length, 0, "nothing is posted until the host decides");
 });
 
-test("the host reviews applicants in the Add player panel, accepts one into a position, and the post says so", async () => {
+test("a selection event has Review applicants (applicants only) and Assign player (any member, no applicants)", async () => {
   const { d, id, slots, sql, posts } = await setup();
   await d(click(`join:${id}`, A, [slots[1]!]));
   const manage: any = await d(click(`mg:${id}`, OWNER, undefined, { message: { id: "m1", flags: V2 } }));
   assert.ok(labels(manage).some((l) => l?.startsWith("Review applicants (1)")), labels(manage).join("|"));
-  assert.ok(!labels(manage).includes("Add player"));
-  const panel: any = await d(click(`fa:${id}`, OWNER, undefined, PANEL));
+  assert.ok(labels(manage).includes("Assign player") && !labels(manage).includes("Add player"));
+  assert.deepEqual(discordProblems({ ...manage.data, flags: 0 }), []);
+
+  // Review applicants: the applicants only, no member picker.
+  const panel: any = await d(click(`fa:r:${id}`, OWNER, undefined, PANEL));
   const menu = panel.data.components[0].components[0];
+  assert.equal(menu.custom_id, `fa:q:${id}`);
   assert.deepEqual(menu.options.map((o: any) => [o.label, o.value, o.description]), [["Name-2", A, "Applied: #2"]]);
+  assert.ok(!panel.data.components.some((r: any) => r.components[0].type === 5), "no member picker in Review applicants");
   assert.deepEqual(discordProblems({ ...panel.data, flags: 0 }), []);
-  const chosen: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
+
+  // Assign player: a member picker, and the applicants are not listed there.
+  const assign: any = await d(click(`fa:${id}`, OWNER, undefined, PANEL));
+  assert.deepEqual(assign.data.components.map((r: any) => r.components[0].type), [5]);
+  assert.ok(!JSON.stringify(assign.data).includes(A));
+
+  const chosen: any = await d(click(`fa:q:${id}`, OWNER, [A], PANEL));
   const positions = chosen.data.components.at(-1).components[0];
   const done: any = await d(click(`fa:s:${id}:${A}`, OWNER, [positions.options[0].value], PANEL));
   assert.ok(text(done).includes(`<@${A}>`));
@@ -80,8 +91,15 @@ test("the host reviews applicants in the Add player panel, accepts one into a po
   assert.equal(v.slots[1]!.userId, A);
   assert.deepEqual(v.applicants, []);
   assert.equal(posts[0]!.body.content, `✅ <@${OWNER}> accepted <@${A}> for position 2 (💚 Healer).`);
-  assert.deepEqual(posts[0]!.body.allowed_mentions, { users: [A] });
-  assert.deepEqual(posts[0]!.body.components, ROSTER_BUTTON);
+});
+
+test("Review applicants is dimmed while nobody has applied, and its panel says so", async () => {
+  const { d, id } = await setup();
+  const manage: any = await d(click(`mg:${id}`, OWNER, undefined, { message: { id: "m1", flags: V2 } }));
+  const review = flatComponents(manage.data).find((c) => String(c.label).startsWith("Review applicants"))!;
+  assert.equal(review.disabled, true);
+  const panel: any = await d(click(`fa:r:${id}`, OWNER, undefined, PANEL));
+  assert.ok(text(panel).includes("Nobody has applied"));
 });
 
 test("declining is Remove player: the application goes and the applicant is told in the post", async () => {
@@ -121,10 +139,10 @@ test("the Edit panel switches selection on and off; off is refused while applica
   assert.ok(text(await d(click(`ed:s:${id}`, STRANGER, ["0"], PANEL))).includes("Only the creator"));
 });
 
-test("a normal event still has Add player and no disclaimer", async () => {
+test("a normal event has Assign player, no Review applicants and no disclaimer", async () => {
   const { d, id, edits } = await setup(false);
   const manage: any = await d(click(`mg:${id}`, OWNER));
-  assert.ok(labels(manage).includes("Add player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
+  assert.ok(labels(manage).includes("Assign player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
   assert.ok(edits.length === 0);
 });
 

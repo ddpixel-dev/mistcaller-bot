@@ -49,13 +49,13 @@ test("Manage opens a private panel for the owner and admins only, with every hos
   const r: any = await d(click(`mg:${id}`, OWNER, undefined, ROSTER));
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
-  assert.deepEqual(labels(r), ["Edit", "Add player", "Remove player", "Set duty", "Set weapon", "Lock", "End", "Cancel", "Attendance"]);
+  assert.deepEqual(labels(r), ["Edit", "Assign player", "Remove player", "Set duty", "Lock", "End", "Cancel", "Attendance", "Set weapon"]);
   assert.deepEqual(flatComponents(r.data).find((c) => c.label === "Remove player")!.emoji, { name: "👢" });
-  const add = flatComponents(r.data).find((c) => c.label === "Add player")!;
+  const add = flatComponents(r.data).find((c) => c.label === "Assign player")!;
   assert.deepEqual([add.style, add.emoji], [3, { name: "✍️" }], "a green button with the owner's icon");
   assert.deepEqual(discordProblems({ ...r.data, flags: 0 }), []);
   const ids = flatComponents(r.data).filter((c) => c.type === 2).map((c) => c.custom_id);
-  assert.deepEqual(ids, [`mg:e:${id}`, `fa:${id}`, `rm:${id}`, `dt:${id}`, `sw:${id}`, `mg:l:${id}`, `mg:n:${id}`, `mg:c:${id}`, `mg:a:${id}`]);
+  assert.deepEqual(ids, [`mg:e:${id}`, `fa:${id}`, `rm:${id}`, `dt:${id}`, `mg:l:${id}`, `mg:n:${id}`, `mg:c:${id}`, `mg:a:${id}`, `sw:${id}`]);
   const admin: any = await d(click(`mg:${id}`, ADMIN, undefined, { ...ROSTER, member: who(ADMIN, ["admins"]) }));
   assert.equal(admin.type, 4);
 });

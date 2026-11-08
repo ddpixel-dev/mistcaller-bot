@@ -13,7 +13,7 @@ import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Add player**, again.";
+const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Assign player** or **Review applicants**, again.";
 const NO_BOTS = "Bots cannot be signed up.";
 
 const failure = (r: AssignResult["result"], position?: number): string =>
@@ -39,12 +39,15 @@ function isBot(i: Interaction, userId: string): boolean {
   return users?.[userId]?.bot === true;
 }
 
-// The private Add player panel (FR-047; named Sign up player in 0.22.0): the players waiting as fills first, then a member picker for anyone else,
-// then (once a player is chosen) the open positions.
-async function panel(deps: Deps, view: RosterView, chosen: string | null) {
-  // Applicants of a host-selected event come first (FR-058), then the players waiting as fills.
-  const applicants = (view.applicants ?? []).slice(0, 25);
-  const waiting = (view.fills ?? []).slice(0, 25 - applicants.length);
+// FR-065: two private panels share the steps. "review" lists only the people who applied (a host-selected event);
+// "assign" lists the players waiting as fills and a member picker for anyone else, and never the applicants.
+type Mode = "review" | "assign";
+
+// The private Assign player panel (FR-047; Sign up player in 0.22.0, Add player in 0.23.0) and the Review applicants panel
+// (FR-058): the candidates first, then (once a player is chosen) the open positions.
+async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: Mode = "assign") {
+  const applicants = mode === "review" ? (view.applicants ?? []).slice(0, 25) : [];
+  const waiting = mode === "review" ? [] : (view.fills ?? []).slice(0, 25);
   const candidates = [...applicants.map((a) => a.userId), ...waiting];
   const who = await names(deps, view.guildId, candidates);
   const fills = candidates;
@@ -53,7 +56,7 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `fa:p:${view.id}`, placeholder: applicants.length ? "An applicant or a player waiting as a fill" : "A player waiting as a fill",
+        type: 3, custom_id: `${mode === "review" ? "fa:q" : "fa:p"}:${view.id}`, placeholder: mode === "review" ? "An applicant" : "A player waiting as a fill",
         options: [
           ...applicants.map((a) => ({
             label: (who[a.userId] ?? `Member ${a.userId.slice(-4)}`).slice(0, 100), value: a.userId, default: a.userId === chosen,
@@ -65,13 +68,15 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
     });
   }
   const picked = chosen && !fills.includes(chosen) ? chosen : null;
-  rows.push({
-    type: 1,
-    components: [{
-      type: 5, custom_id: `fa:u:${view.id}`, placeholder: "Or any member",
-      ...(picked ? { default_values: [{ id: picked, type: "user" }] } : {}),
-    }],
-  });
+  if (mode === "assign") {
+    rows.push({
+      type: 1,
+      components: [{
+        type: 5, custom_id: `fa:u:${view.id}`, placeholder: fills.length > 0 ? "Or any member" : "Any member",
+        ...(picked ? { default_values: [{ id: picked, type: "user" }] } : {}),
+      }],
+    });
+  }
   // FR-057: for a fill or an applicant, only the open positions that match what they asked for; any other member can go anywhere.
   const pref = chosen ? view.applicants?.find((a) => a.userId === chosen)?.pref ?? view.fillPrefs?.[chosen] ?? null : null;
   const allOpen = view.slots.filter((s) => s.userId === null);
@@ -88,7 +93,7 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null) {
       }],
     });
   }
-  const content = !chosen ? (applicants.length ? "Pick the player to accept: an applicant, a fill, or any member." : "Pick the player to sign up: a fill, or any member.")
+  const content = !chosen ? (mode === "review" ? (applicants.length ? "Pick the applicant to accept." : "Nobody has applied yet.") : "Pick the player to assign: a fill, or any member.")
     : open.length > 0 ? `Now pick the position for <@${chosen}>${pref ? " (only the open positions that suit what they asked for)" : ""}.`
     : allOpen.length > 0 ? `No open position suits what <@${chosen}> asked for. Add one with **Edit details**, or pick someone else.` : "There is no open position to place them in.";
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
@@ -107,13 +112,14 @@ async function finish(deps: Deps, view: RosterView, host: string, userId: string
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
 }
 
-// fa:<content> (open the panel), fa:p:<content> (a fill chosen), fa:u:<content> (a member picked),
-// fa:s:<content>:<user> (a position chosen). The panel sits on the private Manage panel, never on a roster.
+// fa:<content> (open the Assign player panel), fa:r:<content> (open Review applicants), fa:p:<content> (a fill chosen),
+// fa:q:<content> (an applicant chosen), fa:u:<content> (a member picked), fa:s:<content>:<user> (a position chosen). The panel sits on the private Manage panel, never on a roster.
 export async function handleAssignComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const parts = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
   const values = Array.isArray(data?.values) ? data!.values : [];
   const isButton = parts.length === 2 && UUID.test(parts[1] ?? "");
+  const isReviewButton = parts.length === 3 && parts[1] === "r";
   const id = isButton ? parts[1]! : parts[2];
   const host = i.member?.user?.id;
   if (parts[0] !== "fa" || !id || !UUID.test(id) || !i.guild_id || !host) return reply(INVALID);
@@ -123,12 +129,12 @@ export async function handleAssignComponent(deps: Deps, i: Interaction): Promise
   if (!view) return reply(INVALID);
   if (view.status !== "open" && view.status !== "locked") return reply("This content is finished or cancelled.");
 
-  if (isButton) return { type: CHANNEL_MESSAGE, data: { ...(await panel(deps, view, null)), flags: EPHEMERAL } };
-  if ((parts[1] === "p" || parts[1] === "u") && parts.length === 3) {
+  if (isButton || isReviewButton) return { type: CHANNEL_MESSAGE, data: { ...(await panel(deps, view, null, isReviewButton ? "review" : "assign")), flags: EPHEMERAL } };
+  if ((parts[1] === "p" || parts[1] === "q" || parts[1] === "u") && parts.length === 3) {
     const picked = values[0];
     if (values.length !== 1 || typeof picked !== "string" || !SNOWFLAKE.test(picked)) return reply(INVALID);
     if (isBot(i, picked)) return reply(NO_BOTS);
-    return { type: UPDATE_MESSAGE, data: await panel(deps, view, picked) };
+    return { type: UPDATE_MESSAGE, data: await panel(deps, view, picked, parts[1] === "q" ? "review" : "assign") };
   }
   if (parts[1] === "s" && parts.length === 4 && SNOWFLAKE.test(parts[3]!)) {
     const slotId = values[0];
