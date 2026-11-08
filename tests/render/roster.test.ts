@@ -210,12 +210,13 @@ test("the shared Leave stays on when locked or started, and is dimmed when cance
   }
 });
 
-test("all rows sit in one text block; Leave and the vote buttons share the last row", () => {
+test("all rows sit in one text block; Leave, Tentative and the vote buttons share the first button row, Manage the second", () => {
   const v = view({ slots: slots(20, 7), hasLoot: true });
   assert.equal(txt(v).split("\n").filter((l) => /^\d+\. /.test(l)).length, 20);
   const rows = comps(v).filter((c) => c.type === 1);
-  const last = rows[rows.length - 1]!;
-  assert.deepEqual(last.components.map((c: any) => c.custom_id), ["leave:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "mg:c1"]);
+  // Six buttons (FR-067 added Tentative) need two rows: a row holds five at most.
+  assert.deepEqual(rows.at(-2)!.components.map((c: any) => c.custom_id), ["leave:c1", "tent:c1", "vote:c1:split", "vote:c1:regear", "ping:c1"]);
+  assert.deepEqual(rows.at(-1)!.components.map((c: any) => c.custom_id), ["mg:c1"]);
   assert.deepEqual(byId(view({ hasLoot: false }), "leave:c1").length, 1);
 });
 
@@ -246,13 +247,13 @@ test("every layout stays inside Discord's limits: sizes 1 to 20, every state, lo
   assert.deepEqual(problems, []);
 });
 
-test("component count stays small at any size: 20 positions with a loot vote and a full role use 12 of 40", () => {
+test("component count stays small at any size: 20 positions with a loot vote and a full role use 14 of 40", () => {
   const count = (v: RosterView) => {
     const n = (c: any): number => 1 + (c.components ?? []).reduce((a: number, x: any) => a + n(x), 0) + (c.accessory ? 1 : 0);
     return n((msg(v) as any).components[0]);
   };
-  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 12);
-  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 12, "full roster: the waitlist menu replaces the open-positions menu");
+  assert.equal(count(view({ slots: slots(20, 10), hasLoot: true })), 14);
+  assert.equal(count(view({ slots: slots(20, 20), hasLoot: true })), 14, "full roster: the waitlist menu replaces the open-positions menu");
 });
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
@@ -380,11 +381,12 @@ test("fills are listed under the rows; Leave and Ping count a fill; there is no 
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
-test("one row of buttons at most: Leave, Split, Regear, Ping players, Manage; Manage stays on finished content, not on cancelled", () => {
+test("two button rows at most: Leave, Tentative, Split, Regear, Ping players, then Manage; Manage stays on finished content, not on cancelled", () => {
   const v = view({ slots: slots(3, 1), hasLoot: true, fills: ["111111111111111111"], waitlist: [{ userId: "901", role: "DPS" }] });
   const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1 && c.components[0].type === 2);
-  assert.equal(rows.length, 1);
-  assert.deepEqual(rows[0].components.map((c: any) => c.label), ["Leave", "Split (0)", "Regear (0)", "Ping players", "Manage"]);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0].components.map((c: any) => c.label), ["Leave", "Tentative", "Split (0)", "Regear (0)", "Ping players"]);
+  assert.deepEqual(rows[1].components.map((c: any) => c.label), ["Manage"]);
   assert.equal(byId(v, "mg:")[0]!.custom_id, "mg:c1");
   assert.equal(byId(view({ slots: slots(3, 0), hasLoot: false }), "mg:").length, 1, "Manage shows on an empty roster too");
   assert.equal(byId(view({ status: "locked" }), "mg:").length, 1);
@@ -554,4 +556,53 @@ test("FR-064: no host line when the content has no known owner", () => {
 
 test("FR-064: a blank content names its host too", () => {
   assert.ok(txt(view({ blank: true, slots: [], ownerId: "55" })).includes("👑 **Host**"));
+});
+
+test("FR-067: a tentative player shows ❓ beside their name in a seat, applicants, fill and waitlist", () => {
+  const t = txt(view({
+    slots: [
+      { id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: "111" },
+      { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: "222" },
+    ],
+    applicants: [{ userId: "333", wants: "Healer, #2" }, { userId: "444", wants: "Any" }],
+    fills: ["555", "666"], fillWants: { "555": "Any", "666": "Tank" },
+    waitlist: [{ userId: "777", role: "Healer" }, { userId: "888", role: "Healer" }],
+    tentative: ["222", "333", "555", "777"],
+  }));
+  const row = (n: number) => t.split("\n").find((l) => l.startsWith(`${n}. `))!;
+  assert.ok(row(1)!.includes("<@111>") && !row(1)!.includes("❓"), row(1));
+  assert.ok(row(2)!.includes("<@222> ❓"), row(2));
+  assert.ok(t.includes("<@333> ❓ (Healer") && t.includes("<@444> (Any)"), t);
+  assert.ok(t.includes("<@555> ❓ (Any)") && t.includes("<@666> (Tank)"), t);
+  assert.ok(t.includes("1. <@777> ❓ (Healer)") && t.includes("2. <@888> (Healer)"), t);
+});
+
+test("FR-067: no ❓ anywhere when nobody is tentative", () => {
+  assert.ok(!txt(view()).includes("❓"));
+  assert.ok(!txt(view({ tentative: [] })).includes("❓"));
+});
+
+test("FR-067: a Tentative button sits beside Leave, dimmed like Leave while nobody is signed up", () => {
+  const v = view();
+  const [leave] = byId(v, "leave:");
+  const [tent] = byId(v, "tent:");
+  assert.equal(tent!.label, "Tentative");
+  assert.deepEqual(tent!.emoji, { name: "❓" });
+  assert.equal(tent!.custom_id, "tent:c1");
+  assert.equal(tent!.disabled, leave!.disabled);
+  const ids = comps(v).filter((c) => c.type === 2).map((c) => String(c.custom_id).split(":")[0]);
+  assert.equal(ids.indexOf("tent"), ids.indexOf("leave") + 1, "right after Leave");
+  const empty = view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: null }] });
+  assert.equal(byId(empty, "tent:")[0]!.disabled, true);
+  assert.deepEqual(discordProblems(msg(view({ hasLoot: true }))), [], "six buttons fit in two rows");
+});
+
+test("FR-067: a finished roster has no live Tentative button", () => {
+  assert.equal(byId(view({ status: "done" }), "tent:")[0]?.disabled ?? true, true);
+});
+
+test("FR-067: ❓ rows still fit Discord's text limit on a full roster", () => {
+  const full = slots(20, 20);
+  const v = view({ slots: full, tentative: full.map((s) => s.userId!), notes: "n".repeat(400) });
+  assert.deepEqual(discordProblems(msg(v)), []);
 });

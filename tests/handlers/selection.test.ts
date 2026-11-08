@@ -167,3 +167,15 @@ async function assignPlayerFor(sql: any, id: string, slotId: string, userId: str
   const { assignPlayer } = await import("../../src/db/signup.ts");
   await assignPlayer(sql, { contentId: id, guildId: "g1", userId, slotId, now: NOW });
 }
+
+test("FR-067: the host's Review applicants and Assign player menus mark tentative players", async () => {
+  const { d, id, slots, sql } = await setup();
+  await d(click(`join:${id}`, A, [slots[1]!]));
+  await d(click(`join:${id}`, B, [slots[0]!]));
+  const { setTentative } = await import("../../src/db/signup.ts");
+  await setTentative(sql, { contentId: id, guildId: "g1", userId: A });
+  const panel: any = await d(click(`fa:r:${id}`, OWNER, undefined, PANEL));
+  const opts = panel.data.components[0].components[0].options;
+  assert.deepEqual(opts.map((o: any) => [o.value, o.description.startsWith("❓ Tentative")]), [[A, true], [B, false]]);
+  assert.deepEqual(discordProblems({ ...panel.data, flags: 0 }), []);
+});

@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
-import { claimSlot, joinWaitlist, leaveContent, type Promotion } from "../db/signup.ts";
+import { claimSlot, joinWaitlist, leaveContent, setTentative, type Promotion } from "../db/signup.ts";
 import { openFillPanel } from "./fill-pref.ts";
 import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
@@ -126,6 +126,20 @@ export async function handleLeave(deps: Deps, i: Interaction): Promise<Interacti
   if (isOldRoster(i)) return reply(OLD_LAYOUT);
   const got = ids(i, "leave", 2);
   return got ? await leave(deps, i, got[0]!) : reply(INVALID);
+}
+
+// FR-067: the shared Tentative button. It flips the flag of whoever pressed it (the verified user, never an id from the
+// client) and answers by updating the shared roster, like Leave.
+export async function handleTentative(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  if (isOldRoster(i)) return reply(OLD_LAYOUT);
+  const got = ids(i, "tent", 2);
+  const userId = i.member?.user?.id;
+  if (!got || !userId || !i.guild_id) return reply(INVALID);
+  const result = await setTentative(deps.sql, { contentId: got[0]!, guildId: i.guild_id, userId });
+  if (result.result === "not_found") return reply(NOT_FOUND);
+  if (result.result === "not_signed") return reply("You are not signed up for this content. Sign up first, then mark yourself tentative.");
+  if (result.result === "unavailable") return reply("This content is no longer open, so you cannot change that.");
+  return await refreshed(deps, got[0]!);
 }
 
 // Controls of rosters posted before the new layout (menu "signup:", buttons "pick:").

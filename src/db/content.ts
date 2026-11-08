@@ -94,7 +94,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const [slots, voteRows, waiting, fills, applied] = await Promise.all([
+  const [slots, voteRows, waiting, fills, applied, tentative] = await Promise.all([
     sql`
       select s.id, s.position, s.role, s.weapon, s.duty, su.user_id, su.chosen_weapon
       from slot s
@@ -105,6 +105,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     sql`select user_id, wait_role from signup where content_id = ${contentId} and status = 'waitlist' order by joined_at, user_id`,
     sql`select user_id, fill_roles, fill_slots from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
     sql`select user_id, fill_roles, fill_slots from signup where content_id = ${contentId} and status = 'applied' order by joined_at, user_id`,
+    sql`select user_id from signup where content_id = ${contentId} and tentative order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const voteClosed = !isVoteOpen(c.starts_at, now);
@@ -150,6 +151,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     })),
     buildRef: c.build_channel_id ?? null,
     ownerId: c.created_by ?? null,
+    tentative: tentative.map((t) => t.user_id as string),
     pingLeft: (await pingTargets(sql, contentId, c.created_by ?? null)).length,
     waitlist: waiting.map((w) => ({ userId: w.user_id as string, role: (w.wait_role as string | null) ?? "" })),
     votes: { split: tally.split, regear: tally.regear },
