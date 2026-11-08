@@ -326,3 +326,24 @@ export async function chooseWeapon(
     return "ok";
   });
 }
+
+export type TentativeResult = { result: "ok"; tentative: boolean } | { result: "not_signed" | "unavailable" | "not_found" };
+
+// FR-067: a signed-up player marks themselves tentative (or clears it), wherever they are listed: seat, fill, applicants
+// or waitlist. Without `value` the flag flips. It only informs the host, so it works while the content is open or locked.
+// The flag lives on the row, so every move keeps it, and leaving ends it.
+export async function setTentative(
+  sql: Sql,
+  a: { contentId: string; guildId: string; userId: string; value?: boolean },
+): Promise<TentativeResult> {
+  return await sql.begin(async (tx): Promise<TentativeResult> => {
+    const [c] = await tx`select status, guild_id from content where id = ${a.contentId} for update`;
+    if (!c || c.guild_id !== a.guildId) return { result: "not_found" };
+    if (c.status !== "open" && c.status !== "locked") return { result: "unavailable" };
+    const [prev] = await tx`select tentative from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+    if (!prev) return { result: "not_signed" };
+    const next = a.value ?? !prev.tentative;
+    await tx`update signup set tentative = ${next} where content_id = ${a.contentId} and user_id = ${a.userId}`;
+    return { result: "ok", tentative: next };
+  });
+}

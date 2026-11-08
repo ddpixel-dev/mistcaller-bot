@@ -36,6 +36,7 @@ export type RosterView = {
   fillPrefs?: Record<string, FillPref>; // the same choices, for matching them to open positions
   fillWants?: Record<string, string>; // what each waiting fill asked for: "Any", or "Healer, #7" (FR-057)
   buildRef?: string | null;
+  tentative?: string[]; // players who marked themselves tentative (FR-067); each is also in a seat, fills, applicants or the waitlist
   ownerId?: string | null; // the creator's Discord id, shown as a mention (FR-064)
   pingLeft?: number; // signed-up players (not the owner) who were not pinged yet (FR-038)
   votes: { split: number; regear: number };

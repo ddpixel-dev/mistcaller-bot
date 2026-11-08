@@ -41,7 +41,10 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0039 Presets from the card](decisions/0039-presets-saved-from-the-card.md): Save as preset button (admins), whole-card presets, `/content preset` removed
 - [0040 Host name as a mention](decisions/0040-host-name-as-mention.md): `👑 Host` on the roster and the calendar, no stored name, no migration
 - [0041 Assign player and Review applicants](decisions/0041-assign-player-and-review-applicants.md): two panels, Assign for any member and fills, Review for applicants only
+- [0042 Tentative sign-up](decisions/0042-tentative-signup.md): a flag on the sign-up row, a shared ❓ Tentative button, migration 0030
+- [0043 Post name with date and time](decisions/0043-post-name-with-date-and-time.md): `Title | 12 Nov | 20:00 UTC`, renamed with the title and the start
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
+- [Tentative sign-up design](plan/2026-11-08-tentative-signup-design.md): ❓ toggle button, flag on the sign-up row, migration 0030 (FR-067, accepted)
 - [Release 0.32.0 brief: ZvZ](plan/2026-11-06-zvz-brief.md): the owner's request, limits, open questions and the release checklist, for a new session
 - [Releases 0.29.0 to 0.32.0](plan/2026-11-06-releases-0.29-0.32.md): eleven owner requests, order and branches (FR-055 to FR-062)
 - [Creation card and bot-made forum posts](plan/2026-10-24-creation-card-and-forum-posts-design.md): design and plan (FR-053, FR-054)

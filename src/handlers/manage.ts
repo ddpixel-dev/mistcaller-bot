@@ -1,3 +1,4 @@
+import { postName } from "../domain/postname.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -139,12 +140,12 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
 
   const refreshed = await refreshRoster(deps, checked.target.id);
   await refreshDashboardSoon(deps, checked.target.guildId, "schedule");
-  // A post the bot made is named after the event, so it follows the title (ADR 0032). Discord allows two renames per
-  // ten minutes per post; a refusal leaves the old name and says so.
+  // A post the bot made is named after the event, so it follows the title and the start (ADR 0032, ADR 0042). Discord
+  // allows two renames per ten minutes per post; a refusal leaves the old name and says so.
   let renameNote = "";
-  if (checked.target.ownPost && title.value !== checked.target.title && deps.rest.editChannel) {
+  if (checked.target.ownPost && (title.value !== checked.target.title || result.startChanged) && deps.rest.editChannel) {
     try {
-      await deps.rest.editChannel(checked.target.threadId, { name: Array.from(title.value).slice(0, 100).join("") });
+      await deps.rest.editChannel(checked.target.threadId, { name: postName(title.value, start.value) });
     } catch {
       renameNote = " The post keeps its old name for now: Discord allows two renames every 10 minutes. Edit again later to rename it.";
     }

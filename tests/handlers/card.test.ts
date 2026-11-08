@@ -140,7 +140,7 @@ test("Create posts the roster in a new post of the event forum of its type, with
   const r: any = await d(press(`cc:create:${id}`));
   assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/post1/post1`);
   const post = calls.filter((c) => c.op === "createForumPost").at(-1)!;
-  assert.deepEqual([post.args[0], post.args[1].name, post.args[1].applied_tags], ["pvp-forum", "Ava roam", ["tag-pvp", "tag-zvz"]]);
+  assert.deepEqual([post.args[0], post.args[1].name, post.args[1].applied_tags], ["pvp-forum", "Ava roam | 25 Oct | 18:00 UTC", ["tag-pvp", "tag-zvz"]]);
   const edit = calls.filter((c) => c.op === "editMessage").at(-1)!;
   assert.deepEqual(edit.args.slice(0, 2), ["post1", "post1"], "the post's first message becomes the roster");
   assert.ok(plain(textOf(edit.args[2])).includes("Ava roam"));
@@ -193,10 +193,15 @@ test("editing the title renames a post the bot made; a refused rename is explain
     const edit = (title: string) => handleEditModal(deps, form(`edit:${contentId}:k`, { ...details, title }, { channel: { id: "post1", type: 11, parent_id: FORUM } }));
     const r: any = await edit("Ava roam 2");
     const renames = calls.filter((c) => c.op === "editChannel" && c.args[1].name);
-    assert.deepEqual(renames.map((c) => c.args), [["post1", { name: "Ava roam 2" }]]);
+    assert.deepEqual(renames.map((c) => c.args), [["post1", { name: "Ava roam 2 | 25 Oct | 18:00 UTC" }]]);
     assert.equal(r.data.content.includes("two renames"), renameFails);
     await edit("Ava roam 2");
-    assert.equal(calls.filter((c) => c.op === "editChannel" && c.args[1].name).length, 1, "same title: no rename");
+    assert.equal(calls.filter((c) => c.op === "editChannel" && c.args[1].name).length, 1, "same title and start: no rename");
+    // The post name carries the date and time, so a new start renames it too.
+    await handleEditModal(deps, form(`edit:${contentId}:k`, { ...details, title: "Ava roam 2", start: "2026-10-26 20:00" }, { channel: { id: "post1", type: 11, parent_id: FORUM } }));
+    const after = calls.filter((c) => c.op === "editChannel" && c.args[1].name);
+    assert.equal(after.length, 2, "a new start renames the post");
+    assert.deepEqual(after.at(-1)!.args, ["post1", { name: "Ava roam 2 | 26 Oct | 20:00 UTC" }]);
   }
   const { deps, sql, calls } = await setup();
   const { createContent } = await import("../../src/db/content.ts");

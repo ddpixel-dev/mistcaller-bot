@@ -265,3 +265,49 @@ test("a failed announcement does not undo the seating", async () => {
   assert.deepEqual(await holders(sql, contentId), [null, "w1", "h2"]);
   void slots;
 });
+
+// FR-067: the shared Tentative button acts for whoever presses it and answers by updating the shared roster.
+test("Tentative: a signed-up player flips it, the roster shows ❓, and pressing again clears it", async () => {
+  const { sql, d, deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[1]]));
+  const on: any = await d(press(`tent:${contentId}`));
+  assert.equal(on.type, 7);
+  assert.deepEqual(discordProblems(on.data), []);
+  assert.ok(plain(textOf(on.data)).includes("2. 💚 Healer - Holy - <@u1> ❓"));
+  assert.deepEqual((await getRosterView(sql, contentId, NOW))!.tentative, ["u1"]);
+  const off: any = await d(press(`tent:${contentId}`));
+  assert.ok(!plain(textOf(off.data)).includes("❓"));
+  assert.deepEqual((await getRosterView(sql, contentId, NOW))!.tentative, []);
+});
+
+test("Tentative: someone who is not signed up is told so privately and nothing changes", async () => {
+  const { sql, d, contentId } = await setup();
+  isEphemeral(await d(press(`tent:${contentId}`, "stranger")), "not signed up");
+  assert.deepEqual((await getRosterView(sql, contentId, NOW))!.tentative, []);
+});
+
+test("Tentative: it only ever changes the player who pressed it", async () => {
+  const { sql, d, deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]], "u1"));
+  await handleJoin(deps, pickMenu(contentId, [slots[1]], "u2"));
+  await d(press(`tent:${contentId}`, "u2"));
+  assert.deepEqual((await getRosterView(sql, contentId, NOW))!.tentative, ["u2"]);
+});
+
+test("Tentative: stale, forged, cross-server and old-layout presses are refused", async () => {
+  const { sql, d, deps, contentId, otherId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  isEphemeral(await d(press("tent:nope")), "not valid");
+  isEphemeral(await d(press(`tent:${contentId}:extra`)), "not valid");
+  isEphemeral(await d(press(`tent:${contentId}`, "u1", { guild_id: "other-guild" })), "no longer exists");
+  isEphemeral(await d(press(`tent:${contentId}`, "u1", { message: { id: "m1", flags: 0 } })), "older layout");
+  assert.deepEqual((await getRosterView(sql, contentId, NOW))!.tentative, []);
+  void otherId;
+});
+
+test("Tentative: refused once the content is finished or cancelled", async () => {
+  const { sql, d, deps, contentId, slots } = await setup();
+  await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+  await sql`update content set status = 'cancelled' where id = ${contentId}`;
+  isEphemeral(await d(press(`tent:${contentId}`)), "no longer open");
+});

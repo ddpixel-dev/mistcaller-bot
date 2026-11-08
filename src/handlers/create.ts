@@ -1,3 +1,4 @@
+import { postName } from "../domain/postname.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { MODAL, reply } from "../discord/response.ts";
@@ -153,7 +154,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     if (!deps.rest.createForumPost) return { ok: false, response: reply(FAILED) };
     const tags = matchTags((await deps.rest.forumTags?.(a.place.forumId)) ?? [], a.type, a.kind);
     try {
-      const post = await deps.rest.createForumPost(a.place.forumId, { name: Array.from(a.title).slice(0, 100).join(""), message: PLACEHOLDER, ...(tags.length ? { applied_tags: tags } : {}) });
+      const post = await deps.rest.createForumPost(a.place.forumId, { name: postName(a.title, a.startsAt), message: PLACEHOLDER, ...(tags.length ? { applied_tags: tags } : {}) });
       threadId = post.id;
       ownPost = true;
     } catch (err) {
