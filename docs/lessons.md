@@ -26,6 +26,11 @@ Discord answered status 400 for the whole command list because one option descri
 - What happened: pushes to `main`, a new branch and even an empty commit all failed with "Internal Server Error" for a few minutes while GitHub's status page showed all systems operational.
 - What we learned: it is on GitHub's side, and a later push of `develop` worked; `main` had received the commit anyway. Check the remote with `git ls-remote` before re-merging.
 
+## 2026-11-08: A form prefilled with a past start cannot be sent back
+- What happened: a host could not edit content that had already started. The Edit details form is prefilled with the current start, and the check "the start is in the future" rejected it, so any edit that left the start alone failed. The admin saw an error and reported it as the bot not responding.
+- What we learned: content stays live after its start (ADR 0024), so every check on an edit form must accept the value the form was prefilled with. A failing handler test reproduced it before the fix.
+- Follow-up: an unchanged start is accepted, a new one must still be in the future (FR-066). Production logs hold no names or ids by design, so a report like this needs the exact button and a time to find the request.
+
 ## 2026-10-07: A button emoji must be a real emoji, and logs must carry Discord's reason
 - What happened: after release 0.8.0, creating a roster with a Healer slot failed with "Could not create the content". The log showed only `create_failed` and `DiscordApiError`. The Healer icon was "✚", a dingbat that looks like an emoji but is not one, and Discord rejects a button carrying it, so the whole roster message was refused.
 - What we learned: text can use any symbol, but a component's `emoji` must be a real emoji. Also, logging only an error's class name hid the cause. Discord's own error code and message are safe to log (they never contain the token).
