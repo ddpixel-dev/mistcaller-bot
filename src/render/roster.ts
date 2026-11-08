@@ -58,14 +58,14 @@ export function voteLine(view: RosterView): string {
 // The rows (ADR 0028, owner decision 2026-10-24): one numbered line per position, with no role headings. A row reads
 // `n. RoleIcon Role - WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
 // The weapon icon on each row is enough: the line of only weapon icons (FR-046) was removed (ADR 0029).
-function rowLines(slots: RosterSlot[], withEmoji: boolean): string[] {
+function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] = []): string[] {
   return slots.map((s) => {
     // A role-only slot shows the holder's own weapon once chosen, and "Player's choice" until then (FR-030).
     const weaponName = s.weapon || s.chosenWeapon || "";
     const emoji = withEmoji && weaponName ? weaponEmojiTag(weaponName) : "";
     const duty = dutyDef(s.duty);
     return `${s.position}. ${roleIcon(s.role)} ${escapeText(s.role)} - ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
-      s.userId ? `<@${s.userId}>` : WORDS.open
+      s.userId ? `<@${s.userId}>${tentative.includes(s.userId) ? TENTATIVE : ""}` : WORDS.open
     }${duty ? ` - ${duty.icon} ${duty.label}` : ""}`;
   });
 }
@@ -107,6 +107,9 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
 }
 
 // FR-059: a call to arms says so in the post.
+// FR-067: shown after a tentative player's name, wherever the player is listed.
+export const TENTATIVE = " ❓";
+
 export const CTA_NOTE = "📣 **Call to arms**";
 
 // FR-058: the disclaimer of a host-selected event, in the post itself.
@@ -144,29 +147,31 @@ export function renderRosterMessage(view: RosterView): {
   let withEmoji = true;
   let notes = true;
   const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 50 + 20) + Math.min(600, (view.applicants ?? []).length * 50 + 20) + 2;
-  const fits = () => headerText(view, filled, notes).length + waitLen + OWNER_TIPS.length + rowLines(view.slots, withEmoji).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
+  const tent = (u: string) => (view.tentative?.includes(u) ? TENTATIVE : "");
+  const waitTentative = (view.tentative ?? []).length * TENTATIVE.length;
+  const fits = () => headerText(view, filled, notes).length + waitLen + waitTentative + OWNER_TIPS.length + rowLines(view.slots, withEmoji, view.tentative).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
   const waiting = view.waitlist ?? [];
   const fills = view.fills ?? [];
   const fillText = fills.length
-    ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}> (${escapeText(view.fillWants?.[u] ?? "Any")})`).join(" · ")}`.slice(0, 600)
+    ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}>${tent(u)} (${escapeText(view.fillWants?.[u] ?? "Any")})`).join(" · ")}`.slice(0, 600)
     : "";
   const applicants = view.applicants ?? [];
   const applicantText = applicants.length
-    ? `📨 **Applicants (${applicants.length}):** ${applicants.map((a) => `<@${a.userId}> (${escapeText(a.wants)})`).join(" · ")}`.slice(0, 600)
+    ? `📨 **Applicants (${applicants.length}):** ${applicants.map((a) => `<@${a.userId}>${tent(a.userId)} (${escapeText(a.wants)})`).join(" · ")}`.slice(0, 600)
     : "";
   const waitText = [
     applicantText,
     fillText,
     waiting.length
-      ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}> (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
+      ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}>${tent(w.userId)} (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
   ].filter(Boolean).join("\n");
   const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2 - OWNER_TIPS.length;
   let used = 0;
-  const kept = rowLines(view.slots, withEmoji).filter((l) => (used += l.length + 1) <= budget);
+  const kept = rowLines(view.slots, withEmoji, view.tentative).filter((l) => (used += l.length + 1) <= budget);
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
@@ -215,6 +220,11 @@ export function renderRosterMessage(view: RosterView): {
       disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
     },
   ];
+  // FR-067: one shared button for everyone, like Leave; it acts for whoever presses it, and the ❓ shows on the roster.
+  buttons.push({
+    type: 2, style: 2, label: "Tentative", emoji: { name: "❓" }, custom_id: `tent:${view.id}`,
+    disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
+  });
   if (view.hasLoot) buttons.push(...voteButtons(view));
   // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
   buttons.push({

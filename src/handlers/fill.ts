@@ -50,6 +50,7 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
   const waiting = mode === "review" ? [] : (view.fills ?? []).slice(0, 25);
   const candidates = [...applicants.map((a) => a.userId), ...waiting];
   const who = await names(deps, view.guildId, candidates);
+  const tentative = new Set(view.tentative ?? []);
   const fills = candidates;
   const rows: unknown[] = [];
   if (fills.length > 0) {
@@ -60,9 +61,12 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
         options: [
           ...applicants.map((a) => ({
             label: (who[a.userId] ?? `Member ${a.userId.slice(-4)}`).slice(0, 100), value: a.userId, default: a.userId === chosen,
-            description: Array.from(`Applied: ${a.wants}`).slice(0, 100).join(""), emoji: { name: "📨" },
+            description: Array.from(`${tentative.has(a.userId) ? "❓ Tentative · " : ""}Applied: ${a.wants}`).slice(0, 100).join(""), emoji: { name: "📨" },
           })),
-          ...waiting.map((u) => ({ label: (who[u] ?? `Member ${u.slice(-4)}`).slice(0, 100), value: u, default: u === chosen, emoji: { name: "🔁" } })),
+          ...waiting.map((u) => ({
+            label: (who[u] ?? `Member ${u.slice(-4)}`).slice(0, 100), value: u, default: u === chosen, emoji: { name: "🔁" },
+            ...(tentative.has(u) ? { description: "❓ Tentative" } : {}), // FR-067
+          })),
         ],
       }],
     });

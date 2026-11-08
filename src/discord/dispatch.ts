@@ -15,7 +15,7 @@ import { handleGuidedComponent, handleGuidedModal } from "../handlers/guided.ts"
 import { handleContentCommand } from "../handlers/content.ts";
 import { handleCancelButton, handleEditModal } from "../handlers/manage.ts";
 import { handleFillChoice } from "../handlers/fill-pref.ts";
-import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handleWait } from "../handlers/signup.ts";
+import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handleTentative, handleWait } from "../handlers/signup.ts";
 import { handleVote } from "../handlers/vote.ts";
 import { handleRetryComponent } from "../handlers/retry.ts";
 import { handleRemoveComponent } from "../handlers/remove.ts";
@@ -30,7 +30,7 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
 const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
 const componentHandlers: Record<string, Handler> = {
-  join: handleJoin, wait: handleWait, fp: handleFillChoice, leaveslot: handleLeaveSlot, leave: handleLeave, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
+  join: handleJoin, wait: handleWait, fp: handleFillChoice, leaveslot: handleLeaveSlot, leave: handleLeave, tent: handleTentative, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
   cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
 };
 
