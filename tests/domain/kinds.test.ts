@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010 and FR-023: 17 PvP and 12 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 17);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 12);
+test("the lists match ADR 0010 and FR-023: 18 PvP and 10 PvE kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 18);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 10);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -39,17 +39,21 @@ test("Fame farming and Avalonian gold chest are no longer offered, but old conte
   assert.equal(kindDef("pve", "fame-farming")!.label, "Fame farming");
 });
 
-test("the new PvE and PvP categories (FR-023), Ancient Lands and Hellgate in both, each before Other", () => {
+test("the new PvE and PvP categories (FR-023), Ancient Lands in both, Hellgate and Depths PvP only, each before Other", () => {
   const pvp = kindsOf("pvp").map((k) => k.id);
   const pve = kindsOf("pve").map((k) => k.id);
-  for (const id of ["static-dungeon", "dragon-sanctuary", "hellgate", "depths", "crystal-creatures", "ancient-lands"]) assert.ok(pve.includes(id), `PvE ${id}`);
-  for (const id of ["outposts", "castle", "ancient-lands", "hellgate"]) assert.ok(pvp.includes(id), `PvP ${id}`);
+  for (const id of ["static-dungeon", "dragon-sanctuary", "crystal-creatures", "ancient-lands"]) assert.ok(pve.includes(id), `PvE ${id}`);
+  for (const id of ["outposts", "castle", "ancient-lands", "hellgate", "depths"]) assert.ok(pvp.includes(id), `PvP ${id}`);
   assert.ok(!pvp.includes("static-dungeon") && !pve.includes("castle") && !pve.includes("outposts"));
   assert.equal(pvp.at(-1), "other");
   assert.equal(pve.at(-1), "other");
   assert.equal(resolveKind("pve", "ancient-lands").ok && resolveKind("pvp", "ancient-lands").ok, true);
+  // Moved to PvP on 2026-11-08: not offered for new PvE content, but PvE content made before keeps its label.
+  assert.ok(!pve.includes("hellgate") && !pve.includes("depths"));
+  assert.equal(resolveKind("pve", "depths").ok, false);
   assert.equal(kindDef("pve", "depths")!.label, "Depths");
   assert.equal(kindDef("pve", "hellgate")!.label, "Hellgate");
+  assert.equal(kindDef("pvp", "depths")!.label, "Depths");
   const pvx = kindsOf("pvx").map((k) => k.id);
   assert.equal(new Set(pvx).size, pvx.length, "a shared id is listed once");
   assert.ok(pvx.length <= 25, "a menu holds 25 options at most");
