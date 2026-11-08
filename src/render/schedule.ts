@@ -10,6 +10,7 @@ export type ScheduleEvent = {
   startsAt: Date; status: "open" | "locked"; party: number; total: number;
   cta?: boolean; // a call to arms: listed first under its day (FR-059)
   blank?: boolean; // no roster, so no party count (FR-060)
+  ownerId?: string | null; // the creator, shown as a mention (FR-064)
 };
 
 export const EVENTS_PER_MESSAGE = 12;
@@ -30,7 +31,7 @@ function eventText(e: ScheduleEvent, guildId: string): string {
   const title = Array.from(e.title).slice(0, 100).join("");
   return [
     `### \`${pad(e.startsAt.getUTCHours())}:${pad(e.startsAt.getUTCMinutes())}\` ${escapeText(title)} [Open ↗](${link})`,
-    `${kind}${e.blank ? "" : ` · 👥 ${e.party}/${e.total}`}${e.status === "locked" ? " · 🔒" : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
+    `${kind}${e.blank ? "" : ` · 👥 ${e.party}/${e.total}`}${e.status === "locked" ? " · 🔒" : ""}${e.ownerId ? ` · 👑 <@${e.ownerId}>` : ""} · your time <t:${epoch}:t> · <t:${epoch}:R>`,
   ].join("\n");
 }
 

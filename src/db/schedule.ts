@@ -8,7 +8,7 @@ const WEEK_MS = 7 * 24 * 3600000;
 // The party count is the same as the roster's: the seated players (a waiting fill has no seat, FR-057).
 export async function listSchedule(sql: Sql, guildId: string, now: Date): Promise<ScheduleEvent[]> {
   const rows = await sql`
-    select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status, c.cta, c.blank,
+    select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status, c.cta, c.blank, c.created_by,
       (select count(*)::int from slot s where s.content_id = c.id) as total,
       (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed') as seated
     from content c
@@ -16,6 +16,6 @@ export async function listSchedule(sql: Sql, guildId: string, now: Date): Promis
     order by c.starts_at, c.id`;
   return rows.map((r) => ({
     id: r.id, threadId: r.thread_id, messageId: r.message_id, title: r.title, type: r.type as ContentType, kind: r.kind,
-    startsAt: r.starts_at, status: r.status, total: r.total, party: r.seated, cta: r.cta === true, blank: r.blank === true,
+    startsAt: r.starts_at, status: r.status, total: r.total, party: r.seated, cta: r.cta === true, blank: r.blank === true, ownerId: r.created_by ?? null,
   }));
 }

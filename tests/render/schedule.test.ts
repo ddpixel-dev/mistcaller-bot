@@ -145,3 +145,12 @@ test("a blank event shows no party count", () => {
   const t = all(render([event({ title: "Meet", blank: true, total: 0, party: 0 })]));
   assert.ok(t.includes("Meet") && !t.includes("👥"), t);
 });
+
+test("FR-064: an event names its host on the details line, and leaves it out when unknown", () => {
+  const t = all(render([event({ title: "With host", ownerId: "987654321" }), event({ title: "No host" })]));
+  const lines = t.split("\n");
+  const withHost = lines[lines.findIndex((l) => l.includes("With host")) + 1]!;
+  const noHost = lines[lines.findIndex((l) => l.includes("No host")) + 1]!;
+  assert.ok(withHost.includes("👑 <@987654321>"), withHost);
+  assert.ok(!noHost.includes("👑"), noHost);
+});
