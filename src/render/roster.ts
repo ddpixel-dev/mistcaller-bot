@@ -74,7 +74,7 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean): string[] {
 // measured on a screenshot of Discord's desktop text (a label's width, plus 6.7 px per en space, plus about 4 px),
 // so the columns agree to within a few pixels. Discord's font is proportional, so this cannot be exact.
 const EN = "\u2002";
-const HEADER_PAD: Record<string, number> = { Type: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2 };
+const HEADER_PAD: Record<string, number> = { Type: 6, Host: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2 };
 
 function headerText(view: RosterView, filled: number, notes: boolean): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
@@ -89,6 +89,8 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
+    // FR-064: the creator, as a mention (it shows a name and never pings: every message sends no mentions).
+    ...(view.ownerId ? [fact("👑", "Host", `<@${view.ownerId}>`)] : []),
     ...(view.cta ? [CTA_NOTE] : []),
     ...(view.selection ? [SELECTION_NOTE] : []),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),

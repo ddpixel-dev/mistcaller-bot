@@ -538,3 +538,20 @@ test("a blank content has no roster: no party line, no menus, no Leave, Ping or 
   assert.deepEqual(labels, ["Manage"]);
   assert.deepEqual(discordProblems(msg(v)), []);
 });
+
+test("FR-064: the header names the host with a mention, which shows a name and never pings", () => {
+  const t = txt(view({ ownerId: "987654321" }));
+  const lines = t.split("\n");
+  const type = lines.findIndex((l) => l.includes("**Type**"));
+  assert.ok(lines[type + 1]!.startsWith("👑 **Host**") && lines[type + 1]!.endsWith("<@987654321>"), lines[type + 1]);
+  assert.deepEqual(msg(view({ ownerId: "987654321" })).allowed_mentions, { parse: [] });
+});
+
+test("FR-064: no host line when the content has no known owner", () => {
+  assert.ok(!txt(view()).includes("Host"));
+  assert.ok(!txt(view({ ownerId: null })).includes("Host"));
+});
+
+test("FR-064: a blank content names its host too", () => {
+  assert.ok(txt(view({ blank: true, slots: [], ownerId: "55" })).includes("👑 **Host**"));
+});
