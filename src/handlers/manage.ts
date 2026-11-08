@@ -114,9 +114,14 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
 
   const v = modalValues(i);
   const title = parseTitle(v.title ?? "");
-  const start = parseUtcStart(v.start ?? "", deps.now());
   const tier = parseGearTier(v.tier ?? "");
-  const isBlank = (await getRosterView(deps.sql, checked.target.id, deps.now()))?.blank === true;
+  const current = await getRosterView(deps.sql, checked.target.id, deps.now());
+  const isBlank = current?.blank === true;
+  // Content stays live after its start (FR-024) and the form is prefilled with the current start, so an unchanged start
+  // is accepted even when it is already past. Only a new start must be in the future (ADR 0024).
+  const start = current && (v.start ?? "").trim() === utcInput(current.startsAt)
+    ? ({ ok: true, value: current.startsAt } as ReturnType<typeof parseUtcStart>)
+    : parseUtcStart(v.start ?? "", deps.now());
   const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
