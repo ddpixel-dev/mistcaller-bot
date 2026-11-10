@@ -94,6 +94,7 @@ A CTA may have two parties, each up to 20 players (40 in all). The owner is tryi
 - Each message has its own 4000-character text budget and 40-component budget; a party of 20 fits Discord's 25-option menus.
 
 ### Creation (CTA)
+- (Owner decision 2026-11-10, ADR 0036 update) The CTA card hides the Type and Category menus; a CTA is stored as PvX, category Other.
 - The creation card gets a **Parties** choice (1 or 2).
 - With 2 parties the Details box is labelled **Party 1 slots**. A **Party 2 slots** button opens a box of the same kind, and **Copy party 1** fills party 2 with party 1's lines.
 - Each box takes up to 20 lines through the existing parser. Errors name the party and the line: `Party 2, line 3: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.` Fix and retry keeps the typed text.

@@ -27,3 +27,6 @@ Creation starts from a pinned launcher post in each event forum (ADR 0032, 0033)
 - **Blank** is the **Blank template** button on the creation card, so the type, or the CTA choice, is already known. Gear tier stays required, like normal content.
 - The CTA roles are chosen in a second role picker in `/content setup`; admins always may.
 - Old launcher posts are removed with `scripts/remove-launchers.ts` at release. `/content create` is unregistered and unrouted; its handler and tests remain as dead code to clean up.
+
+## Update 2026-11-10: a CTA card of its own (owner decision)
+Schedule CTA opened the same card as Plan Content, with Type and Category menus that mean nothing for a CTA. From release 0.31.8 the CTA card hides Type and Category; a CTA is stored as PvX with the category Other, as the Blank CTA already was. Title, start, gear tier, loot vote, sign-up mode, presets, Blank template and the Parties choice (ADR 0044) stay. Normal content is unchanged.
