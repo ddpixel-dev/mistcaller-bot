@@ -48,7 +48,7 @@ export async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view?.messageId) return false;
-    await refreshRosters(deps, view);
+    await refreshRosters(deps, view, { strict: true });
     return true;
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));

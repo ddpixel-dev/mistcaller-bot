@@ -6,7 +6,7 @@ import { getRosterView } from "../db/content.ts";
 import { purgeDrafts } from "../db/draft.ts";
 import { pendingReports } from "../db/attendance.ts";
 import { postReport } from "../handlers/attendance.ts";
-import { escapeText, renderRosterMessage, voteLine } from "../render/roster.ts";
+import { escapeText, voteLine } from "../render/roster.ts";
 import { refreshRosters } from "../handlers/rosters.ts";
 import { REMINDER_LEAD_MS, VOTE_CUTOFF_MS } from "../domain/vote.ts";
 
@@ -29,7 +29,7 @@ function logFailure(evt: string, contentId: string, e: unknown): void {
   );
 }
 
-// Edits every roster message. A failed edit is logged by refreshRosters and does not fail the job.
+// Edits every roster message. A 404 (message deleted) is logged by refreshRosters and treated as handled; any other error propagates to the caller.
 async function editRoster(deps: Deps, id: string): Promise<void> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view || !view.messageId) return;

@@ -2,10 +2,10 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
-import { handleCancelButton, handleCancel, openEditForm, handleEditModal } from "../../src/handlers/manage.ts";
+import { handleCancelButton, handleCancel, openEditForm, handleEditModal, handleLock, handleUnlock } from "../../src/handlers/manage.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { withHostActions } from "../helpers/host.ts";
-import type { Rest } from "../../src/discord/rest.ts";
+import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
@@ -213,4 +213,17 @@ test("started content: a new start time must still be in the future", async () =
   const values = { ...good, title: "Ganking", start: "2026-12-01 17:00", slots: "Tank - Mace\nHealer - Holy" };
   const r: any = await handleEditModal(late, modal(id, "k", values, "boss"));
   assert.ok(String(text(r)).includes("not in the future"), text(r));
+});
+
+test("a failed roster edit takes the not-updated path, for edit, lock and unlock", async () => {
+  const { deps, sql, id } = await setup();
+  deps.rest.editMessage = async () => { throw new DiscordApiError(500, "boom"); };
+  const orig = console.error;
+  console.error = () => {};
+  try {
+    assert.ok(text(await handleEditModal(deps, modal(id, "1", good))).includes("could not be refreshed"));
+    assert.ok(text(await handleLock(deps, command("lock"))).includes("will update on the next change"));
+    await sql`update content set status = 'locked'`;
+    assert.ok(text(await handleUnlock(deps, command("unlock"))).includes("will update on the next change"));
+  } finally { console.error = orig; }
 });
