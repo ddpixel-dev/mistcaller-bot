@@ -6,7 +6,7 @@ import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { BUILD_REFERENCE_HELP, packRef, parseBuildReference, unpackRef } from "../domain/buildref.ts";
 import {
-  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
+  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId, setPartyMessageId,
 } from "../db/content.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { IS_COMPONENTS_V2, escapeText, renderRosterMessage } from "../render/roster.ts";
@@ -134,7 +134,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
 
 export type PublishInput = {
   guildId: string; creator: string; type: ContentType; kind: string; title: string; notes: string | null; startsAt: Date;
-  tier: string; slots: SlotDef[]; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
+  tier: string; slots: SlotDef[]; slots2?: SlotDef[]; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
   // Where the roster goes: an existing channel or post, a new post the bot creates in an event forum (ADR 0032), or a new
   // thread under an announcement in a text channel (the CTA channel, ADR 0036).
   place: { threadId: string } | { forumId: string } | { channelId: string };
@@ -194,7 +194,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   try {
     id = await createContent(deps.sql, {
       guildId: a.guildId, threadId, type: a.type, kind: a.kind, title: a.title, notes: a.notes, startsAt: a.startsAt, tier: a.tier,
-      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, ownPost, now: deps.now(),
+      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, slots2: a.slots2, ownPost, now: deps.now(),
     });
   } catch (err) {
     await dropPost();
@@ -202,6 +202,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     throw err;
   }
   let postedId: string | null = null;
+  let party2Id: string | null = null;
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view) throw new Error("content row missing");
@@ -215,15 +216,25 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     await setMessageId(deps.sql, id, postedId);
     // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
     await deps.rest.pinMessage?.(threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
+    // A second party has its own message, right after the first (FR-070).
+    if (view.partyCount === 2) {
+      party2Id = (await deps.rest.createMessage(threadId, renderRosterMessage(view, 2))).id;
+      await setPartyMessageId(deps.sql, { guildId: a.guildId, contentId: id, party: 2, messageId: party2Id });
+      await deps.rest.pinMessage?.(threadId, party2Id).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
+    }
   } catch (err) {
     await deleteContent(deps.sql, id).catch((e) => {
       console.error(JSON.stringify({ evt: "cleanup_failed", error: errName(e) }));
     });
     if (ownPost) await dropPost();
-    else if (postedId !== null) {
-      await deps.rest.deleteMessage(threadId, postedId).catch((e) => {
-        console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
-      });
+    else {
+      for (const m of [postedId, party2Id]) {
+        if (m !== null) {
+          await deps.rest.deleteMessage(threadId, m).catch((e) => {
+            console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));
+          });
+        }
+      }
     }
     logFailure(err);
     return { ok: false, response: reply(FAILED) };
