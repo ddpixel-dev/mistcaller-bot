@@ -563,18 +563,22 @@ test("Delete preset: pick, confirm, gone; Keep it deletes nothing; only this ser
   assert.ok(((await d(press(`cc:delyes:${id}:not-a-uuid`, undefined, admin))) as any).data.content.includes("expired or is not yours"));
 });
 
-// ---- the CTA message copy (FR-069) ----
+// ---- the CTA message forward (FR-069) ----
 
-async function withCtaMessage(o: { sourceOk?: boolean } = {}) {
+async function withCtaMessage(o: { forwardFails?: boolean } = {}) {
   const ctx = await setup();
   const { sql, calls } = ctx;
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL}) on conflict do nothing`;
   await sql`insert into cta_message (guild_id, channel_id, message_id) values (${GUILD}, 'src-chan', 'src-msg') on conflict do nothing`;
   const rest: any = {
     ...ctx.deps.rest,
-    async getMessage(c: string, m: string) {
-      calls.push({ op: "getMessage", args: [c, m] });
-      return o.sourceOk === false ? { ok: false, reason: "missing" } : { ok: true, message: { content: "Join voice", embeds: [], attachments: [] } };
+    async createMessage(c: string, body: any) {
+      if (body?.message_reference) {
+        calls.push({ op: "forward", args: [c, body] });
+        if (o.forwardFails) { const { DiscordApiError } = await import("../../src/discord/rest.ts"); throw new DiscordApiError(404, "x", 10008); }
+        return { id: "m3" };
+      }
+      return ctx.deps.rest.createMessage(c, body);
     },
     async pinMessage(c: string, m: string) { calls.push({ op: "pinMessage", args: [c, m] }); },
   };
@@ -582,20 +586,21 @@ async function withCtaMessage(o: { sourceOk?: boolean } = {}) {
   return { ...ctx, d: createDispatch({ ...ctx.deps, rest } as any) };
 }
 
-test("a CTA made with Create gets a pinned copy of the CTA message after the roster, and a note when it is missing", async () => {
+test("a CTA made with Create gets a pinned forward of the CTA message after the roster", async () => {
   const { d, calls } = await withCtaMessage();
   const { id } = await open(d, member([], "32"), "c");
   await d(press(`cc:type:${id}`, ["pvp"], member([], "32")));
   await d(form(`ccd:${id}`, details, member([], "32")));
   const r: any = await d(press(`cc:create:${id}`, undefined, member([], "32")));
   assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/m1/m2`);
-  const ops = calls.filter((c) => ["createMessage", "pinMessage", "getMessage"].includes(c.op)).map((c) => `${c.op}:${c.args[0]}:${c.args[1]?.id ?? c.args[1]}`.slice(0, 40));
-  assert.deepEqual(calls.filter((c) => c.op === "pinMessage").map((c) => c.args), [["m1", "m2"], ["m1", "m3"]], "the roster, then the copy");
-  assert.ok(calls.findIndex((c) => c.op === "getMessage") > calls.findIndex((c) => c.op === "pinMessage"), ops.join());
+  assert.deepEqual(calls.filter((c) => c.op === "pinMessage").map((c) => c.args), [["m1", "m2"], ["m1", "m3"]], "the roster, then the forward");
+  assert.ok(calls.findIndex((c) => c.op === "forward") > calls.findIndex((c) => c.op === "pinMessage"));
+  assert.equal(calls.filter((c) => c.op === "getMessage").length, 0, "the bot never reads the source");
+  assert.deepEqual(calls.find((c) => c.op === "forward")!.args[1].message_reference, { type: 1, guild_id: GUILD, channel_id: "src-chan", message_id: "src-msg", fail_if_not_exists: true });
 });
 
-test("when the CTA message cannot be copied the CTA is still created and the reply ends with a note", async () => {
-  const missing = await withCtaMessage({ sourceOk: false });
+test("when the CTA message cannot be forwarded the CTA is still created and the reply ends with a note", async () => {
+  const missing = await withCtaMessage({ forwardFails: true });
   const { id: id2 } = await open(missing.d, member([], "32"), "c");
   await missing.d(press(`cc:type:${id2}`, ["pvp"], member([], "32")));
   await missing.d(form(`ccd:${id2}`, details, member([], "32")));
@@ -606,17 +611,17 @@ test("when the CTA message cannot be copied the CTA is still created and the rep
   assert.ok(lines[1]!.startsWith("The CTA message was not added"));
 });
 
-test("a blank CTA gets the copy too, and normal content never reads the CTA message", async () => {
+test("a blank CTA gets the forward too, and normal content never forwards the CTA message", async () => {
   const { d, calls } = await withCtaMessage();
   const { id } = await open(d, member([], "32"), "c");
   const ok: any = await d(form(`ccl:${id}`, { title: "All hands", start: "2026-10-25 18:00", tier: "T8", notes: "" }, member([], "32")));
   assert.ok(say(ok).startsWith("✅ Created"));
-  assert.equal(calls.filter((c) => c.op === "getMessage").length, 1);
+  assert.equal(calls.filter((c) => c.op === "forward").length, 1);
   const normal = await withCtaMessage();
   const { id: nid } = await open(normal.d, member([], "32"), "n");
   await normal.d(press(`cc:type:${nid}`, ["pvp"], member([], "32")));
   await normal.d(form(`ccd:${nid}`, details, member([], "32")));
   const r: any = await normal.d(press(`cc:create:${nid}`, undefined, member([], "32")));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
-  assert.equal(normal.calls.filter((c) => c.op === "getMessage").length, 0);
+  assert.equal(normal.calls.filter((c) => c.op === "forward").length, 0);
 });

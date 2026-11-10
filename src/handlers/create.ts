@@ -147,6 +147,7 @@ const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 // Save the content and post its roster. Whatever fails, nothing is left behind: the row, the message and a post the
 // bot created are removed again.
 export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string; notes: string[] } | { ok: false; response: InteractionResponse }> {
+  const startedAt = Date.now();
   let threadId: string;
   let ownPost = false;
   let announcement: { id: string } | null = null;
@@ -227,9 +228,13 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     logFailure(err);
     return { ok: false, response: reply(FAILED) };
   }
-  await refreshDashboardSoon(deps, a.guildId, "schedule"); // FR-043
-  // FR-069: a copy of the CTA message under every CTA, after the roster is posted and pinned. It never fails the CTA.
-  const notes = a.cta ? await postCtaMessage(deps, { guildId: a.guildId, threadId }) : [];
+  // FR-043 and FR-069 in parallel to stay inside the 3-second reply. The CTA message is forwarded under every CTA
+  // after the roster is posted and pinned. It never fails the CTA.
+  const [, notes] = await Promise.all([
+    refreshDashboardSoon(deps, a.guildId, "schedule"),
+    a.cta ? postCtaMessage(deps, { guildId: a.guildId, threadId }) : Promise.resolve([] as string[]),
+  ]);
+  console.error(JSON.stringify({ evt: "publish_ms", ms: Date.now() - startedAt }));
   return { ok: true, threadId, messageId: postedId, notes };
 }
 

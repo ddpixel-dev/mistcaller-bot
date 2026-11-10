@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseMessageLink, buildCtaCopy, CTA_COPY_LIMIT } from "../../src/domain/ctamsg.ts";
+import { parseMessageLink, forwardBody } from "../../src/domain/ctamsg.ts";
 
 const G = "111";
 
@@ -29,40 +29,11 @@ test("parseMessageLink rejects bad input with a message", () => {
     assert.ok(!r.ok && r.error.length > 0);
   }
 });
-
-test("buildCtaCopy keeps text as typed and blocks all mentions", () => {
-  const r = buildCtaCopy({ content: "Read <#123> and @everyone", embeds: [], attachments: [] });
-  assert.ok(r);
-  assert.equal(r.content, "Read <#123> and @everyone");
-  assert.deepEqual(r.allowed_mentions, { parse: [] });
-});
-
-test("buildCtaCopy appends attachment urls and cuts at a line boundary", () => {
-  const r = buildCtaCopy({ content: "hi", embeds: [], attachments: [{ url: "https://x/a.png" }, { url: "https://x/b.png" }] });
-  assert.equal(r?.content, "hi\nhttps://x/a.png\nhttps://x/b.png");
-
-  const line = "a".repeat(900);
-  const long = buildCtaCopy({ content: `${line}\n${line}\n${line}`, embeds: [], attachments: [{ url: "https://x/c.png" }] });
-  assert.ok(long?.content);
-  assert.ok(long.content.length <= CTA_COPY_LIMIT);
-  assert.equal(long.content, `${line}\n${line}`);
-
-  const one = buildCtaCopy({ content: "b".repeat(3000), embeds: [], attachments: [] });
-  assert.equal(one?.content, "b".repeat(1999) + "…");
-});
-
-test("buildCtaCopy keeps rich embeds and drops the rest", () => {
-  const r = buildCtaCopy({
-    content: "x",
-    embeds: [{ type: "rich", title: "t" }, { type: "link" }, { type: "image" }, { type: "video" }, { type: "gifv" }],
-    attachments: [],
+test("forwardBody is a forward reference with no content and no embeds, and blocks all mentions", () => {
+  const b = forwardBody({ guildId: "g1", channelId: "c1", messageId: "m1" });
+  assert.deepEqual(b, {
+    message_reference: { type: 1, guild_id: "g1", channel_id: "c1", message_id: "m1", fail_if_not_exists: true },
+    allowed_mentions: { parse: [] },
   });
-  assert.deepEqual(r?.embeds, [{ type: "rich", title: "t" }]);
-  assert.equal(buildCtaCopy({ content: "x", embeds: [{ type: "link" }], attachments: [] })?.embeds, undefined);
-});
-
-test("buildCtaCopy returns null when there is nothing to copy", () => {
-  assert.equal(buildCtaCopy({ content: "  ", embeds: [{ type: "image" }], attachments: [] }), null);
-  assert.equal(buildCtaCopy({ content: "", embeds: [], attachments: [] }), null);
-  assert.equal(buildCtaCopy({ content: "", embeds: [{ type: "rich" }], attachments: [], flags: 1 << 15 }), null);
+  assert.ok(!("content" in b) && !("embeds" in b));
 });

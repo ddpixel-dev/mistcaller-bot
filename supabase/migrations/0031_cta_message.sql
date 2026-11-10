@@ -1,4 +1,4 @@
--- FR-069, ADR 0044: the message whose content is copied under every CTA, as a link to the channel and message id.
+-- FR-069, ADR 0045: the message that is forwarded under every CTA, as a link to the channel and message id.
 create table cta_message (
   guild_id text primary key,
   channel_id text not null,

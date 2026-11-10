@@ -212,13 +212,23 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (typeof ctaMsg === "string") {
     const link = parseMessageLink(ctaMsg, i.guild_id);
     if (!link.ok) return reply(link.error);
-    if (!deps.rest.getMessage) return reply("The bot cannot read messages here, so the CTA message was not set.");
-    const got = await deps.rest.getMessage(link.value.channelId, link.value.messageId);
-    if (!got.ok) return reply("I could not read that message, so the CTA message was not set. Check the link, and give the bot View Channel and Read Message History in that channel.");
+    if (!deps.rest.getMessage || !deps.rest.getChannel) return reply("The bot cannot read messages here, so the CTA message was not set.");
+    const NOT_SET = "I could not open that message, so the CTA message was not set. Check the link, and give the bot View Channel and Read Message History in that channel.";
+    let channel, got;
+    try {
+      channel = await deps.rest.getChannel(link.value.channelId);
+      if (!channel.ok) return reply(NOT_SET);
+      if (channel.guildId !== i.guild_id) return reply("The link must point to a channel of this server, so the CTA message was not set.");
+      got = await deps.rest.getMessage(link.value.channelId, link.value.messageId);
+    } catch (e) {
+      console.error(JSON.stringify({ evt: "cta_message_check_failed", name: e instanceof Error ? e.name : "unknown" }));
+      return reply("Could not check the message, try again. The CTA message was not set.");
+    }
+    if (!got.ok) return reply(NOT_SET);
     await setCtaMessage(deps.sql, i.guild_id, link.value.channelId, link.value.messageId);
-    lines.push("CTA message set: it is copied and pinned under every CTA you schedule. Keep View Channel and Read Message History for the bot in the channel of the source message, and Pin Messages in the CTA channel.");
+    lines.push("CTA message set: it is forwarded and pinned under every CTA you schedule. The bot cannot read the text, so check the link yourself. Keep View Channel and Read Message History for the bot in the channel of the source message, and Pin Messages in the CTA channel.");
   } else if (clearCtaMsg) {
-    lines.push((await clearCtaMessage(deps.sql, i.guild_id)) ? "CTA message cleared: CTAs no longer carry a copied message." : "The CTA message was not set.");
+    lines.push((await clearCtaMessage(deps.sql, i.guild_id)) ? "CTA message cleared: CTAs no longer carry a forwarded message." : "The CTA message was not set.");
   }
   if (typeof ctaChannel === "string") {
     await setCtaChannel(deps.sql, i.guild_id, ctaChannel);
