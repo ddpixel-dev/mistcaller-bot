@@ -1,7 +1,7 @@
 ---
 title: One line per slot, maximum 20, selected from a menu
 type: decision
-status: accepted
+status: accepted (superseded in part by 0044: the limit of 20 now applies to each party)
 date: 2026-10-06
 tags: [roster]
 satisfies: [FR-003, FR-005]
@@ -16,5 +16,6 @@ The roster must show each position with its own player. A slot is a role plus a 
 Each slot is typed on its own line. A repetition shorthand (`xN`) was considered and then rejected by the owner. A content has at most 20 slots, so the menu fits within Discord's limit. Players pick from a select menu and leave with a button.
 
 ## Consequences
+- Update 2026-11-10: a CTA may have two parties of up to 20 each ([0044](0044-cta-two-parties-one-message-each.md)); this decision still holds inside each party.
 - A guild comp of larger content (for example ZvZ) is not supported in v1.
 - Three identical positions are three typed lines, each its own row with a separate player.

@@ -345,6 +345,14 @@ A signed-up player shall be able to mark themselves tentative with a shared Tent
 status: built, release 0.31.6 (owner request 2026-11-08, ADR 0043; changes FR-053's naming)
 A post the bot makes shall be named `Title | 12 Nov | 20:00 UTC` (the title, the day and month, the start in UTC), cut only in the title to stay within 100 characters. It is renamed when the title or the start changes; a refused rename (Discord allows two per ten minutes) is explained and the old name stays.
 
+### FR-069: Pinned CTA message
+status: accepted 2026-11-10, not built (owner request 2026-11-10, ADR 0045; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0031)
+An admin shall set one message with `cta-msg` (a message link) in `/content setup`, and every CTA created afterwards shall carry a copy of it as a separate, pinned message below the roster. The copy keeps the text, embeds and channel mentions, and never pings anyone. A missing source or a failed pin does not stop the CTA; the creator is told privately.
+
+### FR-070: Two parties in a CTA
+status: accepted 2026-11-10, not built (owner request 2026-11-10, ADR 0044; same design doc; migration 0032)
+A CTA shall be created with 1 or 2 parties of up to 20 players each, each party with its own roster message, menu, fills and waitlist. Positions are typed per party and a role other than Tank, DTank, Healer, Support or DPS is rejected with a clear error. Host panels ask which party first. The party count is fixed after creation. The model is built to be reused by ZvZ.
+
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
