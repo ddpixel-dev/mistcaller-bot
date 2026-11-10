@@ -48,9 +48,10 @@ test("two players claiming the same slot: the second gets taken", async () => {
 
 test("a party 1 waitlist entry is not promoted by a party 2 slot, but is by a party 1 slot of its role", async () => {
   const { sql, id, p1, p2 } = await setup();
-  const [p1tank, p1dps] = p1 as [string, string];
+  const p1tank = p1[0]!;
   await claim(sql, id, p1tank, A);
-  await claim(sql, id, p2[1]!, B); // party 2 Tank
+  const p2tank = (await sql`select id from slot where content_id = ${id} and party = 2 and role = 'Tank'`)[0]!.id as string;
+  await claim(sql, id, p2tank, B); // party 2 Tank
   assert.equal(await joinWaitlist(sql, { contentId: id, userId: C, guildId: G, role: "Tank", now: NOW, party: 1 }), "ok");
   assert.equal(await partyOfUser(sql, id, C), 1);
   const promoted: Promotion[] = [];
@@ -58,7 +59,6 @@ test("a party 1 waitlist entry is not promoted by a party 2 slot, but is by a pa
   assert.deepEqual(promoted, []);
   await leaveContent(sql, { contentId: id, userId: A, guildId: G, now: NOW, promoted });
   assert.deepEqual(promoted.map((p) => [p.userId, p.slotId]), [[C, p1tank]]);
-  void p1dps;
 });
 
 test("waitlist: a role open in party 2 does not block party 1 from waiting, and vice versa", async () => {
@@ -84,12 +84,16 @@ test("a fill in party 2 takes the first suitable party 2 position, healers first
 });
 
 test("a party 2 fill is not seated by a party 1 slot freeing", async () => {
-  const { sql, id, p1 } = await setup();
-  await claim(sql, id, p1[0]!, A);
-  await joinFill(sql, { contentId: id, userId: B, guildId: G, now: NOW, party: 2, pref: { any: false, roles: ["Nobody"], slotIds: [] } });
+  const { sql, id, p1, p2 } = await setup();
+  await claim(sql, id, p1[0]!, A); // party 1 Tank
+  const p2tank = (await sql`select id from slot where content_id = ${id} and party = 2 and role = 'Tank'`)[0]!.id as string;
+  await claim(sql, id, p2tank, C); // party 2 has no free Tank now
+  const r = await joinFill(sql, { contentId: id, userId: B, guildId: G, now: NOW, party: 2, pref: { any: false, roles: ["Tank"], slotIds: [] } });
+  assert.equal(r.result, "waiting");
   const promoted: Promotion[] = [];
   await leaveContent(sql, { contentId: id, userId: A, guildId: G, now: NOW, promoted });
-  assert.deepEqual(promoted, []);
+  assert.deepEqual(promoted, [], "the freed party 1 Tank suits the fill but is in the other party");
+  assert.equal(await partyOfUser(sql, id, B), 2);
 });
 
 test("host assignPlayer into party 2 sets party 2", async () => {
