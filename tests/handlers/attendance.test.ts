@@ -441,3 +441,31 @@ test("history counts a player once when they moved between parties", async () =>
   await sql`update content set status = 'done' where id = ${id2}`;
   assert.deepEqual(await memberHistory(sql, "g1", P4), { attended: 1, noShow: 0, notRecorded: 0 });
 });
+
+test("two parties: the report posts once both parties are submitted, listing both", async () => {
+  const { sql, id2, d, posts } = await setup2();
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  const r1: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(r1).includes("Party 1 submitted") && text(r1).includes("Party 2"), text(r1));
+  assert.equal(posts.length, 0);
+  assert.equal((await sql`select attendance_submitted_at from content where id = ${id2}`)[0]!.attendance_submitted_at, null);
+  const again: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(again).includes("Still to do"));
+  assert.equal(posts.length, 0, "submitting party 1 twice does not post");
+  const open: any = await d(click(`att:g:${id2}@2`));
+  assert.ok(flatComponents(open.data).some((c: any) => c.label === "Submit party 2"));
+  await d(click(`att:pick:${id2}@2`, "boss", [P4]));
+  const r2: any = await d(click(`att:submit:${id2}@2`));
+  assert.ok(text(r2).includes("report is posted"), text(r2));
+  assert.equal(posts.length, 1);
+  const body = posts[0]!.body.content as string;
+  for (const u of [P1, P2, P4, P5]) assert.ok(body.includes(u), body);
+  assert.deepEqual(await marks(sql, id2), { [P1]: "attended", [P2]: "no_show", [P4]: "attended", [P5]: "no_show" });
+  isEphemeral(await d(click(`att:submit:${id2}@2`)), "already submitted");
+});
+
+test("two parties: a party never shown stays not recorded when the other is submitted", async () => {
+  const { sql, id2, d } = await setup2();
+  await d(click(`att:submit:${id2}`));
+  assert.deepEqual(await marks(sql, id2), { [P1]: "no_show", [P2]: "no_show" });
+});

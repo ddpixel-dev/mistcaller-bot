@@ -7,6 +7,7 @@ import { escapeText } from "./roster.ts";
 export function renderAttendanceForm(a: Attendance, names: Record<string, string>, party?: number) {
   const title = escapeText(a.title);
   const players = party && a.partyCount >= 2 ? a.players.filter((p) => p.party === party) : a.players;
+  const two = !!party && a.partyCount >= 2;
   const at = (id: string) => (party && a.partyCount >= 2 ? withParty(id, party) : id);
   if (players.length === 0) {
     return { content: `📋 **Attendance: ${title}**\nNobody was signed up, so there is nothing to record.`, components: [], allowed_mentions: { parse: [] as [] } };
@@ -22,7 +23,9 @@ export function renderAttendanceForm(a: Attendance, names: Record<string, string
   return {
     content: [
       `📋 **Attendance: ${title}**${party && a.partyCount >= 2 ? ` (Party ${party})` : ""}`,
-      "Pick everyone who attended. **Submit** records anyone not picked as a no-show and posts the report in the content's post.",
+      two
+        ? `Pick everyone in Party ${party} who attended. **Submit party ${party}** records anyone in this party not picked as a no-show. The report posts once both parties are submitted.${a.partiesSubmitted.includes(party!) ? " (Party " + party + " is submitted; you can still change it until the report posts.)" : ""}`
+        : "Pick everyone who attended. **Submit** records anyone not picked as a no-show and posts the report in the content's post.",
       `Picked so far: ${attended} of ${players.length}.`,
     ].join("\n"),
     components: [
@@ -36,7 +39,7 @@ export function renderAttendanceForm(a: Attendance, names: Record<string, string
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: "Submit", custom_id: at(`att:submit:${a.contentId}`) },
+          { type: 2, style: 3, label: two ? `Submit party ${party}` : "Submit", custom_id: at(`att:submit:${a.contentId}`) },
           { type: 2, style: 2, label: "Save and finish later", custom_id: at(`att:later:${a.contentId}`) },
         ],
       },

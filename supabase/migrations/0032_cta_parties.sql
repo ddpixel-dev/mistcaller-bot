@@ -27,3 +27,6 @@ begin
     revoke all on content_message from authenticated;
   end if;
 end $$;
+
+-- FR-070: a two-party CTA submits attendance per party; the report posts once every party is submitted.
+alter table content add column attendance_parties_submitted smallint[] not null default '{}';

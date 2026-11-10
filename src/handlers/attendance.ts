@@ -170,6 +170,11 @@ export async function handleAttendanceComponent(deps: Deps, i: Interaction): Pro
   if (action === "submit") {
     const result = await submitAttendance(deps.sql, { contentId: id, markedBy: actor, now: deps.now(), party });
     if (result !== "ok") return reply(INVALID);
+    const after = await getAttendance(deps.sql, id);
+    if (after && !after.submittedAt) {
+      const todo = Array.from({ length: after.partyCount }, (_, k) => k + 1).filter((n) => !after.partiesSubmitted.includes(n));
+      return { type: UPDATE_MESSAGE, data: { content: `✅ Party ${party} submitted. Still to do: ${todo.map((n) => `Party ${n}`).join(", ")}. The report posts once every party is submitted.`, components: [], allowed_mentions: { parse: [] as [] } } };
+    }
     const posted = await postReport(deps, id);
     return {
       type: UPDATE_MESSAGE,
