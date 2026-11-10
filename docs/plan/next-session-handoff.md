@@ -9,8 +9,10 @@ date: 2026-11-06
 
 Read `PRODUCT.md` (its Current state) and [INDEX.md](../INDEX.md) first. Then this note. History of earlier handoffs is in git.
 
-## Where things stand (2026-11-06)
-- **Released: v0.31.1** on `main`, migrations through **0027**. `develop` equals it. Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions in `dub1`, Supabase eu-west-1, repo `ddpixel-dev/mistcaller-bot`. Everything runs in Docker (`docker compose run --rm node ...`); never install tools on the host.
+## Where things stand (2026-11-10)
+- **Released: v0.31.7** on `main`, migrations through **0031**. `develop` equals it. The bot has the Message Content intent (ADR 0046).
+- **Next: release 0.31.8, two parties in a CTA (FR-070).** Plan: [2026-11-10-cta-parties-implementation.md](2026-11-10-cta-parties-implementation.md), 13 tasks on `feature/cta-parties`, migration 0032, run subagent-driven. Design: [2026-11-10-cta-pinned-message-and-parties-design.md](2026-11-10-cta-pinned-message-and-parties-design.md) Part 2 (positions stay unique per content, party 1 first; the displayed number restarts per party). `/content help` is at its 2000-character limit; Task 13 must make room.
+- Earlier note (2026-11-06): v0.31.1 was released with migrations through 0027. Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions in `dub1`, Supabase eu-west-1, repo `ddpixel-dev/mistcaller-bot`. Everything runs in Docker (`docker compose run --rm node ...`); never install tools on the host.
 - Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*`, `release/*` and `hotfix/*` branches. Merge with `--no-ff`. Commits end with the attribution line from the session reminder.
 - Tests: `docker compose run --rm node npm test` (662 tests, all green) and `docker compose run --rm node npx tsc --noEmit`. Database tests use the local `db` container (`TEST_DATABASE_URL`), never production.
 - The 0.29.0 to 0.31.1 plan and what each release contains: [2026-11-06-releases-0.29-0.32.md](2026-11-06-releases-0.29-0.32.md). Decisions: ADR 0035 (fill preferences, selection mode) and ADR 0036 (creation hub, blank content, CTA).
