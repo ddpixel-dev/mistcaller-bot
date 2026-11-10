@@ -5,15 +5,15 @@ import { CHANNEL_MESSAGE, EPHEMERAL } from "../discord/response.ts";
 // `/content help` (owner request 2026-10-08): a private summary of what the bot does, every command and the Manage panel.
 export const HELP_TEXT = [
   "# Mistcaller help",
-  "Content rosters for your guild: sign up, wait, vote on loot and track attendance.",
+  "Rosters for your guild: sign up, wait, vote on loot, track attendance.",
   "",
   "### Everyone",
-  "• **Join:** pick an open position in the roster's menu; picking another moves you. A position with no weapon lets you choose yours.",
+  "• **Join:** pick an open position in the roster's menu; picking another moves you.",
   "• **Fill:** pick what you can play. You are seated at once (healers first) or when a spot frees up.",
   "• **Leave** takes you off. **Waitlist:** when a role is full, join its waitlist to be seated when a spot frees up.",
   "• **❓ Tentative:** maybe coming; you keep your place. Press again to clear.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
-  "• **Plan Content** (in content-management) opens your creation card; **Blank template** is a quick event with no roster. **Schedule CTA** is for admins and CTA roles.",
+  "• **Plan Content** (in content-management) opens your creation card; **Blank template** is a quick event. **Schedule CTA** is for admins and CTA roles.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
   "• `/content stats` shows this server's numbers, only to you. `/content history` shows your own attendance.",
   "• `/content help` shows this message.",
@@ -30,7 +30,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do, on any content, and `/content history` for any member.",
-  "• `/content setup` sets admin roles, channels, the forum per type (PvP, PvE, PvX) and CTA roles.",
+  "• `/content setup` sets admin roles, channels, the forum per type (PvP, PvE, PvX), CTA roles. `cta-msg` pins a forward of a message under every new CTA.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {

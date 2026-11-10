@@ -18,6 +18,22 @@ export async function clearCtaChannel(sql: Sql, guildId: string): Promise<boolea
   return (await sql`delete from cta_channel where guild_id = ${guildId} returning guild_id`).length > 0;
 }
 
+// FR-069: the message (channel and message id) whose content is copied under every CTA.
+export async function getCtaMessage(sql: Sql, guildId: string): Promise<{ channelId: string; messageId: string } | null> {
+  const [r] = await sql`select channel_id, message_id from cta_message where guild_id = ${guildId}`;
+  return r ? { channelId: r.channel_id as string, messageId: r.message_id as string } : null;
+}
+
+export async function setCtaMessage(sql: Sql, guildId: string, channelId: string, messageId: string): Promise<void> {
+  await sql`
+    insert into cta_message (guild_id, channel_id, message_id) values (${guildId}, ${channelId}, ${messageId})
+    on conflict (guild_id) do update set channel_id = excluded.channel_id, message_id = excluded.message_id, updated_at = now()`;
+}
+
+export async function clearCtaMessage(sql: Sql, guildId: string): Promise<boolean> {
+  return (await sql`delete from cta_message where guild_id = ${guildId} returning guild_id`).length > 0;
+}
+
 export async function getCtaRoleIds(sql: Sql, guildId: string): Promise<string[]> {
   return (await sql`select role_id from guild_cta_role where guild_id = ${guildId} order by created_at, role_id`).map((r) => r.role_id as string);
 }

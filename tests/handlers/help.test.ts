@@ -32,3 +32,7 @@ test("help also works without a member (a direct message cannot reach it, but no
   const r: any = await createDispatch(deps)(help({ member: undefined }));
   assert.equal(r.data.flags, 64);
 });
+
+test("help mentions the CTA message option", () => {
+  assert.ok(HELP_TEXT.includes("cta-msg"));
+});
