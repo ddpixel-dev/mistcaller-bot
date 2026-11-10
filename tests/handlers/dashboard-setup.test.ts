@@ -193,3 +193,114 @@ test("the changelog can go to one existing thread or forum post: it is saved and
   assert.ok(r.includes("Changelog thread set") && r.includes(`<#${THREAD}>`), r);
   assert.equal(await getChangelogChannel(d.sql, GUILD), THREAD);
 });
+
+// cta-msg and clear-cta-msg (FR-069)
+const MSG_CH = "400000000000000001", MSG_ID = "500000000000000001";
+const LINK = `https://discord.com/channels/${GUILD}/${MSG_CH}/${MSG_ID}`;
+const withGet = (answer: any, channel: any = { ok: true, guildId: GUILD }) => {
+  const fetched: [string, string][] = [];
+  const { rest } = fake();
+  rest.getChannel = async () => channel;
+  rest.getMessage = async (c, m) => { fetched.push([c, m]); return answer; };
+  return { rest, fetched };
+};
+const OK = { ok: true };
+
+test("cta-msg checks the channel and the message, stores it and the panel shows its link", async () => {
+  const { rest, fetched } = withGet(OK);
+  const d = await deps(rest);
+  const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+  assert.ok(r.includes("CTA message set") && r.includes("forwarded") && !r.includes("copied"), r);
+  assert.deepEqual(fetched, [[MSG_CH, MSG_ID]]);
+  const { getCtaMessage } = await import("../../src/db/cta.ts");
+  assert.deepEqual(await getCtaMessage(d.sql, GUILD), { channelId: MSG_CH, messageId: MSG_ID });
+  const panel = text(await handleSetupCommand(d, setup([], { permissions: "32" })));
+  assert.ok(panel.includes(`CTA message: ${LINK}`), panel);
+});
+
+test("the panel says CTA message: none when unset", async () => {
+  const d = await deps(fake().rest);
+  assert.ok(text(await handleSetupCommand(d, setup([], { permissions: "32" }))).includes("CTA message: none"));
+});
+
+test("cta-msg refuses a link from another server and stores nothing", async () => {
+  const { rest, fetched } = withGet(OK);
+  const d = await deps(rest);
+  const r = text(await handleSetupCommand(d, setup([opt("cta-msg", `https://discord.com/channels/999999999/${MSG_CH}/${MSG_ID}`, 3)], { permissions: "32" })));
+  assert.ok(r.includes("another server"), r);
+  assert.equal(fetched.length, 0);
+  const { getCtaMessage } = await import("../../src/db/cta.ts");
+  assert.equal(await getCtaMessage(d.sql, GUILD), null);
+});
+
+for (const reason of ["missing", "forbidden"]) {
+  test(`cta-msg refuses a ${reason} message, naming the permissions, and stores nothing`, async () => {
+    const { rest } = withGet({ ok: false, reason });
+    const d = await deps(rest);
+    const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+    assert.ok(r.includes("View Channel") && r.includes("Read Message History"), r);
+    const { getCtaMessage } = await import("../../src/db/cta.ts");
+    assert.equal(await getCtaMessage(d.sql, GUILD), null);
+  });
+}
+
+test("cta-msg refuses a channel of another server and stores nothing", async () => {
+  const { rest, fetched } = withGet(OK, { ok: true, guildId: "999999999" });
+  const d = await deps(rest);
+  const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+  assert.ok(r.includes("channel of this server"), r);
+  assert.equal(fetched.length, 0);
+  const { getCtaMessage } = await import("../../src/db/cta.ts");
+  assert.equal(await getCtaMessage(d.sql, GUILD), null);
+});
+
+test("cta-msg refuses a channel with no server and a channel the bot cannot see", async () => {
+  for (const channel of [{ ok: true, guildId: null }, { ok: false, reason: "forbidden" }, { ok: false, reason: "missing" }]) {
+    const { rest, fetched } = withGet(OK, channel);
+    const d = await deps(rest);
+    const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+    assert.ok(r.includes("was not set"), r);
+    assert.equal(fetched.length, 0);
+    const { getCtaMessage } = await import("../../src/db/cta.ts");
+    assert.equal(await getCtaMessage(d.sql, GUILD), null);
+  }
+});
+
+test("cta-msg refuses with a short note when a check throws, and stores nothing", async () => {
+  for (const which of ["getChannel", "getMessage"] as const) {
+    const { rest } = withGet(OK);
+    (rest as any)[which] = async () => { throw new Error("boom"); };
+    const d = await deps(rest);
+    const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+    assert.ok(r.includes("Could not check the message, try again"), r);
+    const { getCtaMessage } = await import("../../src/db/cta.ts");
+    assert.equal(await getCtaMessage(d.sql, GUILD), null);
+  }
+});
+
+test("cta-msg is refused when the bot cannot read messages", async () => {
+  const d = await deps(fake().rest);
+  const r = text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { permissions: "32" })));
+  assert.ok(r.includes("cannot read"), r);
+  const { getCtaMessage } = await import("../../src/db/cta.ts");
+  assert.equal(await getCtaMessage(d.sql, GUILD), null);
+});
+
+test("cta-msg and clear-cta-msg are for admins only", async () => {
+  const { rest, fetched } = withGet(OK);
+  const d = await deps(rest);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3)], { roles: ["999"] }))).includes("Only an admin"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("clear-cta-msg", true, 5)], { roles: ["999"] }))).includes("Only an admin"));
+  assert.equal(fetched.length, 0);
+});
+
+test("clear-cta-msg removes the message; clearing again says it was not set; both together are refused", async () => {
+  const { rest } = withGet(OK);
+  const d = await deps(rest);
+  const { getCtaMessage, setCtaMessage } = await import("../../src/db/cta.ts");
+  await setCtaMessage(d.sql, GUILD, MSG_CH, MSG_ID);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("cta-msg", LINK, 3), opt("clear-cta-msg", true, 5)], { permissions: "32" }))).includes("not both"));
+  assert.ok(text(await handleSetupCommand(d, setup([opt("clear-cta-msg", true, 5)], { permissions: "32" }))).includes("cleared"));
+  assert.equal(await getCtaMessage(d.sql, GUILD), null);
+  assert.ok(text(await handleSetupCommand(d, setup([opt("clear-cta-msg", true, 5)], { permissions: "32" }))).includes("was not set"));
+});

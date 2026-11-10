@@ -61,3 +61,6 @@ Discord answered status 400 for the whole command list because one option descri
 - What we learned: a check on the clicked message is only right for controls that live on that message. Test the follow-up clicks of a private panel with the flags Discord really sends (64), not the roster's.
 - Follow-up: the check now applies to the button only, with a regression test in `tests/handlers/fill.test.ts`. Review any new handler that is reached from an ephemeral panel.
 
+
+## 2026-11-10: Discord privileged intents also gate REST reads
+The CTA message design read a member's message by link and copied it. Without the Message Content intent, Discord returns an empty body for messages the bot did not write, also over REST. Tests with fake Discord responses passed, so only a review against Discord's rules caught it. Lesson: when a design reads message content, check the intent first (`GET /applications/@me`, flags bit 19), and prefer actions Discord does server-side (a forward) over reading content.

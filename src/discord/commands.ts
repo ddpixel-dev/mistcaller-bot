@@ -40,6 +40,8 @@ export const commands = [
           { type: 8, name: "cta-role", description: "Add a role that may schedule a CTA (admins always may); repeat for more roles", required: false },
           { type: 8, name: "remove-cta-role", description: "Remove a role from those that may schedule a CTA", required: false },
           { type: 5, name: "clear-cta", description: "Stop using a CTA channel (CTAs cannot be scheduled)", required: false },
+          { type: 3, name: "cta-msg", description: "Link of the message pinned under every CTA", required: false },
+          { type: 5, name: "clear-cta-msg", description: "Stop pinning a message under the CTAs", required: false },
           { type: 7, name: "clear-event-forum", description: "Stop using a forum for events (with forum-type: only that type)", required: false, channel_types: [15] },
         ],
       },

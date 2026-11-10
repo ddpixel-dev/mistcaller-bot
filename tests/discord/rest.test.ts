@@ -87,7 +87,7 @@ test("buildRegisterRequest builds URL, headers and body", () => {
   assert.equal(commands[0]!.name, "content");
   assert.ok(!commands[0]!.options.some((o) => o.name === "create"), "content is created with the buttons in the content-management channel (ADR 0036)");
   assert.deepEqual(commands[0]!.options.find((o) => o.name === "setup")!.options!.map((o) => [o.name, o.type]), [
-    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["cta-role", 8], ["remove-cta-role", 8], ["clear-cta", 5], ["clear-event-forum", 7],
+    ["calendar-channel", 7], ["clear-calendar", 5], ["event-forum", 7], ["forum-type", 3], ["changelog-channel", 7], ["clear-changelog", 5], ["cta-channel", 7], ["cta-role", 8], ["remove-cta-role", 8], ["clear-cta", 5], ["cta-msg", 3], ["clear-cta-msg", 5], ["clear-event-forum", 7],
   ]);
   const setupOpts = commands[0]!.options.find((o) => o.name === "setup")!.options!;
   assert.deepEqual(setupOpts.filter((o) => o.name.includes("event-forum")).map((o) => o.channel_types), [[15], [15]], "forum channels only");
@@ -203,4 +203,42 @@ test("startThread starts a public thread from a message and returns its id", asy
   const rest = createRest("token", fetchFn, async () => {});
   assert.deepEqual(await rest.startThread!("c1", "m9", "Call to arms"), { id: "m9" });
   assert.deepEqual(calls, [{ method: "POST", url: "/channels/c1/messages/m9/threads", body: { name: "Call to arms", auto_archive_duration: 10080 } }]);
+});
+
+test("getMessage is an existence and access check: it asks Discord and returns only ok", async () => {
+  const calls: { method: string; url: string }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: url.replace("https://discord.com/api/v10", "") });
+    return res(200, { id: "m1", content: "" });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  assert.deepEqual(await rest.getMessage!("c1", "m1"), { ok: true });
+  assert.deepEqual(calls, [{ method: "GET", url: "/channels/c1/messages/m1" }]);
+});
+
+test("getMessage maps 404 to missing and 403 to forbidden, and throws on 500", async () => {
+  const get = (status: number) =>
+    createRest("token", (async () => res(status, { message: "x" })) as unknown as typeof fetch, async () => {}).getMessage!("c1", "m1");
+  assert.deepEqual(await get(404), { ok: false, reason: "missing" });
+  assert.deepEqual(await get(403), { ok: false, reason: "forbidden" });
+  await assert.rejects(get(500), (e: unknown) => e instanceof DiscordApiError && e.status === 500);
+});
+
+test("getChannel returns the guild id of a channel, or null when there is none", async () => {
+  const calls: { method: string; url: string }[] = [];
+  const make = (body: unknown) => createRest("token", (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: url.replace("https://discord.com/api/v10", "") });
+    return res(200, body);
+  }) as unknown as typeof fetch, async () => {});
+  assert.deepEqual(await make({ id: "c1", guild_id: "g1" }).getChannel!("c1"), { ok: true, guildId: "g1" });
+  assert.deepEqual(await make({ id: "c1" }).getChannel!("c1"), { ok: true, guildId: null });
+  assert.deepEqual(calls[0], { method: "GET", url: "/channels/c1" });
+});
+
+test("getChannel maps 404 to missing and 403 to forbidden, and throws on 500", async () => {
+  const get = (status: number) =>
+    createRest("token", (async () => res(status, { message: "x" })) as unknown as typeof fetch, async () => {}).getChannel!("c1");
+  assert.deepEqual(await get(404), { ok: false, reason: "missing" });
+  assert.deepEqual(await get(403), { ok: false, reason: "forbidden" });
+  await assert.rejects(get(500), (e: unknown) => e instanceof DiscordApiError && e.status === 500);
 });

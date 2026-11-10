@@ -3,13 +3,14 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { MAX_ADMIN_ROLES, getAdminRoleIds, setAdminRoles } from "../db/settings.ts";
 import { hasManageServer, isAdmin } from "../domain/permissions.ts";
+import { parseMessageLink } from "../domain/ctamsg.ts";
 import { subOption } from "../discord/modal.ts";
 import { deleteDashboard, getDashboard, setDashboardChannel, type Dashboard, type DashboardKind } from "../db/dashboard.ts";
 import { refreshDashboard } from "../jobs/dashboards.ts";
 import { deleteEventForum, forumsOf, getEventForum, listEventForums, saveEventForum, type EventForum, type ForumType } from "../db/eventForum.ts";
 import { TYPE_LABEL } from "../domain/kinds.ts";
 import { clearChangelogChannel, getChangelogChannel, setChangelogChannel } from "../db/changelog.ts";
-import { MAX_CTA_ROLES, clearCtaChannel, getCtaChannel, getCtaRoleIds, setCtaChannel, setCtaRoles } from "../db/cta.ts";
+import { MAX_CTA_ROLES, clearCtaChannel, clearCtaMessage, getCtaChannel, getCtaMessage, getCtaRoleIds, setCtaChannel, setCtaMessage, setCtaRoles } from "../db/cta.ts";
 
 const SNOWFLAKE = /^\d{5,25}$/;
 const NOT_ALLOWED = "Only members with Manage Server can change the admin roles.";
@@ -22,7 +23,7 @@ const KINDS: { kind: DashboardKind; label: string; set: string; clear: string; w
 
 // The panel: a role picker with the current admin roles already selected (ADR 0020, owner request 2026-10-08), and the
 // channels now in use (FR-043, FR-044).
-export type CtaSettings = { channel: string | null; roles: string[] };
+export type CtaSettings = { channel: string | null; roles: string[]; message?: { channelId: string; messageId: string } | null };
 
 // One line per forum, naming each type it serves (ADR 0037): "#pvp-events · PvP, PvX".
 export function forumLines(forums: EventForum[]): string[] {
@@ -31,7 +32,7 @@ export function forumLines(forums: EventForum[]): string[] {
   return [...byForum].map(([id, types]) => `<#${id}> · ${types.map((t) => TYPE_LABEL[t]).join(", ")}`);
 }
 
-export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null, cta: CtaSettings = { channel: null, roles: [] }) {
+export function setupPanel(guildId: string, roleIds: string[], dashboards: Dashboard[] = [], forums: EventForum[] = [], changelogChannel: string | null = null, cta: CtaSettings = { channel: null, roles: [] }) {
   const current = roleIds.length ? roleIds.map((r) => `<@&${r}>`).join(" ") : "none yet";
   const channel = (kind: DashboardKind) => {
     const d = dashboards.find((x) => x.kind === kind);
@@ -55,6 +56,7 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
       "",
       "**CTA (call to arms)** (admins set the text channel with `cta-channel`)",
       `CTA channel: ${cta.channel ? `<#${cta.channel}>` : "none"}`,
+      `CTA message: ${cta.message ? `https://discord.com/channels/${guildId}/${cta.message.channelId}/${cta.message.messageId}` : "none"}`,
       `Roles that may schedule a CTA (admins always may): ${cta.roles.length ? cta.roles.map((r) => `<@&${r}>`).join(" ") : "none yet"}`,
     ].join("\n"),
     components: [{
@@ -76,8 +78,8 @@ export function setupPanel(roleIds: string[], dashboards: Dashboard[] = [], foru
 
 async function panelOf(deps: Deps, guildId: string) {
   return setupPanel(
-    await getAdminRoleIds(deps.sql, guildId), await dashboardsOf(deps, guildId), await listEventForums(deps.sql, guildId),
-    await getChangelogChannel(deps.sql, guildId), { channel: await getCtaChannel(deps.sql, guildId), roles: await getCtaRoleIds(deps.sql, guildId) },
+    guildId, await getAdminRoleIds(deps.sql, guildId), await dashboardsOf(deps, guildId), await listEventForums(deps.sql, guildId),
+    await getChangelogChannel(deps.sql, guildId), { channel: await getCtaChannel(deps.sql, guildId), roles: await getCtaRoleIds(deps.sql, guildId), message: await getCtaMessage(deps.sql, guildId) },
   );
 }
 
@@ -167,7 +169,9 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   const changelogGiven = changelog !== undefined || clearChangelog;
   const ctaChannel = subOption(i, "setup", "cta-channel");
   const clearCta = subOption(i, "setup", "clear-cta") === true;
-  const ctaGiven = ctaChannel !== undefined || clearCta || ctaRole !== undefined || removeCtaRole !== undefined;
+  const ctaMsg = subOption(i, "setup", "cta-msg");
+  const clearCtaMsg = subOption(i, "setup", "clear-cta-msg") === true;
+  const ctaGiven = ctaChannel !== undefined || clearCta || ctaMsg !== undefined || clearCtaMsg || ctaRole !== undefined || removeCtaRole !== undefined;
   if (given.every((g) => g.channel === undefined && !g.clear) && !forumGiven && !changelogGiven && !ctaGiven) {
     if (!hasManageServer(i.member.permissions)) return reply(NOT_ALLOWED);
     return { type: CHANNEL_MESSAGE, data: { ...(await panelOf(deps, i.guild_id)), flags: EPHEMERAL } };
@@ -202,7 +206,30 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (ctaChannel !== undefined && (typeof ctaChannel !== "string" || !SNOWFLAKE.test(ctaChannel) || ![0, 5].includes(resolved[ctaChannel]?.type ?? -1))) {
     return reply("Pick a text or announcement channel of this server for `cta-channel`.");
   }
+  if (ctaMsg !== undefined && clearCtaMsg) return reply("Give a message link or clear it, not both.");
+  if (ctaMsg !== undefined && typeof ctaMsg !== "string") return reply("Paste a message link for `cta-msg`.");
   const lines: string[] = [];
+  if (typeof ctaMsg === "string") {
+    const link = parseMessageLink(ctaMsg, i.guild_id);
+    if (!link.ok) return reply(link.error);
+    if (!deps.rest.getMessage || !deps.rest.getChannel) return reply("The bot cannot read messages here, so the CTA message was not set.");
+    const NOT_SET = "I could not open that message, so the CTA message was not set. Check the link, and give the bot View Channel and Read Message History in that channel.";
+    let channel, got;
+    try {
+      channel = await deps.rest.getChannel(link.value.channelId);
+      if (!channel.ok) return reply(NOT_SET);
+      if (channel.guildId !== i.guild_id) return reply("The link must point to a channel of this server, so the CTA message was not set.");
+      got = await deps.rest.getMessage(link.value.channelId, link.value.messageId);
+    } catch (e) {
+      console.error(JSON.stringify({ evt: "cta_message_check_failed", name: e instanceof Error ? e.name : "unknown" }));
+      return reply("Could not check the message, try again. The CTA message was not set.");
+    }
+    if (!got.ok) return reply(NOT_SET);
+    await setCtaMessage(deps.sql, i.guild_id, link.value.channelId, link.value.messageId);
+    lines.push("CTA message set: it is forwarded and pinned under every CTA you schedule. The bot cannot read the text, so check the link yourself. Keep View Channel and Read Message History for the bot in the channel of the source message, and Pin Messages in the CTA channel.");
+  } else if (clearCtaMsg) {
+    lines.push((await clearCtaMessage(deps.sql, i.guild_id)) ? "CTA message cleared: CTAs no longer carry a forwarded message." : "The CTA message was not set.");
+  }
   if (typeof ctaChannel === "string") {
     await setCtaChannel(deps.sql, i.guild_id, ctaChannel);
     lines.push(`<#${ctaChannel}> is the CTA channel: each CTA you schedule is announced there and gets a thread with its roster. Give the bot View Channel, Send Messages, Create Public Threads, Send Messages in Threads, Manage Threads and Pin Messages in it. Choose who may create CTAs with \`cta-role\`.`);

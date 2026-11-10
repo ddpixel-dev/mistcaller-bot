@@ -31,6 +31,10 @@ export type Rest = {
   startThread?(channelId: string, messageId: string, name: string): Promise<{ id: string }>;
   // Pin a message in a post or channel (needs Pin Messages).
   pinMessage?(channelId: string, messageId: string): Promise<void>;
+  // Existence and access check for the source of the CTA forward. The bot never reads the text. Missing and forbidden are answers, not errors.
+  getMessage?(channelId: string, messageId: string): Promise<{ ok: true } | { ok: false; reason: "missing" | "forbidden" }>;
+  // The server a channel belongs to (null for a direct message channel). Missing and forbidden are answers, not errors.
+  getChannel?(channelId: string): Promise<{ ok: true; guildId: string | null } | { ok: false; reason: "missing" | "forbidden" }>;
 };
 
 export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -108,6 +112,26 @@ export function createRest(
       } catch (err) {
         if (!(err instanceof DiscordApiError) || (err.status !== 404 && err.status !== 405)) throw err;
         await call("PUT", `/channels/${channelId}/pins/${messageId}`, undefined);
+      }
+    },
+    async getMessage(channelId, messageId) {
+      try {
+        await call("GET", `/channels/${channelId}/messages/${messageId}`, undefined);
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof DiscordApiError && err.status === 404) return { ok: false, reason: "missing" };
+        if (err instanceof DiscordApiError && err.status === 403) return { ok: false, reason: "forbidden" };
+        throw err;
+      }
+    },
+    async getChannel(channelId) {
+      try {
+        const c = (await call("GET", `/channels/${channelId}`, undefined)) as { guild_id?: unknown };
+        return { ok: true, guildId: typeof c.guild_id === "string" ? c.guild_id : null };
+      } catch (err) {
+        if (err instanceof DiscordApiError && err.status === 404) return { ok: false, reason: "missing" };
+        if (err instanceof DiscordApiError && err.status === 403) return { ok: false, reason: "forbidden" };
+        throw err;
       }
     },
     async startThread(channelId, messageId, name) {

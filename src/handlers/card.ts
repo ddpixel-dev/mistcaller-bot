@@ -264,7 +264,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
   const link = `https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`;
-  return { type: UPDATE_MESSAGE, data: v2Text(`✅ Created: ${link}`) };
+  return { type: UPDATE_MESSAGE, data: v2Text([`✅ Created: ${link}`, ...done.notes].join("\n")) };
 }
 
 // Blank (FR-060): the card's Blank button opens the final form with only title, start, gear tier and description; the
@@ -307,7 +307,7 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
-  return { type: UPDATE_MESSAGE, data: v2Text(`✅ Created: https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`) };
+  return { type: UPDATE_MESSAGE, data: v2Text([`✅ Created: https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`, ...done.notes].join("\n")) };
 }
 
 // A form or panel of an earlier version (the first form, the create panel): it no longer exists.
