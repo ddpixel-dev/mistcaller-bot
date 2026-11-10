@@ -1,7 +1,7 @@
 import type { Sql } from "../db/client.ts";
 import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
-import { reply } from "./response.ts";
+import { NOT_VALID, reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
 import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
 import { handleHub } from "../handlers/hub.ts";
@@ -22,6 +22,7 @@ import { handleRemoveComponent } from "../handlers/remove.ts";
 import { handleBuildLinkModal, handleEditPanelComponent, handleManageComponent } from "../handlers/manage-panel.ts";
 import { handleSetWeaponComponent } from "../handlers/set-weapon.ts";
 import { handleDutyComponent } from "../handlers/duty.ts";
+import { splitParty } from "../domain/parties.ts";
 
 export type Deps = { sql: Sql; rest: Rest; now: () => Date };
 export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionResponse>;
@@ -34,6 +35,9 @@ const componentHandlers: Record<string, Handler> = {
   cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
 };
 
+// The roster controls that carry a party suffix (FR-070). Other custom ids are never touched.
+const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent"]);
+
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
 
 export function createDispatch(deps: Deps): Dispatch {
@@ -44,6 +48,12 @@ export function createDispatch(deps: Deps): Dispatch {
       handler = Object.hasOwn(commandHandlers, data.name) ? commandHandlers[data.name] : undefined;
     } else if ((i.type === 3 || i.type === 5) && typeof data.custom_id === "string") {
       const prefix = data.custom_id.split(":")[0]!;
+      if (i.type === 3 && PARTY_CONTROLS.has(prefix)) {
+        const split = splitParty(data.custom_id);
+        if (!split) return reply(NOT_VALID);
+        (data as { custom_id: string }).custom_id = split.id;
+        i.party = split.party;
+      }
       const table = i.type === 5 ? modalHandlers : componentHandlers;
       handler = Object.hasOwn(table, prefix) ? table[prefix] : undefined;
     }

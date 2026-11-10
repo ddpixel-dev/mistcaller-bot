@@ -6,6 +6,8 @@ export const UPDATE_MESSAGE = 7;
 export const MODAL = 9;
 export const EPHEMERAL = 64;
 
+export const NOT_VALID = "This control is not valid";
+
 export function reply(content: string): InteractionResponse {
   return {
     type: CHANNEL_MESSAGE,

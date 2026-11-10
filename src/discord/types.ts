@@ -14,6 +14,8 @@ export interface Interaction {
   authorizing_integration_owners?: Record<string, string>;
   data?: unknown;
   message?: { id: string; flags?: number };
+  // The party of a CTA roster button, from the "@2" suffix that dispatch strips off the custom id (FR-070). Absent: party 1.
+  party?: number;
 }
 
 export type InteractionResponse = { type: number; data?: unknown };

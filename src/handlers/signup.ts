@@ -1,8 +1,8 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
-import { claimSlot, joinWaitlist, leaveContent, setTentative, type Promotion } from "../db/signup.ts";
+import { claimSlot, getEntryParty, joinWaitlist, leaveContent, setTentative, type Promotion } from "../db/signup.ts";
 import { openFillPanel } from "./fill-pref.ts";
 import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
@@ -32,11 +32,21 @@ function ids(i: Interaction, prefix: string, parts: number): string[] | null {
 }
 
 // Everyone sees the same roster, so a change answers by updating the shared message.
-async function refreshed(deps: Deps, id: string, promoted: Promotion[] = []): Promise<InteractionResponse> {
+// The response is the pressed party's message; the other party's message is edited through the API.
+async function refreshed(deps: Deps, id: string, party: number, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
-  return { type: UPDATE_MESSAGE, data: renderRosterMessage(view) };
+  const response = { type: UPDATE_MESSAGE, data: renderRosterMessage(view, party) };
+  if (view.partyCount > 1) await refreshRosters(deps, view, { except: party });
+  return response;
+}
+
+// FR-070: a party suffix is only valid on content that has that party. The database functions do not check this.
+async function noSuchParty(deps: Deps, id: string, party: number): Promise<boolean> {
+  if (party <= 1) return false;
+  const view = await getRosterView(deps.sql, id, deps.now());
+  return !view || party > view.partyCount;
 }
 
 // The menu of open positions: sign up, or move from the position you hold. A taken position is not listed.
@@ -48,7 +58,9 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
   const values = (i.data as { values?: unknown } | undefined)?.values;
   if (!got || !userId || !guildId || !Array.isArray(values) || values.length !== 1) return reply(INVALID);
   const slotId = values[0];
-  if (slotId === FILL_VALUE) return await openFillPanel(deps, got[0]!);
+  const party = i.party ?? 1;
+  if (await noSuchParty(deps, got[0]!, party)) return reply(NOT_VALID);
+  if (slotId === FILL_VALUE) return await openFillPanel(deps, got[0]!, party);
   if (typeof slotId !== "string" || !UUID.test(slotId)) return reply(INVALID);
   const promoted: Promotion[] = [];
   const result = await claimSlot(deps.sql, { contentId: got[0]!, slotId, userId, guildId, now: deps.now(), promoted });
@@ -77,7 +89,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
       }
     }
   }
-  return await refreshed(deps, got[0]!, promoted);
+  return await refreshed(deps, got[0]!, party, promoted);
 }
 
 // FR-007 (per role): wait for a role whose positions are all taken. A seat for that role goes to the first waiter.
@@ -89,9 +101,11 @@ export async function handleWait(deps: Deps, i: Interaction): Promise<Interactio
   const values = (i.data as { values?: unknown } | undefined)?.values;
   if (!got || !userId || !guildId || !Array.isArray(values) || values.length !== 1) return reply(INVALID);
   const role = values[0];
-  if (role === WAIT_FILL_VALUE) return await openFillPanel(deps, got[0]!);
+  const party = i.party ?? 1;
+  if (await noSuchParty(deps, got[0]!, party)) return reply(NOT_VALID);
+  if (role === WAIT_FILL_VALUE) return await openFillPanel(deps, got[0]!, party);
   if (typeof role !== "string" || role.length === 0 || role.length > 100) return reply(INVALID);
-  const result = await joinWaitlist(deps.sql, { contentId: got[0]!, userId, guildId, role, now: deps.now() });
+  const result = await joinWaitlist(deps.sql, { contentId: got[0]!, userId, guildId, role, now: deps.now(), party });
   if (result === "already") return reply(`You are already waiting for ${role}.`);
   if (result === "signed") return reply("You hold a position. Leave it first, then join the waitlist.");
   if (result === "open_slot") return reply(`A ${role} position just opened. Pick it from the menu.`);
@@ -99,20 +113,30 @@ export async function handleWait(deps: Deps, i: Interaction): Promise<Interactio
   if (result === "selection") return reply("This is a host-selected event: use Fill or pick a position to apply.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);
-  return await refreshed(deps, got[0]!);
+  return await refreshed(deps, got[0]!, party);
+}
+
+// A player in the other party is pointed to that party's own button.
+async function otherParty(deps: Deps, id: string, userId: string, party: number): Promise<string | null> {
+  const mine = await getEntryParty(deps.sql, id, userId);
+  return mine !== null && mine !== party ? `You are in Party ${mine}. Use its Leave button.` : null;
 }
 
 async function leave(deps: Deps, i: Interaction, id: string, slotId?: string): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   const guildId = i.guild_id;
   if (!userId || !guildId) return reply(INVALID);
+  const party = i.party ?? 1;
+  if (await noSuchParty(deps, id, party)) return reply(NOT_VALID);
+  const other = await otherParty(deps, id, userId, party);
+  if (other) return reply(other);
   const promoted: Promotion[] = [];
   const result = await leaveContent(deps.sql, { contentId: id, userId, guildId, now: deps.now(), promoted, ...(slotId ? { slotId } : {}) });
   if (result === "not_found") return reply(NOT_FOUND);
   if (result === "not_yours") return reply("That is not your position. Only the player on a row can use its Leave button.");
   if (result === "not_signed") return reply("You are not signed up for this content.");
   if (result === "unavailable") return reply("This content is no longer open, so you cannot leave it.");
-  return await refreshed(deps, id, promoted);
+  return await refreshed(deps, id, party, promoted);
 }
 
 // The Leave button on a player's own row.
@@ -136,11 +160,15 @@ export async function handleTentative(deps: Deps, i: Interaction): Promise<Inter
   const got = ids(i, "tent", 2);
   const userId = i.member?.user?.id;
   if (!got || !userId || !i.guild_id) return reply(INVALID);
+  const party = i.party ?? 1;
+  if (await noSuchParty(deps, got[0]!, party)) return reply(NOT_VALID);
+  const other = await otherParty(deps, got[0]!, userId, party);
+  if (other) return reply(other);
   const result = await setTentative(deps.sql, { contentId: got[0]!, guildId: i.guild_id, userId });
   if (result.result === "not_found") return reply(NOT_FOUND);
   if (result.result === "not_signed") return reply("You are not signed up for this content. Sign up first, then mark yourself tentative.");
   if (result.result === "unavailable") return reply("This content is no longer open, so you cannot change that.");
-  return await refreshed(deps, got[0]!);
+  return await refreshed(deps, got[0]!, party);
 }
 
 // Controls of rosters posted before the new layout (menu "signup:", buttons "pick:").
