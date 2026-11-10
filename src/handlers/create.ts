@@ -14,6 +14,7 @@ import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType, SlotDef } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
 import { openCard } from "./card.ts";
+import { postCtaMessage } from "./ctamsg.ts";
 import { forumOfLauncher } from "../db/eventForum.ts";
 import { formProblems } from "./retry.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
@@ -145,7 +146,7 @@ const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 
 // Save the content and post its roster. Whatever fails, nothing is left behind: the row, the message and a post the
 // bot created are removed again.
-export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string } | { ok: false; response: InteractionResponse }> {
+export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string; notes: string[] } | { ok: false; response: InteractionResponse }> {
   let threadId: string;
   let ownPost = false;
   let announcement: { id: string } | null = null;
@@ -227,7 +228,9 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     return { ok: false, response: reply(FAILED) };
   }
   await refreshDashboardSoon(deps, a.guildId, "schedule"); // FR-043
-  return { ok: true, threadId, messageId: postedId };
+  // FR-069: a copy of the CTA message under every CTA, after the roster is posted and pinned. It never fails the CTA.
+  const notes = a.cta ? await postCtaMessage(deps, { guildId: a.guildId, threadId }) : [];
+  return { ok: true, threadId, messageId: postedId, notes };
 }
 
 function logFailure(err: unknown): void {
