@@ -1,14 +1,18 @@
 import type { Attendance } from "../db/attendance.ts";
+import { withParty } from "../domain/parties.ts";
 import { escapeText } from "./roster.ts";
 
 // The private attendance form: pick everyone who attended; Submit records the rest as no-shows.
-export function renderAttendanceForm(a: Attendance, names: Record<string, string>) {
+// With two parties it shows one party's players (at most 25, Discord's menu limit); the ids carry the party suffix.
+export function renderAttendanceForm(a: Attendance, names: Record<string, string>, party?: number) {
   const title = escapeText(a.title);
-  if (a.players.length === 0) {
+  const players = party && a.partyCount >= 2 ? a.players.filter((p) => p.party === party) : a.players;
+  const at = (id: string) => (party && a.partyCount >= 2 ? withParty(id, party) : id);
+  if (players.length === 0) {
     return { content: `📋 **Attendance: ${title}**\nNobody was signed up, so there is nothing to record.`, components: [], allowed_mentions: { parse: [] as [] } };
   }
-  const attended = a.players.filter((p) => a.marks[p.userId] === "attended").length;
-  const options = a.players.slice(0, 25).map((p) => ({
+  const attended = players.filter((p) => a.marks[p.userId] === "attended").length;
+  const options = players.slice(0, 25).map((p) => ({
     // A fill has no position, role or weapon; a slot without a weapon shows its role alone.
     label: Array.from(p.position === null ? `🔁 ${names[p.userId] ?? `Fill ${p.userId.slice(-4)}`}` : `${p.position}. ${names[p.userId] ?? `Player ${p.position}`}`).slice(0, 100).join(""),
     description: Array.from(p.fill ? "Fill" : `${p.role}${p.weapon ? ` - ${p.weapon}` : ""}`).slice(0, 100).join(""),
@@ -17,23 +21,23 @@ export function renderAttendanceForm(a: Attendance, names: Record<string, string
   }));
   return {
     content: [
-      `📋 **Attendance: ${title}**`,
+      `📋 **Attendance: ${title}**${party && a.partyCount >= 2 ? ` (Party ${party})` : ""}`,
       "Pick everyone who attended. **Submit** records anyone not picked as a no-show and posts the report in the content's post.",
-      `Picked so far: ${attended} of ${a.players.length}.`,
+      `Picked so far: ${attended} of ${players.length}.`,
     ].join("\n"),
     components: [
       {
         type: 1,
         components: [{
-          type: 3, custom_id: `att:pick:${a.contentId}`, placeholder: "Who attended? (pick all that did)",
+          type: 3, custom_id: at(`att:pick:${a.contentId}`), placeholder: "Who attended? (pick all that did)",
           min_values: 0, max_values: options.length, options,
         }],
       },
       {
         type: 1,
         components: [
-          { type: 2, style: 3, label: "Submit", custom_id: `att:submit:${a.contentId}` },
-          { type: 2, style: 2, label: "Save and finish later", custom_id: `att:later:${a.contentId}` },
+          { type: 2, style: 3, label: "Submit", custom_id: at(`att:submit:${a.contentId}`) },
+          { type: 2, style: 2, label: "Save and finish later", custom_id: at(`att:later:${a.contentId}`) },
         ],
       },
     ],

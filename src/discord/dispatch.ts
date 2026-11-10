@@ -36,7 +36,7 @@ const componentHandlers: Record<string, Handler> = {
 };
 
 // The roster controls and host panels that carry a party suffix (FR-070). Other custom ids are never touched.
-const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent", "me", "fa", "rm", "dt", "sw"]);
+const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent", "me", "fa", "rm", "dt", "sw", "att"]);
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
 
