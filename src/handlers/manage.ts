@@ -15,6 +15,7 @@ import {
 } from "../db/manage.ts";
 import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
+import { parseCtaSlots } from "../domain/parties.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
 import { refreshRosters } from "./rosters.ts";
@@ -85,7 +86,10 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { value: utcInput(view.startsAt) }),
         textInput("tier", "Gear Tier", 80, { value: view.tier }),
         // A blank content has no slots (FR-060); its notes are the description.
-        ...(view.blank ? [] : [textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots) })]),
+        ...(view.blank ? [] : [textInput(
+          "slots", view.partyCount === 2 ? "Party 1 slots" : "Slots (one per line: Role - Weapon)", 1500,
+          { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) },
+        )]),
         textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
       ],
     },
@@ -124,7 +128,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const start = current && (v.start ?? "").trim() === utcInput(current.startsAt)
     ? ({ ok: true, value: current.startsAt } as ReturnType<typeof parseUtcStart>)
     : parseUtcStart(v.start ?? "", deps.now());
-  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
+  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : (current?.cta ? parseCtaSlots(v.slots ?? "", 1, current.partyCount) : parseSlots(v.slots ?? ""));
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
   if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
@@ -262,4 +266,26 @@ export async function handleListCommand(deps: Deps, i: Interaction): Promise<Int
   });
   const more = items.length > LIST_LIMIT ? `\n…and more. Showing the next ${LIST_LIMIT}.` : "";
   return reply(`📅 **Live and upcoming content**\n${lines.join("\n")}${more}`.slice(0, 2000));
+}
+
+// edp:<content>: the Edit party 2 slots form. Only party 2's lines change; every other field keeps its current value and
+// party 1 is left as it is. Party 2's holders keep their slots (planSlotEdit), and a held slot cannot be removed.
+export async function handleParty2Modal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const customId = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const parts = typeof customId === "string" ? customId.split(":") : [];
+  if (parts.length !== 2 || parts[0] !== "edp" || !UUID.test(parts[1]!)) return reply(INVALID);
+  const checked = await authorize(deps, i, await getManageTargetById(deps.sql, parts[1]!));
+  if (!checked.ok) return checked.response;
+  const view = await getRosterView(deps.sql, checked.target.id, deps.now());
+  if (!view || view.partyCount !== 2) return reply(INVALID);
+  const slots2 = parseCtaSlots(modalValues(i).slots ?? "", 2, 2);
+  if (!slots2.ok) return await formProblems(deps, i, String(customId), [slots2.error]);
+  const result = await editContent(deps.sql, view.id, {
+    title: view.title, notes: view.notes, startsAt: view.startsAt, tier: view.tier, hasLoot: null, kind: null, slots2: slots2.value,
+  }, deps.now());
+  if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
+  if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);
+  const refreshed = await refreshRoster(deps, view.id);
+  await announcePromotions(deps, checked.target.threadId, view.title, result.promoted);
+  return reply(refreshed ? "Party 2 updated." : "Party 2 updated, but a roster message could not be refreshed. It will update on the next change.");
 }

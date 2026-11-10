@@ -48,7 +48,8 @@ export type EditInput = {
   hasLoot: boolean | null; // null keeps the current value
   kind: string | null; // null keeps the current value
   buildRef?: string | null; // undefined keeps the current value, null removes it
-  slots: SlotDef[];
+  slots?: SlotDef[]; // party 1; undefined leaves it as it is (the party 2 form uses that)
+  slots2?: SlotDef[]; // party 2 of a two-party CTA; undefined leaves it as it is (FR-070)
 };
 
 export type EditResult =
@@ -68,26 +69,38 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
     const current: RosterSlot[] = slotRows.map((s) => ({
       id: s.id, position: s.position, party: s.party, role: s.role, weapon: s.weapon ?? "", duty: s.duty ?? null, userId: s.user_id ?? null,
     }));
-    const plan = planSlotEdit(current, input.slots);
-    if (!plan.ok) return { result: "slots_held", error: plan.error };
-
-    for (const r of plan.value.rename) {
-      await tx`update slot set role = ${r.role}, weapon = ${r.weapon || null}, duty = ${r.duty} where id = ${r.id}`;
+    const [{ guild_id, party_count }] = await tx`select guild_id, party_count from content where id = ${id}`;
+    // One plan per party, each over that party's own slots, so a line never renames or removes the other party's slot.
+    // party_count is never changed here. Party 2 is edited only when slots2 is given and the content has two parties.
+    const parties: { party: number; next: SlotDef[] }[] = input.slots === undefined ? [] : [{ party: 1, next: input.slots }];
+    if (party_count === 2 && input.slots2 !== undefined) parties.push({ party: 2, next: input.slots2 });
+    const plans = [];
+    for (const p of parties) {
+      const plan = planSlotEdit(current.filter((s) => s.party === p.party), p.next);
+      if (!plan.ok) return { result: "slots_held", error: party_count === 2 ? `Party ${p.party}: ${plan.error}` : plan.error };
+      plans.push({ party: p.party, plan: plan.value });
     }
-    for (const sid of plan.value.remove) {
-      await tx`delete from slot where id = ${sid}`;
+    for (const { plan } of plans) {
+      for (const r of plan.rename) {
+        await tx`update slot set role = ${r.role}, weapon = ${r.weapon || null}, duty = ${r.duty} where id = ${r.id}`;
+      }
+      for (const sid of plan.remove) {
+        await tx`delete from slot where id = ${sid}`;
+      }
     }
-    if (plan.value.add.length > 0) {
-      const [{ guild_id }] = await tx`select guild_id from content where id = ${id}`;
-      const rows = plan.value.add.map((s, i) => ({
+    let next = Math.max(0, ...current.map((s) => s.position));
+    for (const { party, plan } of plans) {
+      if (plan.add.length === 0) continue;
+      const rows = plan.add.map((s) => ({
         guild_id,
         content_id: id,
-        position: current.length + i + 1,
+        position: ++next,
+        party,
         role: s.role,
         weapon: s.weapon || null,
         duty: s.duty ?? null,
       }));
-      await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "role", "weapon", "duty")}`;
+      await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "party", "role", "weapon", "duty")}`;
     }
 
     await tx`

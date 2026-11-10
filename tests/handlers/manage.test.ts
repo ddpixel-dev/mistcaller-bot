@@ -227,3 +227,92 @@ test("a failed roster edit takes the not-updated path, for edit, lock and unlock
     assert.ok(text(await handleUnlock(deps, command("unlock"))).includes("will update on the next change"));
   } finally { console.error = orig; }
 });
+
+// Two-party CTA (FR-070).
+async function setupTwo(cta = true) {
+  const sql = await testSql();
+  const id = await createContent(sql, {
+    ...base, cta, slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
+    slots2: [{ role: "Tank", weapon: "Axe" }, { role: "DPS", weapon: "Bow" }],
+  });
+  await setMessageId(sql, id, "m1");
+  const edits: any[] = [];
+  const rest: Rest = {
+    async createMessage() { return { id: "p" }; },
+    async editMessage(channelId, messageId, body) { edits.push({ channelId, messageId, body }); },
+    async deleteMessage() {},
+  };
+  return { sql, id, edits, deps: { sql, rest, now: () => NOW } as Deps };
+}
+const p2form = (id: string, slots: string, userId = "boss"): Interaction => {
+  const m = modal(id, "k", { slots }, userId);
+  (m.data as any).custom_id = `edp:${id}`;
+  return m;
+};
+
+test("Edit details labels party 1 and prefills only its lines; the Edit panel has Edit party 2 slots", async () => {
+  const { deps, id } = await setupTwo();
+  const r: any = await openEditForm(deps, command("edit"));
+  const slots = r.data.components.map((row: any) => row.components[0]).find((x: any) => x.custom_id === "slots");
+  assert.equal(slots.label, "Party 1 slots");
+  assert.equal(slots.value, "Tank - Mace\nHealer - Holy");
+  const d = createDispatch(deps);
+  const panel: any = await d(button(`mg:e:${id}`));
+  const ids = panel.data.components.flatMap((row: any) => row.components).map((c: any) => c.custom_id);
+  assert.ok(ids.includes(`ed:p:${id}`));
+  const opened: any = await d(button(`ed:p:${id}`));
+  assert.equal(opened.type, 9);
+  assert.equal(opened.data.custom_id, `edp:${id}`);
+  const box = opened.data.components[0].components[0];
+  assert.equal(box.label, "Party 2 slots");
+  assert.equal(box.max_length, 1500);
+  assert.equal(box.value, "Tank - Axe\nDPS - Bow");
+});
+
+test("a one-party content has no Edit party 2 slots button and keeps its Slots label", async () => {
+  const { deps, id } = await setup();
+  const panel: any = await createDispatch(deps)(button(`mg:e:${id}`));
+  assert.ok(!panel.data.components.flatMap((row: any) => row.components).some((c: any) => c.custom_id === `ed:p:${id}`));
+  const r: any = await openEditForm(deps, command("edit"));
+  assert.match(r.data.components[3].components[0].label, /^Slots/);
+});
+
+test("the party 2 form saves party 2 only, refreshes every party, and keeps party 1 and the party count", async () => {
+  const { sql, deps, id, edits } = await setupTwo();
+  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Locus"));
+  assert.match(text(r), /Party 2 updated/);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}-${s.weapon}`), ["1:Tank-Mace", "1:Healer-Holy", "2:Tank-Axe", "2:Support-Locus"]);
+  assert.equal(v.partyCount, 2);
+  assert.equal(v.title, "Ganking");
+  assert.ok(edits.length >= 1);
+});
+
+test("the party 2 form refuses an unsupported role, naming Party 2, and a held slot's removal", async () => {
+  const { sql, deps, id } = await setupTwo();
+  const d = createDispatch(deps);
+  const bad: any = await d(p2form(id, "Scout - Bow"));
+  assert.match(text(bad), /Party 2, line 1: "Scout" is not a supported role/);
+  const dps = (await getRosterView(sql, id, NOW))!.slots.find((s) => s.party === 2 && s.role === "DPS")!;
+  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'bob', ${dps.id}, 'signed')`;
+  const held: any = await d(p2form(id, "Tank - Axe"));
+  assert.match(text(held), /Party 2:/);
+  assert.equal((await getRosterView(sql, id, NOW))!.slots.length, 4);
+  isEphemeral(await d(p2form(id, "Tank - Axe", "stranger")));
+  assert.match(text(await d(p2form(id, "Tank - Axe", "stranger"))), /Only the creator/);
+});
+
+test("Edit details on a CTA rejects an unsupported role and leaves party 2 alone; normal content accepts any role", async () => {
+  const { sql, deps, id } = await setupTwo();
+  const bad: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nScout - Bow" }));
+  assert.match(text(bad), /Party 1, line 2: "Scout" is not a supported role/);
+  const ok: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+  assert.match(text(ok), /Content updated/);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}`), ["1:Tank", "1:Healer", "1:DPS", "2:Tank", "2:DPS"]);
+  assert.equal(v.partyCount, 2);
+  // normal content keeps accepting any role (the existing "Scout" case in `good`)
+  await resetDb(sql);
+  const n = await setup();
+  assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", good))), /Content updated/);
+});

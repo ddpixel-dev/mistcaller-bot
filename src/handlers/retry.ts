@@ -40,6 +40,16 @@ export async function handleRetryComponent(deps: Deps, i: Interaction): Promise<
   const stored = await getRetry(deps.sql, id, i.guild_id, userId, deps.now());
   if (!stored) return reply(EXPIRED);
   const f = stored.fields;
+  if (stored.formId.startsWith("edp:")) {
+    return {
+      type: MODAL,
+      data: {
+        custom_id: stored.formId,
+        title: "Edit party 2 slots",
+        components: [textInput("slots", "Party 2 slots", 1500, { style: 2, ...(f.slots ? { value: f.slots } : {}) })],
+      },
+    };
+  }
   const filled = (name: string) => (f[name] ? { value: f[name] } : {});
   return {
     type: MODAL,

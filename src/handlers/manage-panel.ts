@@ -9,6 +9,7 @@ import { handleAttendance, handleEnd, handleReopen } from "./attendance.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { kindsOf, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
+import { formatSlotLines } from "../domain/slots.ts";
 import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -104,7 +105,14 @@ function editPanel(view: RosterView, note: string | null) {
           ],
         }],
       }]),
-      { type: 1, components: [button("Edit details", "📝", `mg:f:${id}`, 1), button("Build link", "🧰", `ed:b:${id}`)] },
+      {
+        type: 1,
+        components: [
+          button("Edit details", "📝", `mg:f:${id}`, 1),
+          ...(view.partyCount === 2 && !view.blank ? [button("Edit party 2 slots", "📝", `ed:p:${id}`, 1)] : []),
+          button("Build link", "🧰", `ed:b:${id}`),
+        ],
+      },
     ],
   };
 }
@@ -171,6 +179,17 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
   if (!view) return reply(INVALID);
   if (view.status !== "open") return reply(NOT_OPEN);
 
+  if (parts[1] === "p") {
+    if (view.partyCount !== 2) return reply(INVALID);
+    return {
+      type: MODAL,
+      data: {
+        custom_id: `edp:${id}`,
+        title: "Edit party 2 slots",
+        components: [textInput("slots", "Party 2 slots", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 2)) })],
+      },
+    };
+  }
   if (parts[1] === "b") {
     return {
       type: MODAL,
