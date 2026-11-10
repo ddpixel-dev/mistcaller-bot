@@ -58,7 +58,7 @@ test("a party 1 waitlist entry is not promoted by a party 2 slot, but is by a pa
   await leaveContent(sql, { contentId: id, userId: B, guildId: G, now: NOW, promoted });
   assert.deepEqual(promoted, []);
   await leaveContent(sql, { contentId: id, userId: A, guildId: G, now: NOW, promoted });
-  assert.deepEqual(promoted.map((p) => [p.userId, p.slotId]), [[C, p1tank]]);
+  assert.deepEqual((promoted as Promotion[]).map((p) => [p.userId, p.slotId]), [[C, p1tank]]);
 });
 
 test("waitlist: a role open in party 2 does not block party 1 from waiting, and vice versa", async () => {
@@ -80,7 +80,7 @@ test("a fill in party 2 takes the first suitable party 2 position, healers first
   const v = await view();
   assert.deepEqual(v.fills, [OWNER]);
   assert.equal(v.slots.filter((s) => s.party === 1 && s.userId).length, 0, "party 1 stays empty");
-  assert.equal(v.partyOf[OWNER], 2);
+  assert.equal(v.partyOf?.[OWNER], 2);
 });
 
 test("a party 2 fill is not seated by a party 1 slot freeing", async () => {
