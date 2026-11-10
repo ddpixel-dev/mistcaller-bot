@@ -28,6 +28,7 @@ export type RosterView = {
   hasLoot: boolean;
   status: ContentStatus;
   partyCount: number; // 1 or 2 (FR-070)
+  partyOf?: Record<string, number>; // party of each waitlist, fill and applied user; absent means party 1 (FR-070)
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string; party?: number }[];
   selection?: boolean; // the host picks the party: signing up is an application (FR-058)

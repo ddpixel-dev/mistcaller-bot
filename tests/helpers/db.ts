@@ -37,5 +37,5 @@ export function testSql(): Promise<Sql> {
 }
 
 export async function resetDb(sql: Sql): Promise<void> {
-  await sql`truncate table attendance, slot_draft, form_retry, ping_log, dashboard, event_forum, changelog_channel, changelog_post, cta_channel, cta_message, guild_cta_role, slot_preset, vote, signup, slot, content, guild_settings, guild_admin_role restart identity cascade`;
+  await sql`truncate table attendance, slot_draft, form_retry, ping_log, dashboard, event_forum, changelog_channel, changelog_post, cta_channel, cta_message, content_message, guild_cta_role, slot_preset, vote, signup, slot, content, guild_settings, guild_admin_role restart identity cascade`;
 }

@@ -81,7 +81,7 @@ test("the vote result line posted in the thread is unchanged, and the roster tex
   assert.equal(voteLine(view({ voteClosed: true, votes: { split: 2, regear: 1 }, voteResult: "split" })), "💰 Loot vote result: Split won 2-1");
 });
 
-test("one numbered line per position: number, party: 1, role icon and role, weapon - player - duty (Open for an empty position)", () => {
+test("one numbered line per position: number, role icon and role, weapon - player - duty (Open for an empty position)", () => {
   // Weapons without an icon (not in the list) show only their name, so the text format is easy to read here.
   const t = txt(view({ slots: [
     { id: "s1", position: 1, party: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
