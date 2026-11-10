@@ -1,7 +1,7 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { clearCtaChannel, getCtaChannel, getCtaRoleIds, MAX_CTA_ROLES, setCtaChannel, setCtaRoles } from "../../src/db/cta.ts";
+import { clearCtaChannel, clearCtaMessage, getCtaMessage, setCtaMessage, getCtaChannel, getCtaRoleIds, MAX_CTA_ROLES, setCtaChannel, setCtaRoles } from "../../src/db/cta.ts";
 import { createContent, getRosterView } from "../../src/db/content.ts";
 
 beforeEach(async () => { await resetDb(await testSql()); });
@@ -46,4 +46,17 @@ test("content can be a CTA and can be blank, with no slots", async () => {
   });
   const p = (await getRosterView(sql, plain, new Date(start.getTime() - 3600000)))!;
   assert.deepEqual([p.cta, p.blank], [false, false]);
+});
+
+test("a server has at most one CTA message; setting it again replaces it, other servers are unaffected, clearing removes it", async () => {
+  const sql = await testSql();
+  assert.equal(await getCtaMessage(sql, "g1"), null);
+  await setCtaMessage(sql, "g1", "c1", "m1");
+  assert.deepEqual(await getCtaMessage(sql, "g1"), { channelId: "c1", messageId: "m1" });
+  await setCtaMessage(sql, "g1", "c2", "m2");
+  assert.deepEqual(await getCtaMessage(sql, "g1"), { channelId: "c2", messageId: "m2" });
+  assert.equal(await getCtaMessage(sql, "g2"), null);
+  assert.equal(await clearCtaMessage(sql, "g1"), true);
+  assert.equal(await clearCtaMessage(sql, "g1"), false);
+  assert.equal(await getCtaMessage(sql, "g1"), null);
 });
