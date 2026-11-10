@@ -23,14 +23,14 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
   const [c] = await tx`select status from content where id = ${contentId}`;
   if (!c || c.status !== "open") return [];
   const open = (await tx`
-    select s.id, s.position, s.role, s.weapon from slot s
+    select s.id, s.position, s.party, s.role, s.weapon from slot s
     left join signup su on su.slot_id = s.id and su.status = 'signed'
     where s.content_id = ${contentId} and su.user_id is null order by s.position`).map((r) => ({
-    id: r.id as string, position: r.position as number, role: r.role as string, weapon: (r.weapon as string | null) ?? "",
+    id: r.id as string, position: r.position as number, party: r.party as number, role: r.role as string, weapon: (r.weapon as string | null) ?? "",
   }));
   if (open.length === 0) return [];
   const waiting = await tx`
-    select user_id, status, wait_role, fill_roles, fill_slots from signup
+    select user_id, status, party, wait_role, fill_roles, fill_slots from signup
     where content_id = ${contentId} and status in ('waitlist', 'fill')
     order by joined_at, user_id for update`;
   const out: Promotion[] = [];
@@ -39,9 +39,11 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     if (open.length === 0) break;
     const isFill = w.status === "fill";
     const pref = isFill ? prefOf(w as { fill_roles: string[] | null; fill_slots: string[] | null }) : null;
+    // FR-070: a waiting player is only seated in their own party.
+    const mine = open.filter((o) => o.party === w.party);
     const slot = pref
-      ? pickFillSlot(pref, open)
-      : open.find((o) => o.role.toLowerCase() === String(w.wait_role ?? "").toLowerCase()) ?? null;
+      ? pickFillSlot(pref, mine)
+      : mine.find((o) => o.role.toLowerCase() === String(w.wait_role ?? "").toLowerCase()) ?? null;
     if (!slot) continue;
     open.splice(open.indexOf(slot), 1);
     await tx`
@@ -91,7 +93,7 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
       // The content row is locked for update: the seat count below must not change under two simultaneous claims.
       const [c] = await tx`select status, guild_id, selection, created_by from content where id = ${a.contentId} for update`;
       if (!c || c.guild_id !== a.guildId) return "not_found";
-      const [s] = await tx`select id, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
+      const [s] = await tx`select id, weapon, party from slot where id = ${a.slotId} and content_id = ${a.contentId}`;
       if (!s) return "not_found";
       if (c.status !== "open") return "locked";
 
@@ -106,10 +108,10 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
         if (prev?.status === "signed") return "selected";
         if (prev?.status === "applied" && (prev.fill_roles ?? []).length === 0 && (prev.fill_slots ?? []).length === 1 && prev.fill_slots[0] === a.slotId) return "unchanged";
         await tx`
-          insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots)
-          values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'applied', null, ${[a.slotId]})
+          insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots, party)
+          values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'applied', null, ${[a.slotId]}, ${s.party})
           on conflict (content_id, user_id)
-          do update set slot_id = null, status = 'applied', wait_role = null, chosen_weapon = null,
+          do update set slot_id = null, status = 'applied', party = excluded.party, wait_role = null, chosen_weapon = null,
             fill_roles = null, fill_slots = excluded.fill_slots, joined_at = case when signup.status = 'applied' then signup.joined_at else now() end`;
         return "applied";
       }
@@ -117,10 +119,10 @@ async function claimOnce(sql: Sql, a: ClaimArgs): Promise<ClaimResult> {
       // The player's own weapon stays when moving between role-only slots, and goes otherwise (FR-030).
       const keepWeapon = prev?.status === "signed" && s.weapon === null ? prev.chosen_weapon : null;
       await tx`
-        insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon)
-        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${a.slotId}, 'signed', ${keepWeapon})
+        insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon, party)
+        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${a.slotId}, 'signed', ${keepWeapon}, ${s.party})
         on conflict (content_id, user_id)
-        do update set slot_id = excluded.slot_id, status = 'signed', wait_role = null, fill_roles = null, fill_slots = null, joined_at = now(),
+        do update set slot_id = excluded.slot_id, status = 'signed', party = excluded.party, wait_role = null, fill_roles = null, fill_slots = null, joined_at = now(),
           chosen_weapon = excluded.chosen_weapon`;
       const moved = prev && prev.status === "signed";
       // Moving away frees a position, which goes to the first member waiting for that role.
@@ -162,29 +164,30 @@ export async function leaveContent(
 // Join the waitlist for a role whose positions are all taken. A member who holds a position leaves it first.
 export async function joinWaitlist(
   sql: Sql,
-  a: { contentId: string; userId: string; guildId: string; role: string; now: Date },
+  a: { contentId: string; userId: string; guildId: string; role: string; now: Date; party?: number },
 ): Promise<WaitResult> {
   return await sql.begin(async (tx): Promise<WaitResult> => {
     const [c] = await tx`select status, guild_id, selection from content where id = ${a.contentId} for share`;
     if (!c || c.guild_id !== a.guildId) return "not_found";
     if (c.status !== "open") return "locked";
     if (c.selection) return "selection";
+    const party = a.party ?? 1;
     const slots = await tx`
       select s.role, su.user_id from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
-      where s.content_id = ${a.contentId} and lower(s.role) = lower(${a.role})`;
+      where s.content_id = ${a.contentId} and s.party = ${party} and lower(s.role) = lower(${a.role})`;
     if (slots.length === 0) return "unknown_role";
     const [prev] = await tx`
-      select status, wait_role from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+      select status, wait_role, party from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
     if (slots.some((s) => s.user_id === null)) return "open_slot";
     if (prev?.status === "signed") return "signed";
-    if (prev?.status === "waitlist" && prev.wait_role?.toLowerCase() === a.role.toLowerCase()) return "already";
+    if (prev?.status === "waitlist" && prev.wait_role?.toLowerCase() === a.role.toLowerCase() && prev.party === party) return "already";
     const role = slots[0]!.role as string;
     await tx`
-      insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role)
-      values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'waitlist', ${role})
+      insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role, party)
+      values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'waitlist', ${role}, ${party})
       on conflict (content_id, user_id)
-      do update set slot_id = null, status = 'waitlist', wait_role = excluded.wait_role, fill_roles = null, fill_slots = null, joined_at = now()`;
+      do update set slot_id = null, status = 'waitlist', party = excluded.party, wait_role = excluded.wait_role, fill_roles = null, fill_slots = null, joined_at = now()`;
     return "ok";
   });
 }
@@ -202,41 +205,42 @@ const samePref = (a: FillPref, b: FillPref) =>
 // frees it first (it may come straight back, or go to the waitlist). No seat is held back for anyone.
 export async function joinFill(
   sql: Sql,
-  a: { contentId: string; userId: string; guildId: string; now: Date; pref?: FillPref; promoted?: Promotion[] },
+  a: { contentId: string; userId: string; guildId: string; now: Date; pref?: FillPref; party?: number; promoted?: Promotion[] },
 ): Promise<FillResult> {
   return await sql.begin(async (tx): Promise<FillResult> => {
     if (a.promoted) a.promoted.length = 0;
     const pref = a.pref ?? ANY_FILL;
+    const party = a.party ?? 1;
     const [c] = await tx`select status, guild_id, selection, created_by from content where id = ${a.contentId} for update`;
     if (!c || c.guild_id !== a.guildId) return { result: "not_found" };
     if (c.status !== "open") return { result: "locked" };
     const [prev] = await tx`
-      select status, fill_roles, fill_slots from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+      select status, party, fill_roles, fill_slots from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
     if (c.selection && c.created_by !== a.userId) {
       // FR-058: in a host-selected event Fill is an application for what the player can play; nobody is seated.
       if (prev?.status === "signed") return { result: "selected" };
-      if (prev?.status === "applied" && samePref(prefOf(prev as { fill_roles: string[] | null; fill_slots: string[] | null }), pref)) return { result: "unchanged" };
+      if (prev?.status === "applied" && prev.party === party && samePref(prefOf(prev as { fill_roles: string[] | null; fill_slots: string[] | null }), pref)) return { result: "unchanged" };
       const kept = storedPref(pref);
       await tx`
-        insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots)
-        values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'applied', ${kept.roles}, ${kept.slots})
+        insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots, party)
+        values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'applied', ${kept.roles}, ${kept.slots}, ${party})
         on conflict (content_id, user_id)
-        do update set slot_id = null, status = 'applied', wait_role = null, chosen_weapon = null,
+        do update set slot_id = null, status = 'applied', party = excluded.party, wait_role = null, chosen_weapon = null,
           fill_roles = excluded.fill_roles, fill_slots = excluded.fill_slots, joined_at = case when signup.status = 'applied' then signup.joined_at else now() end`;
       return { result: "applied" };
     }
-    if (prev?.status === "fill" && samePref(prefOf(prev as { fill_roles: string[] | null; fill_slots: string[] | null }), pref)) return { result: "unchanged" };
+    if (prev?.status === "fill" && prev.party === party && samePref(prefOf(prev as { fill_roles: string[] | null; fill_slots: string[] | null }), pref)) return { result: "unchanged" };
     const stored = storedPref(pref);
     await tx`
-      insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots)
-      values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'fill', ${stored.roles}, ${stored.slots})
+      insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots, party)
+      values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'fill', ${stored.roles}, ${stored.slots}, ${party})
       on conflict (content_id, user_id)
-      do update set slot_id = null, status = 'fill', wait_role = null, chosen_weapon = null,
+      do update set slot_id = null, status = 'fill', party = excluded.party, wait_role = null, chosen_weapon = null,
         fill_roles = excluded.fill_roles, fill_slots = excluded.fill_slots, joined_at = now()`;
     const open = (await tx`
       select s.id, s.position, s.role, s.weapon from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
-      where s.content_id = ${a.contentId} and su.user_id is null order by s.position`).map((r) => ({
+      where s.content_id = ${a.contentId} and s.party = ${party} and su.user_id is null order by s.position`).map((r) => ({
       id: r.id as string, position: r.position as number, role: r.role as string, weapon: (r.weapon as string | null) ?? "",
     }));
     const slot = pickFillSlot(pref, open);
@@ -282,8 +286,8 @@ async function assignOnce(sql: Sql, a: AssignArgs): Promise<AssignResult> {
       if (!c || c.guild_id !== a.guildId) return { result: "not_found" };
       if (c.status !== "open" && c.status !== "locked") return { result: "unavailable" };
       const [slot] = a.slotId
-        ? await tx`select id, position, role, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`
-        : await tx`select id, position, role, weapon from slot where position = ${a.position ?? -1} and content_id = ${a.contentId}`;
+        ? await tx`select id, position, party, role, weapon from slot where id = ${a.slotId} and content_id = ${a.contentId}`
+        : await tx`select id, position, party, role, weapon from slot where position = ${a.position ?? -1} and content_id = ${a.contentId}`;
       if (!slot) return { result: "no_slot" };
       const [holder] = await tx`select user_id from signup where slot_id = ${slot.id} and status = 'signed'`;
       if (holder) return { result: holder.user_id === a.userId ? "unchanged" : "taken" };
@@ -292,10 +296,10 @@ async function assignOnce(sql: Sql, a: AssignArgs): Promise<AssignResult> {
       // A host move always clears the player's own weapon (owner decision 2026-10-24, ADR 0029): the new position's
       // weapon applies, or the player picks again. A move the player makes keeps the FR-030 rule (claimSlot).
       await tx`
-        insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon)
-        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${slot.id}, 'signed', null)
+        insert into signup (guild_id, content_id, user_id, slot_id, status, chosen_weapon, party)
+        values (${a.guildId}, ${a.contentId}, ${a.userId}, ${slot.id}, 'signed', null, ${slot.party})
         on conflict (content_id, user_id)
-        do update set slot_id = excluded.slot_id, status = 'signed', wait_role = null, fill_roles = null, fill_slots = null, joined_at = now(),
+        do update set slot_id = excluded.slot_id, status = 'signed', party = excluded.party, wait_role = null, fill_roles = null, fill_slots = null, joined_at = now(),
           chosen_weapon = excluded.chosen_weapon`;
       if (prev?.status === "signed" && a.promoted) a.promoted.push(...(await promoteWaitlist(tx, a.contentId, a.now)));
       return { result: "ok", position: slot.position, role: slot.role };
@@ -346,4 +350,10 @@ export async function setTentative(
     await tx`update signup set tentative = ${next} where content_id = ${a.contentId} and user_id = ${a.userId}`;
     return { result: "ok", tentative: next };
   });
+}
+
+// FR-070: the party of a member's entry (seat, fill, applicant or waitlist), or null when they have none.
+export async function getEntryParty(sql: Sql, contentId: string, userId: string): Promise<number | null> {
+  const [r] = await sql`select party from signup where content_id = ${contentId} and user_id = ${userId}`;
+  return r ? (r.party as number) : null;
 }
