@@ -347,7 +347,7 @@ A post the bot makes shall be named `Title | 12 Nov | 20:00 UTC` (the title, the
 
 ### FR-069: Pinned CTA message
 status: built, release 0.31.7 (owner request 2026-11-10, ADR 0045; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0031)
-An admin shall set one message with `cta-msg` (a message link) in `/content setup`, and every CTA created afterwards shall carry a copy of it as a separate, pinned message below the roster. The copy keeps the text, embeds and channel mentions, and never pings anyone. A missing source or a failed pin does not stop the CTA; the creator is told privately.
+An admin shall set one message with `cta-msg` (a message link) in `/content setup`, and every CTA created afterwards shall carry a forward of it as a separate, pinned message below the roster (a forward, not a copy, since 2026-11-10: the bot has no Message Content intent, ADR 0045). The forward keeps the text, embeds, attachments and channel mentions, and never pings anyone. A missing source or a failed pin does not stop the CTA; the creator is told privately.
 
 ### FR-070: Two parties in a CTA
 status: accepted 2026-11-10, not built (owner request 2026-11-10, ADR 0044; same design doc; migration 0032)

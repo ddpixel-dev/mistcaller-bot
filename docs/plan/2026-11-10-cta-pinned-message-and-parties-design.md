@@ -27,6 +27,8 @@ Phase: MVP, unlocked. No new dependency (ADR 0006, NFR-003). One migration.
 
 ## Part 1: the pinned CTA message (FR-069)
 
+> **Update 2026-11-10 (owner decision):** the bot **forwards** the source message instead of copying it, because without the privileged Message Content intent it cannot read another member's message. See the update in ADR 0045. Where this part says "copy", read "forward"; the attachment links, the 2000-character cut and the embed filtering are dropped.
+
 ### Goal
 Every CTA carries a fixed server message (rules, reminders, links to other channels), set once by an admin and appended automatically. The owner does not attach it per CTA.
 
