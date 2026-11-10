@@ -23,10 +23,17 @@ export function toSettings(raw: unknown): PresetSettings | null {
   };
 }
 
+// Slots carry `party` only for party 2 of a CTA; absent means party 1, so older presets load as one party.
+const toSlots = (raw: unknown): SlotDef[] =>
+  (Array.isArray(raw) ? raw : []).map((s) => {
+    const { party, ...rest } = s as SlotDef;
+    return party === 2 ? { ...rest, party: 2 } : rest;
+  });
+
 const toPreset = (r: Record<string, any>): Preset => ({
   id: r.id,
   name: r.name,
-  slots: r.slots as SlotDef[],
+  slots: toSlots(r.slots),
   createdBy: r.created_by,
   settings: toSettings(r.settings),
 });

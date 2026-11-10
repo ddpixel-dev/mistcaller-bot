@@ -72,3 +72,18 @@ test("delete removes the draft", async () => {
   await deleteDraft(sql, id);
   assert.equal(await getDraft(sql, id, new Date()), null);
 });
+
+test("a draft keeps parties, party 2 slots and typed party 2 lines; a new card starts with one party", async () => {
+  const sql = await testSql();
+  const id = await startDraft(sql, who);
+  let d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.parties, d.slots2, d.slots2Text], [1, [], null]);
+  await saveCard(sql, id, { parties: 2, slots2: [{ role: "Tank", weapon: "Axe" }], slots2Text: "Heal" });
+  d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.parties, d.slots2, d.slots2Text], [2, [{ role: "Tank", weapon: "Axe" }], "Heal"]);
+  await saveCard(sql, id, { loot: false });
+  assert.equal((await getDraft(sql, id, new Date()))!.parties, 2, "a save that leaves them out keeps them");
+  await startCard(sql, who);
+  d = (await getDraft(sql, id, new Date()))!;
+  assert.deepEqual([d.parties, d.slots2, d.slots2Text], [1, [], null]);
+});

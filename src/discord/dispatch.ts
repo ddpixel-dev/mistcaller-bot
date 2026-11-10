@@ -3,7 +3,7 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { NOT_VALID, reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
-import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
+import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardParty2, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
 import { handleHub } from "../handlers/hub.ts";
 import { handleMeComponent } from "../handlers/me.ts";
 import { handleSetupComponent } from "../handlers/setup.ts";
@@ -29,7 +29,7 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccs2: handleCardParty2, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, fp: handleFillChoice, leaveslot: handleLeaveSlot, leave: handleLeave, tent: handleTentative, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
   cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
