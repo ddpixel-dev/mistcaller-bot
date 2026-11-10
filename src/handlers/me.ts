@@ -1,6 +1,6 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTarget } from "../db/manage.ts";
 import { claimSlot, leaveContent, type Promotion } from "../db/signup.ts";
@@ -9,33 +9,41 @@ import { refreshRoster } from "./manage.ts";
 import type { RosterView } from "../domain/types.ts";
 import { escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
 import { refreshRosters } from "./rosters.ts";
+import { displayNumber, withParty } from "../domain/parties.ts";
+import { partyChoice, partyOfClick, shownNumber, slotsOfParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOT_FOUND = "This content or position no longer exists.";
 const INVALID = "That panel is out of date. Run `/content me` again.";
 
 // A private panel only for the member who opened it, so its Leave button is theirs alone.
-export function renderMePanel(view: RosterView, userId: string) {
+// On a two-party CTA the sign-up menu lists one party at a time (at most 25 options): the member's own party, or the
+// one chosen with the Party buttons (FR-070). Until a party is known there is no menu, only the buttons.
+export function renderMePanel(view: RosterView, userId: string, chosenParty: number | null = null) {
   const mine = view.slots.find((s) => s.userId === userId) ?? null;
   const isFill = (view.fills ?? []).includes(userId);
   const open = view.status === "open";
+  const party = view.partyCount > 1 ? chosenParty ?? mine?.party ?? null : 1;
   const lines = [`**${escapeText(view.title)}**`];
   lines.push(
     mine
-      ? `You are signed up as ${mine.position}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
+      ? `You are signed up as ${shownNumber(view, mine.position)}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
       : (view.applicants ?? []).some((a) => a.userId === userId) ? `You applied (${view.applicants!.find((a) => a.userId === userId)!.wants}). The host picks the party.`
       : isFill ? `You are waiting as a fill (${view.fillWants?.[userId] ?? "Any"}): you are seated as soon as a matching position is free.`
       : "You are not signed up.",
   );
   if (!open) lines.push("Signups and moves are closed.");
+  else if (party === null) lines.push("Choose the party to sign up in.");
   const rows: unknown[] = [];
-  if (open) {
+  const chooser = partyChoice("me:pp", view.id, view);
+  if (chooser) rows.push(chooser);
+  if (open && party !== null) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `me:pick:${view.id}`, placeholder: mine ? "Move to another position" : "Sign up for a position",
-        options: view.slots.map((s) => ({
-          label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
+        type: 3, custom_id: withParty(`me:pick:${view.id}`, party), placeholder: mine ? "Move to another position" : "Sign up for a position",
+        options: slotsOfParty(view, party).map((s) => ({
+          label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
           value: s.id,
           description: s.userId === userId ? "You are here" : s.userId ? "Taken" : "Open",
         })),
@@ -63,7 +71,7 @@ export async function handleMeCommand(deps: Deps, i: Interaction): Promise<Inter
 }
 
 // The shared roster is edited through the API; a failed edit never undoes the change.
-async function refresh(deps: Deps, id: string, userId: string, promoted: Promotion[] = []): Promise<InteractionResponse> {
+async function refresh(deps: Deps, id: string, userId: string, promoted: Promotion[] = [], party: number | null = null): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
@@ -72,7 +80,7 @@ async function refresh(deps: Deps, id: string, userId: string, promoted: Promoti
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
-  return { type: UPDATE_MESSAGE, data: renderMePanel(view, userId) };
+  return { type: UPDATE_MESSAGE, data: renderMePanel(view, userId, party) };
 }
 
 export async function handleMeComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
@@ -90,7 +98,15 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
     if (result === "unavailable") return reply("This content is no longer open, so you cannot leave it.");
     return await refresh(deps, id, userId, promoted);
   }
+  if (action === "pp") {
+    const view = await getRosterView(deps.sql, id, deps.now());
+    if (!view) return reply(NOT_FOUND);
+    const party = partyOfClick(i, view);
+    if (party === null || view.partyCount < 2) return reply(NOT_VALID);
+    return { type: UPDATE_MESSAGE, data: renderMePanel(view, userId, party) };
+  }
   if (action === "pick") {
+    if (i.party !== undefined && i.party > 2) return reply(NOT_VALID);
     const values = data?.values;
     const slotId = Array.isArray(values) && values.length === 1 ? values[0] : undefined;
     if (typeof slotId !== "string" || !UUID.test(slotId)) return reply(INVALID);

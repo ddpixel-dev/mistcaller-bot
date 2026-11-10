@@ -35,8 +35,8 @@ const componentHandlers: Record<string, Handler> = {
   cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
 };
 
-// The roster controls that carry a party suffix (FR-070). Other custom ids are never touched.
-const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent"]);
+// The roster controls and host panels that carry a party suffix (FR-070). Other custom ids are never touched.
+const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent", "me", "fa", "rm", "dt", "sw"]);
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
 
