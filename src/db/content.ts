@@ -122,9 +122,11 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     tier: c.gear_tier ?? "",
     hasLoot: c.has_loot,
     status: c.status as ContentStatus,
+    partyCount: 1,
     slots: slots.map((s) => ({
       id: s.id,
       position: s.position,
+      party: 1,
       role: s.role,
       weapon: s.weapon ?? "",
       duty: s.duty ?? null,

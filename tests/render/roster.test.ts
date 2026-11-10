@@ -10,21 +10,21 @@ import { WEAPON_EMOJI } from "../../src/data/weapon-emoji.ts";
 
 function view(over: Partial<RosterView> = {}): RosterView {
   return {
-    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other",
+    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other", partyCount: 1,
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
     tier: "T5.3–T7.0",
     hasLoot: true, status: "open",
     slots: [
-      { id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: "111" },
-      { id: "s2", position: 2, role: "Healer", weapon: "Great Holy Staff", userId: null },
+      { id: "s1", position: 1, party: 1, role: "Tank", weapon: "Broadsword", userId: "111" },
+      { id: "s2", position: 2, party: 1, role: "Healer", weapon: "Great Holy Staff", userId: null },
     ],
     votes: { split: 0, regear: 0 }, voteClosed: false, voteResult: null,
     ...over,
   };
 }
 const slots = (n: number, filled: number, role = "DPS", weapon = "Bow"): RosterSlot[] =>
-  Array.from({ length: n }, (_, i) => ({ id: `s${i + 1}`, position: i + 1, role, weapon, userId: i < filled ? `${100 + i}` : null }));
+  Array.from({ length: n }, (_, i) => ({ id: `s${i + 1}`, position: i + 1, party: 1, role, weapon, userId: i < filled ? `${100 + i}` : null }));
 const msg = (v: RosterView) => renderRosterMessage(v);
 const raw = (v: RosterView) => textOf(msg(v));
 const txt = (v: RosterView) => plain(raw(v));
@@ -81,22 +81,22 @@ test("the vote result line posted in the thread is unchanged, and the roster tex
   assert.equal(voteLine(view({ voteClosed: true, votes: { split: 2, regear: 1 }, voteResult: "split" })), "💰 Loot vote result: Split won 2-1");
 });
 
-test("one numbered line per position: number, role icon and role, weapon - player - duty (Open for an empty position)", () => {
+test("one numbered line per position: number, party: 1, role icon and role, weapon - player - duty (Open for an empty position)", () => {
   // Weapons without an icon (not in the list) show only their name, so the text format is easy to read here.
   const t = txt(view({ slots: [
-    { id: "s1", position: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
-    { id: "s2", position: 2, role: "Healer", weapon: "Mystery Staff", userId: null, duty: "scout" },
-    { id: "s3", position: 3, role: "DPS", weapon: "Mystery Bow", userId: "222" },
-    { id: "s4", position: 4, role: "Support", weapon: "Mystery Orb", userId: null },
+    { id: "s1", position: 1, party: 1, role: "Tank", weapon: "Mystery Axe", userId: "111", duty: "caller" },
+    { id: "s2", position: 2, party: 1, role: "Healer", weapon: "Mystery Staff", userId: null, duty: "scout" },
+    { id: "s3", position: 3, party: 1, role: "DPS", weapon: "Mystery Bow", userId: "222" },
+    { id: "s4", position: 4, party: 1, role: "Support", weapon: "Mystery Orb", userId: null },
   ] }));
   assert.ok(t.includes("1. 🛡️ Tank - Mystery Axe - <@111> - 📯 Caller\n2. 💚 Healer - Mystery Staff - Open - 🔭 Scout\n3. ⚔️ DPS - Mystery Bow - <@222>\n4. 🤝 Support - Mystery Orb - Open"));
 });
 
 test("positions keep their order and numbers with no role headings, even when a role repeats apart", () => {
   const t = txt(view({ slots: [
-    { id: "s1", position: 1, role: "DPS", weapon: "Bow", userId: "111" },
-    { id: "s2", position: 2, role: "Tank", weapon: "Mace", userId: null },
-    { id: "s3", position: 3, role: "dps", weapon: "Axe", userId: null },
+    { id: "s1", position: 1, party: 1, role: "DPS", weapon: "Bow", userId: "111" },
+    { id: "s2", position: 2, party: 1, role: "Tank", weapon: "Mace", userId: null },
+    { id: "s3", position: 3, party: 1, role: "dps", weapon: "Axe", userId: null },
   ] }));
   const lines = t.split("\n");
   assert.ok(!lines.some((l) => l.startsWith("### ")));
@@ -108,19 +108,19 @@ test("the weapon icon sits inline before the weapon name when its emoji exists, 
   const withIds = Object.keys(WEAPON_EMOJI).length;
   assert.ok(withIds > 100, "run scripts/sync-emoji.ts");
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
-  const t = txt(view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
+  const t = txt(view({ slots: [{ id: "s1", position: 1, party: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "s2", position: 2, party: 1, role: "Tank", weapon: "Mystery Blade", userId: null }] }));
   assert.ok(t.includes(`1. 🛡️ Tank - <:w8_${known.base}:${WEAPON_EMOJI[known.base]}> Broadsword - Open`));
   assert.ok(t.includes("2. 🛡️ Tank - Mystery Blade - Open"));
 });
 
 test("user text is escaped in the title, notes, role and weapon, and nothing can ping", () => {
-  const t = txt(view({ title: "@everyone **x**", notes: "@here *hi*", slots: [{ id: "s", position: 1, role: "_R_", weapon: "@W", userId: null }] }));
+  const t = txt(view({ title: "@everyone **x**", notes: "@here *hi*", slots: [{ id: "s", position: 1, party: 1, role: "_R_", weapon: "@W", userId: null }] }));
   assert.ok(t.includes("@​everyone \\*\\*x\\*\\*"));
   assert.ok(t.includes("@​here \\*hi\\*"));
   assert.ok(t.includes("1. 🔹 \\_R\\_ - @​W - Open"));
   assert.deepEqual((msg(view()) as any).allowed_mentions, { parse: [] });
   // a role like "# big" cannot break out of its row into a heading
-  const h = txt(view({ slots: [{ id: "s", position: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
+  const h = txt(view({ slots: [{ id: "s", position: 1, party: 1, role: "x\n# big", weapon: "Bow", userId: null }] }));
   const headings = h.split("\n").filter((l) => /^#{1,3} /.test(l));
   assert.deepEqual(headings.map((l) => l.split(" ")[0]), ["##"], "only the title is a heading");
 });
@@ -172,8 +172,8 @@ test("the menu lists only the open positions, so a taken one is gone from it", (
 test("the menu uses the weapon's emoji when it exists, and the role icon otherwise", () => {
   const known = WEAPONS.find((w) => w.name === "Longbow" && WEAPON_EMOJI[w.base])!;
   const menu = byId(view({ slots: [
-    { id: "s1", position: 1, role: "DPS", weapon: "Longbow", userId: null },
-    { id: "s2", position: 2, role: "Tank", weapon: "Mystery Blade", userId: null },
+    { id: "s1", position: 1, party: 1, role: "DPS", weapon: "Longbow", userId: null },
+    { id: "s2", position: 2, party: 1, role: "Tank", weapon: "Mystery Blade", userId: null },
   ] }), "join:")[0]!;
   assert.deepEqual(menu.options[1].emoji, { id: WEAPON_EMOJI[known.base], name: `w8_${known.base}` });
   assert.deepEqual(menu.options[2].emoji, { name: "🛡️" });
@@ -258,7 +258,7 @@ test("component count stays small at any size: 20 positions with a loot vote and
 
 test("worst case text: 20 slots with the longest roles and weapons and a long note still fits 4000 characters", () => {
   const long = Array.from({ length: 20 }, (_, i) => ({
-    id: `s${i}`, position: i + 1, role: "R".repeat(30), weapon: WEAPONS[i]!.name.padEnd(40, "x").slice(0, 40), userId: "123456789012345678", duty: "caller",
+    id: `s${i}`, position: i + 1, party: 1, role: "R".repeat(30), weapon: WEAPONS[i]!.name.padEnd(40, "x").slice(0, 40), userId: "123456789012345678", duty: "caller",
   }));
   const v = view({ slots: long, title: "T".repeat(100), notes: "N".repeat(500), hasLoot: true });
   assert.ok(txt(v).length <= 4000, String(txt(v).length));
@@ -275,11 +275,11 @@ test("the waitlist shows its members in order with the role they wait for, and n
 
 test("a menu to join the waitlist lists only the roles with no open position", () => {
   const mixed = view({ slots: [
-    { id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: "1" },
-    { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: "2" },
-    { id: "s3", position: 3, role: "Healer", weapon: "Fallen", userId: null },
-    { id: "s4", position: 4, role: "DPS", weapon: "Bow", userId: "3" },
-    { id: "s5", position: 5, role: "DPS", weapon: "Bow", userId: "4" },
+    { id: "s1", position: 1, party: 1, role: "Tank", weapon: "Mace", userId: "1" },
+    { id: "s2", position: 2, party: 1, role: "Healer", weapon: "Holy", userId: "2" },
+    { id: "s3", position: 3, party: 1, role: "Healer", weapon: "Fallen", userId: null },
+    { id: "s4", position: 4, party: 1, role: "DPS", weapon: "Bow", userId: "3" },
+    { id: "s5", position: 5, party: 1, role: "DPS", weapon: "Bow", userId: "4" },
   ], waitlist: [{ userId: "9", role: "DPS" }] });
   const menu = byId(mixed, "wait:")[0]!;
   assert.equal(menu.custom_id, "wait:c1");
@@ -318,7 +318,7 @@ test("header labels are followed by the measured number of en spaces, so the val
 });
 
 test("a full roster of long names still fits Discord's limits", () => {
-  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role number ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
+  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, party: 1, role: `Role number ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
   assert.deepEqual(discordProblems(msg(v)), []);
   const lines = raw(v).split("\n");
   assert.ok(lines.length > 10);
@@ -347,7 +347,7 @@ test("a live roster ends with small tips for the owner; finished or cancelled on
 });
 
 test("the tips still fit when the roster text is at Discord's limit", () => {
-  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
+  const v = view({ slots: Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, position: i + 1, party: 1, role: `Role ${i} with a long name`, weapon: "Great Arcane Staff of the Mist", userId: String(100000000000000000n + BigInt(i)), duty: "caller" })), notes: "x".repeat(900) });
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
@@ -401,10 +401,10 @@ test("two button rows at most: Leave, Tentative, Split, Regear, Ping players, th
 test("a role-only slot reads Player's choice, then the holder's own weapon with its icon; its menu entry is the role", () => {
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
   const v = view({ slots: [
-    { id: "a", position: 1, role: "Tank", weapon: "", userId: null },
-    { id: "b", position: 2, role: "Tank", weapon: "", userId: "111111111111111111", chosenWeapon: "Broadsword" },
-    { id: "c", position: 3, role: "Healer", weapon: "", userId: "222222222222222222" },
-    { id: "d", position: 4, role: "DPS", weapon: "", duty: "caller", userId: null },
+    { id: "a", position: 1, party: 1, role: "Tank", weapon: "", userId: null },
+    { id: "b", position: 2, party: 1, role: "Tank", weapon: "", userId: "111111111111111111", chosenWeapon: "Broadsword" },
+    { id: "c", position: 3, party: 1, role: "Healer", weapon: "", userId: "222222222222222222" },
+    { id: "d", position: 4, party: 1, role: "DPS", weapon: "", duty: "caller", userId: null },
   ] });
   const t = raw(v);
   assert.ok(t.includes("1. 🛡️ Tank - Player's choice - Open"));
@@ -452,7 +452,7 @@ test("the party count is the seated players; a waiting fill holds no seat", () =
 });
 
 test("the join menu lists every open position whatever the fills; the waitlist menu offers Fill first, then the full roles", () => {
-  const two = [...slots(2, 1, "Tank", "Mace"), ...slots(2, 1, "DPS", "Bow").map((s, n) => ({ ...s, id: `d${n}`, position: n + 3, userId: n === 0 ? "7" : null }))];
+  const two = [...slots(2, 1, "Tank", "Mace"), ...slots(2, 1, "DPS", "Bow").map((s, n) => ({ ...s, id: `d${n}`, position: n + 3, party: 1, userId: n === 0 ? "7" : null }))];
   const waitingFills = view({ slots: two, fills: ["9001", "9002"] });
   assert.equal(byId(waitingFills, "join:").length, 1, "nothing is held back for a fill");
   assert.deepEqual(byId(waitingFills, "wait:").length, 0, "every role still has an open position, so no waitlist menu");
@@ -472,7 +472,7 @@ test("a waiting fill is listed with what they asked for", () => {
 
 test("there is no line of only weapon icons; the icons sit on the position lines", () => {
   const known = WEAPONS.find((w) => w.name === "Broadsword" && WEAPON_EMOJI[w.base])!;
-  const v = view({ slots: [{ id: "a", position: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "b", position: 2, role: "Tank", weapon: "Broadsword", userId: null }] });
+  const v = view({ slots: [{ id: "a", position: 1, party: 1, role: "Tank", weapon: "Broadsword", userId: null }, { id: "b", position: 2, party: 1, role: "Tank", weapon: "Broadsword", userId: null }] });
   const blocks = (msg(v) as any).components[0].components.filter((c: any) => c.type === 10).map((c: any) => c.content as string);
   assert.ok(!blocks.some((b: string) => b.split("\n").some((l) => /^#* *(<a?:\w+:\d+> ?)+$/.test(l))), "no icon-only line");
   assert.equal(txt(v).split(`<:w8_${known.base}:`).length - 1, 2, "one icon per position line, nothing more");
@@ -561,8 +561,8 @@ test("FR-064: a blank content names its host too", () => {
 test("FR-067: a tentative player shows ❓ beside their name in a seat, applicants, fill and waitlist", () => {
   const t = txt(view({
     slots: [
-      { id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: "111" },
-      { id: "s2", position: 2, role: "Healer", weapon: "Holy", userId: "222" },
+      { id: "s1", position: 1, party: 1, role: "Tank", weapon: "Mace", userId: "111" },
+      { id: "s2", position: 2, party: 1, role: "Healer", weapon: "Holy", userId: "222" },
     ],
     applicants: [{ userId: "333", wants: "Healer, #2" }, { userId: "444", wants: "Any" }],
     fills: ["555", "666"], fillWants: { "555": "Any", "666": "Tank" },
@@ -592,7 +592,7 @@ test("FR-067: a Tentative button sits beside Leave, dimmed like Leave while nobo
   assert.equal(tent!.disabled, leave!.disabled);
   const ids = comps(v).filter((c) => c.type === 2).map((c) => String(c.custom_id).split(":")[0]);
   assert.equal(ids.indexOf("tent"), ids.indexOf("leave") + 1, "right after Leave");
-  const empty = view({ slots: [{ id: "s1", position: 1, role: "Tank", weapon: "Mace", userId: null }] });
+  const empty = view({ slots: [{ id: "s1", position: 1, party: 1, role: "Tank", weapon: "Mace", userId: null }] });
   assert.equal(byId(empty, "tent:")[0]!.disabled, true);
   assert.deepEqual(discordProblems(msg(view({ hasLoot: true }))), [], "six buttons fit in two rows");
 });

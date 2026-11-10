@@ -1,0 +1,45 @@
+// Parties of a call to arms (FR-070). Pure domain: no Discord or database imports (NFR-007).
+// slot.position stays unique per content (party 1 first, then party 2); the number shown restarts at 1 in each party.
+import { parseSlots } from "./parse.ts";
+import { ROLE_ORDER } from "./roles.ts";
+import type { Result, SlotDef } from "./types.ts";
+
+export const MAX_PARTY_SLOTS = 20;
+export const CTA_ROLES = ["Tank", "DTank", "Healer", "Support", "DPS"] as const;
+
+// The single hook a later ZvZ feature changes.
+export function maxPartiesFor(_kind: string, isCta: boolean): 1 | 2 {
+  return isCta ? 2 : 1;
+}
+
+export function parseCtaSlots(input: string, party: number, parties: number): Result<SlotDef[]> {
+  const parsed = parseSlots(input);
+  if (!parsed.ok) return parsed;
+  // parseSlots drops blank lines and keeps the order, so the nth slot is the nth non-blank line.
+  const lineNumbers = input.split(/\r?\n/).map((l, i) => ({ text: l.trim(), n: i + 1 })).filter((l) => l.text !== "").map((l) => l.n);
+  for (let i = 0; i < parsed.value.length; i++) {
+    const role = parsed.value[i]!.role;
+    if (!(ROLE_ORDER as readonly string[]).includes(role.trim().toLowerCase())) {
+      const where = parties > 1 ? `Party ${party}, line ${lineNumbers[i]}` : `Line ${lineNumbers[i]}`;
+      return { ok: false, error: `${where}: "${role}" is not a supported role. Use Tank, DTank, Healer, Support or DPS.` };
+    }
+  }
+  return parsed;
+}
+
+// Party 1 keeps the plain custom id; party 2 ends in "@2".
+export function splitParty(customId: string): { id: string; party: number } | null {
+  const at = customId.lastIndexOf("@");
+  if (at === -1) return { id: customId, party: 1 };
+  const suffix = customId.slice(at + 1);
+  if (suffix !== "1" && suffix !== "2") return null;
+  return { id: customId.slice(0, at), party: Number(suffix) };
+}
+
+export function withParty(customId: string, party: number): string {
+  return party === 1 ? customId : `${customId}@${party}`;
+}
+
+export function displayNumber(slot: { party: number; position: number }, all: { party: number; position: number }[]): number {
+  return slot.position - all.filter((s) => s.party < slot.party).length;
+}

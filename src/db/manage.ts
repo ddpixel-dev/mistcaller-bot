@@ -66,7 +66,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       from slot s left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${id} order by s.position`;
     const current: RosterSlot[] = slotRows.map((s) => ({
-      id: s.id, position: s.position, role: s.role, weapon: s.weapon ?? "", duty: s.duty ?? null, userId: s.user_id ?? null,
+      id: s.id, position: s.position, party: 1, role: s.role, weapon: s.weapon ?? "", duty: s.duty ?? null, userId: s.user_id ?? null,
     }));
     const plan = planSlotEdit(current, input.slots);
     if (!plan.ok) return { result: "slots_held", error: plan.error };
