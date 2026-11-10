@@ -42,7 +42,7 @@ test("one party: exactly one edit, to the view's message", async () => {
   const v = await view();
   await refreshRosters(deps, v);
   assert.equal(edits.length, 1);
-  assert.deepEqual(edits[0], { channel: "t1", message: "m1", body: renderRosterMessage(v) });
+  assert.deepEqual(edits[0], { channel: "t1", message: "m1", body: renderRosterMessage(v, 1) });
 });
 
 test("two parties: one edit per message", async () => {
@@ -51,6 +51,16 @@ test("two parties: one edit per message", async () => {
   await addParty2(sql, id);
   await refreshRosters(deps, await view());
   assert.deepEqual(edits.map((e) => e.message), ["m1", "m2"]);
+});
+
+test("each message gets its own party's rendering", async () => {
+  const { sql, id, deps, edits, view } = await setup();
+  await setMessageId(sql, id, "m1");
+  await addParty2(sql, id);
+  const v = await view();
+  await refreshRosters(deps, v);
+  assert.deepEqual(edits.map((e) => e.body), [renderRosterMessage(v, 1), renderRosterMessage(v, 2)]);
+  assert.notDeepEqual(edits[0]!.body, edits[1]!.body);
 });
 
 test("except skips that party", async () => {

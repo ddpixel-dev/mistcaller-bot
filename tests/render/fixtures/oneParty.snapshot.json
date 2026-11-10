@@ -1,0 +1,1148 @@
+{
+ "open": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "join:c1",
+        "placeholder": "Pick an open position (2)",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "2. Healer - Great Holy Staff",
+          "value": "s2",
+          "emoji": {
+           "id": "1560372779109322782",
+           "name": "w8_2H_HOLYSTAFF"
+          }
+         },
+         {
+          "label": "5. DPS - Bow",
+          "value": "s5",
+          "emoji": {
+           "id": "1560372528416039002",
+           "name": "w8_2H_BOW"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "wait:c1",
+        "placeholder": "Join the waitlist for a full role",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "~fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "Tank (all taken)",
+          "value": "Tank",
+          "emoji": {
+           "name": "🛡️"
+          },
+          "description": "0 waiting"
+         },
+         {
+          "label": "Support (all taken)",
+          "value": "Support",
+          "emoji": {
+           "name": "🤝"
+          },
+          "description": "0 waiting"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "crowded": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "join:c1",
+        "placeholder": "Pick an open position (2)",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "2. Healer - Great Holy Staff",
+          "value": "s2",
+          "emoji": {
+           "id": "1560372779109322782",
+           "name": "w8_2H_HOLYSTAFF"
+          }
+         },
+         {
+          "label": "5. DPS - Bow",
+          "value": "s5",
+          "emoji": {
+           "id": "1560372528416039002",
+           "name": "w8_2H_BOW"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "wait:c1",
+        "placeholder": "Join the waitlist for a full role",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "~fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "Tank (all taken)",
+          "value": "Tank",
+          "emoji": {
+           "name": "🛡️"
+          },
+          "description": "1 waiting"
+         },
+         {
+          "label": "Support (all taken)",
+          "value": "Support",
+          "emoji": {
+           "name": "🤝"
+          },
+          "description": "0 waiting"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "locked": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n🔒 **The roll is closed.**\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "done": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 4868682,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n🏁 **Concluded.**\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": true
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "cancelled": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 7039851,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ✖ CANCELLED — Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n✖ **Cancelled.** This content will not take place.\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": true
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": true
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "selection": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚠️ **Disclaimer:** the host picks the party.\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "join:c1",
+        "placeholder": "Apply for a position (2)",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "2. Healer - Great Holy Staff",
+          "value": "s2",
+          "emoji": {
+           "id": "1560372779109322782",
+           "name": "w8_2H_HOLYSTAFF"
+          }
+         },
+         {
+          "label": "5. DPS - Bow",
+          "value": "s5",
+          "emoji": {
+           "id": "1560372528416039002",
+           "name": "w8_2H_BOW"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "cta": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 1849994,
+    "components": [
+     {
+      "type": 10,
+      "content": "## 🏰 Ava roam\n🏷️ **Type**      **PvP · ZvZ**\n👑 **Host**      <@900>\n📣 **Call to arms**\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> ❓ - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open\n\n📨 **Applicants (1):** <@401> (Tank)\n🔁 **Fill (2):** <@301> ❓ (Any) · <@302> (Healer, \\#7)\n🕒 **Waitlist (2):** 1. <@201> (Tank) · 2. <@202> (Healer)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "join:c1",
+        "placeholder": "Pick an open position (2)",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "2. Healer - Great Holy Staff",
+          "value": "s2",
+          "emoji": {
+           "id": "1560372779109322782",
+           "name": "w8_2H_HOLYSTAFF"
+          }
+         },
+         {
+          "label": "5. DPS - Bow",
+          "value": "s5",
+          "emoji": {
+           "id": "1560372528416039002",
+           "name": "w8_2H_BOW"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "wait:c1",
+        "placeholder": "Join the waitlist for a full role",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "~fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "Tank (all taken)",
+          "value": "Tank",
+          "emoji": {
+           "name": "🛡️"
+          },
+          "description": "1 waiting"
+         },
+         {
+          "label": "Support (all taken)",
+          "value": "Support",
+          "emoji": {
+           "name": "🤝"
+          },
+          "description": "0 waiting"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "fullRoles": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (2/2)** ▰▰▰▰▰▰▰▰▰▰"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_MACE:1560372915646500974> Mace - <@111>\n2. 💚 Healer - Holy - <@112>\n🕒 **Waitlist (1):** 1. <@201> (Tank)"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "wait:c1",
+        "placeholder": "Join the waitlist for a full role",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "~fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "Tank (all taken)",
+          "value": "Tank",
+          "emoji": {
+           "name": "🛡️"
+          },
+          "description": "1 waiting"
+         },
+         {
+          "label": "Healer (all taken)",
+          "value": "Healer",
+          "emoji": {
+           "name": "💚"
+          },
+          "description": "0 waiting"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 1,
+        "label": "Split (1)",
+        "custom_id": "vote:c1:split",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 3,
+        "label": "Regear (2)",
+        "custom_id": "vote:c1:regear",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "noLoot": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Notes:** Bring food\n═══════════════════════\n**Party (3/5)** ▰▰▰▰▰▰▱▱▱▱"
+     },
+     {
+      "type": 10,
+      "content": "1. 🛡️ Tank - <:w8_MAIN_SWORD:1560372551815794832> Broadsword - <@111>\n2. 💚 Healer - <:w8_2H_HOLYSTAFF:1560372779109322782> Great Holy Staff - Open\n3. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - <@113> - 📯 Caller\n4. 🤝 Support - <:w8_MAIN_CURSEDSTAFF:1560372610787713086> Cursed Staff - <@114>\n5. ⚔️ DPS - <:w8_2H_BOW:1560372528416039002> Bow - Open"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "join:c1",
+        "placeholder": "Pick an open position (2)",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "2. Healer - Great Holy Staff",
+          "value": "s2",
+          "emoji": {
+           "id": "1560372779109322782",
+           "name": "w8_2H_HOLYSTAFF"
+          }
+         },
+         {
+          "label": "5. DPS - Bow",
+          "value": "s5",
+          "emoji": {
+           "id": "1560372528416039002",
+           "name": "w8_2H_BOW"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 3,
+        "custom_id": "wait:c1",
+        "placeholder": "Join the waitlist for a full role",
+        "options": [
+         {
+          "label": "Fill (choose what you can play)",
+          "value": "~fill",
+          "emoji": {
+           "name": "🔁"
+          }
+         },
+         {
+          "label": "Tank (all taken)",
+          "value": "Tank",
+          "emoji": {
+           "name": "🛡️"
+          },
+          "description": "0 waiting"
+         },
+         {
+          "label": "Support (all taken)",
+          "value": "Support",
+          "emoji": {
+           "name": "🤝"
+          },
+          "description": "0 waiting"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 4,
+        "label": "Leave",
+        "emoji": {
+         "name": "🚪"
+        },
+        "custom_id": "leave:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Tentative",
+        "emoji": {
+         "name": "❓"
+        },
+        "custom_id": "tent:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Ping players",
+        "emoji": {
+         "name": "📣"
+        },
+        "custom_id": "ping:c1",
+        "disabled": false
+       },
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ },
+ "blank": {
+  "flags": 32768,
+  "components": [
+   {
+    "type": 17,
+    "accent_color": 2837936,
+    "components": [
+     {
+      "type": 10,
+      "content": "## ⚔️ Ava roam\n🏷️ **Type**      **PvP**\n👑 **Host**      <@900>\n⚙️ **Gear tier**   T5.3–T7.0\n🕰️ **UTC**       Wed 7 Oct 2026, 18:00 UTC\n🌍 **Your time**  <t:1791396000:f> · <t:1791396000:R>\n📝 **Description:** Bring food"
+     },
+     {
+      "type": 1,
+      "components": [
+       {
+        "type": 2,
+        "style": 2,
+        "label": "Manage",
+        "emoji": {
+         "name": "🛠️"
+        },
+        "custom_id": "mg:c1"
+       }
+      ]
+     },
+     {
+      "type": 10,
+      "content": "-# 💡 **Tips for the owner**\n-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
+     }
+    ]
+   }
+  ],
+  "allowed_mentions": {
+   "parse": []
+  }
+ }
+}

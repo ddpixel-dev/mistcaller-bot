@@ -2,6 +2,7 @@ import { buildRefText } from "../domain/buildref.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef, kindIcon } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
+import { displayNumber, withParty } from "../domain/parties.ts";
 import { CANCELLED_TAG, RULE, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
 import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
 
@@ -58,13 +59,13 @@ export function voteLine(view: RosterView): string {
 // The rows (ADR 0028, owner decision 2026-10-24): one numbered line per position, with no role headings. A row reads
 // `n. RoleIcon Role - WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
 // The weapon icon on each row is enough: the line of only weapon icons (FR-046) was removed (ADR 0029).
-function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] = []): string[] {
+function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] = [], all: RosterSlot[] = slots): string[] {
   return slots.map((s) => {
     // A role-only slot shows the holder's own weapon once chosen, and "Player's choice" until then (FR-030).
     const weaponName = s.weapon || s.chosenWeapon || "";
     const emoji = withEmoji && weaponName ? weaponEmojiTag(weaponName) : "";
     const duty = dutyDef(s.duty);
-    return `${s.position}. ${roleIcon(s.role)} ${escapeText(s.role)} - ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
+    return `${displayNumber(s, all)}. ${roleIcon(s.role)} ${escapeText(s.role)} - ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
       s.userId ? `<@${s.userId}>${tentative.includes(s.userId) ? TENTATIVE : ""}` : WORDS.open
     }${duty ? ` - ${duty.icon} ${duty.label}` : ""}`;
   });
@@ -76,7 +77,9 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] =
 const EN = "\u2002";
 const HEADER_PAD: Record<string, number> = { Type: 6, Host: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2 };
 
-function headerText(view: RosterView, filled: number, notes: boolean): string {
+function headerText(view: RosterView, filled: number, notes: boolean, party = 1, count = { filled, of: view.slots.length }): string {
+  // A later party's message is small: its heading and its own count (the details are on party 1's message).
+  if (party > 1) return `## Party ${party}\n${partyCountLine(count.filled, count.of)}`;
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
   const typeLabel = TYPE_LABEL[view.type];
   const def = kindDef(view.type, view.kind);
@@ -88,6 +91,7 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   const lines = [
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
+    ...(view.partyCount > 1 && !view.blank ? ["**Party 1**"] : []),
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
     // FR-064: the creator, as a mention (it shows a name and never pings: every message sends no mentions).
     ...(view.ownerId ? [fact("👑", "Host", `<@${view.ownerId}>`)] : []),
@@ -102,7 +106,8 @@ function headerText(view: RosterView, filled: number, notes: boolean): string {
   if (banner) lines.push(banner);
   if (notes && view.notes) lines.push(`📝 **${view.blank ? "Description" : "Notes"}:** ${escapeText(view.notes)}`);
   // A blank content has no roster, so no party line (FR-060).
-  if (!view.blank) lines.push(RULE, `**${WORDS.company} (${filled}/${view.slots.length})** ${fillBar(filled, view.slots.length)}`);
+  // A two-party content counts each party on its own message (n of that party's positions) and the content total on party 1.
+  if (!view.blank) lines.push(RULE, `${partyCountLine(count.filled, count.of)}${view.partyCount > 1 && party === 1 ? ` · **Total** ${filled}/${view.slots.length}` : ""}`);
   return lines.join("\n");
 }
 
@@ -115,6 +120,8 @@ export const CTA_NOTE = "📣 **Call to arms**";
 // FR-058: the disclaimer of a host-selected event, in the post itself.
 export const SELECTION_NOTE = "⚠️ **Disclaimer:** the host picks the party.";
 
+const partyCountLine = (filled: number, of: number) => `**${WORDS.company} (${filled}/${of})** ${fillBar(filled, of)}`;
+
 const text = (content: string) => ({ type: 10, content });
 
 // Small grey tips at the very bottom of a live roster (owner request 2026-10-08).
@@ -123,12 +130,21 @@ export const OWNER_TIPS = [
   "-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more",
 ].join("\n");
 
-export function renderRosterMessage(view: RosterView): {
+// `party` picks which message of a call to arms to render (FR-070). Party 1 is the whole message of any other content;
+// a later party shows only its rows, lists and menus, with every custom id ending in its party.
+export function renderRosterMessage(view: RosterView, party = 1): {
   flags: number;
   components: unknown[];
   allowed_mentions: { parse: [] };
 } {
-  const filled = view.slots.filter((s) => s.userId !== null).length;
+  const filled = view.slots.filter((s) => s.userId !== null).length; // the whole content
+  const mine = view.slots.filter((s) => s.party === party);
+  const myFilled = mine.filter((s) => s.userId !== null).length;
+  const count = { filled: myFilled, of: mine.length };
+  const inParty = (u: string, explicit?: number) => (explicit ?? view.partyOf?.[u] ?? 1) === party;
+  const first = party === 1;
+  const tips = first ? OWNER_TIPS.length : 0;
+  const id = (c: string) => withParty(c, party);
   const live = view.status === "open" || view.status === "locked";
 
   // FR-060: a blank content is its details and a Manage button: no roster, menus, Leave, vote or Ping.
@@ -146,19 +162,22 @@ export function renderRosterMessage(view: RosterView): {
   // Keep the text under Discord's 4000: drop the weapon icons, then the notes, then cut rows, only if needed.
   let withEmoji = true;
   let notes = true;
-  const waitLen = Math.min(600, (view.waitlist ?? []).reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, (view.fills ?? []).length * 50 + 20) + Math.min(600, (view.applicants ?? []).length * 50 + 20) + 2;
+  const waitingAll = (view.waitlist ?? []).filter((w) => inParty(w.userId, w.party));
+  const fillsAll = (view.fills ?? []).filter((u) => inParty(u));
+  const applicantsAll = (view.applicants ?? []).filter((a) => inParty(a.userId));
+  const waitLen = Math.min(600, waitingAll.reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, fillsAll.length * 50 + 20) + Math.min(600, applicantsAll.length * 50 + 20) + 2;
   const tent = (u: string) => (view.tentative?.includes(u) ? TENTATIVE : "");
   const waitTentative = (view.tentative ?? []).length * TENTATIVE.length;
-  const fits = () => headerText(view, filled, notes).length + waitLen + waitTentative + OWNER_TIPS.length + rowLines(view.slots, withEmoji, view.tentative).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, filled, notes, party, count).length + waitLen + waitTentative + tips + rowLines(mine, withEmoji, view.tentative, view.slots).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
-  const waiting = view.waitlist ?? [];
-  const fills = view.fills ?? [];
+  const waiting = waitingAll;
+  const fills = fillsAll;
   const fillText = fills.length
     ? `🔁 **Fill (${fills.length}):** ${fills.map((u) => `<@${u}>${tent(u)} (${escapeText(view.fillWants?.[u] ?? "Any")})`).join(" · ")}`.slice(0, 600)
     : "";
-  const applicants = view.applicants ?? [];
+  const applicants = applicantsAll;
   const applicantText = applicants.length
     ? `📨 **Applicants (${applicants.length}):** ${applicants.map((a) => `<@${a.userId}>${tent(a.userId)} (${escapeText(a.wants)})`).join(" · ")}`.slice(0, 600)
     : "";
@@ -169,25 +188,25 @@ export function renderRosterMessage(view: RosterView): {
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}>${tent(w.userId)} (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
   ].filter(Boolean).join("\n");
-  const budget = TEXT_LIMIT - headerText(view, filled, notes).length - waitText.length - 2 - OWNER_TIPS.length;
+  const budget = TEXT_LIMIT - headerText(view, filled, notes, party, count).length - waitText.length - 2 - tips;
   let used = 0;
-  const kept = rowLines(view.slots, withEmoji, view.tentative).filter((l) => (used += l.length + 1) <= budget);
+  const kept = rowLines(mine, withEmoji, view.tentative, view.slots).filter((l) => (used += l.length + 1) <= budget);
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
   // A blank line sets the applicants apart from the players (owner request 2026-11-06).
-  const body: unknown[] = [text(headerText(view, filled, notes)), text([...kept, ...(waitText ? [...(applicantText ? [""] : []), waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, filled, notes, party, count)), text([...kept, ...(waitText ? [...(applicantText ? [""] : []), waitText] : [])].join("\n"))];
 
-  const open = view.slots.filter((s) => s.userId === null);
+  const open = mine.filter((s) => s.userId === null);
   if (view.status === "open" && open.length > 0) {
     body.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `join:${view.id}`, placeholder: view.selection ? `Apply for a position (${open.length})` : `Pick an open position (${open.length})`,
+        type: 3, custom_id: id(`join:${view.id}`), placeholder: view.selection ? `Apply for a position (${open.length})` : `Pick an open position (${open.length})`,
         options: [
           { label: "Fill (choose what you can play)", value: FILL_VALUE, emoji: { name: "🔁" } },
           ...open.slice(0, 24).map((s) => ({
-            label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+            label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
             value: s.id,
             emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(s.role) },
           })),
@@ -196,14 +215,14 @@ export function renderRosterMessage(view: RosterView): {
     });
   }
   // A role with no open position can be waited for (FR-007, per role).
-  const fullRoles = [...new Set(view.slots.map((s) => s.role))].filter(
-    (role) => !view.slots.some((s) => s.role === role && s.userId === null),
+  const fullRoles = [...new Set(mine.map((s) => s.role))].filter(
+    (role) => !mine.some((s) => s.role === role && s.userId === null),
   );
   if (view.status === "open" && fullRoles.length > 0 && !view.selection) {
     body.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `wait:${view.id}`, placeholder: "Join the waitlist for a full role",
+        type: 3, custom_id: id(`wait:${view.id}`), placeholder: "Join the waitlist for a full role",
         options: [
           { label: "Fill (choose what you can play)", value: WAIT_FILL_VALUE, emoji: { name: "🔁" } },
           ...fullRoles.slice(0, 24).map((role) => ({
@@ -216,27 +235,27 @@ export function renderRosterMessage(view: RosterView): {
   }
   const buttons: unknown[] = [
     {
-      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`,
-      disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
+      type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: id(`leave:${view.id}`),
+      disabled: !(live && (myFilled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
     },
   ];
   // FR-067: one shared button for everyone, like Leave; it acts for whoever presses it, and the ❓ shows on the roster.
   buttons.push({
-    type: 2, style: 2, label: "Tentative", emoji: { name: "❓" }, custom_id: `tent:${view.id}`,
-    disabled: !(live && (filled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
+    type: 2, style: 2, label: "Tentative", emoji: { name: "❓" }, custom_id: id(`tent:${view.id}`),
+    disabled: !(live && (myFilled > 0 || waiting.length > 0 || fills.length > 0 || applicants.length > 0)),
   });
-  if (view.hasLoot) buttons.push(...voteButtons(view));
+  if (first && view.hasLoot) buttons.push(...voteButtons(view));
   // The owner pings the signed-up players by private message (checked when pressed; shown to everyone).
-  buttons.push({
+  if (first) buttons.push({
     type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
-    disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || fills.length > 0)),
+    disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || (view.fills ?? []).length > 0)), // the whole content
   });
   // The creator and admins open their private Manage panel (FR-048); checked when pressed, shown to everyone. A finished
   // roster keeps it, the one enabled control, for the attendance and reopen (ADR 0029).
-  if (live || view.status === "done") buttons.push({ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
+  if (first && (live || view.status === "done")) buttons.push({ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
   // A row holds five buttons at most.
   for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
-  if (live) body.push(text(OWNER_TIPS));
+  if (live && first) body.push(text(OWNER_TIPS));
 
   return {
     flags: IS_COMPONENTS_V2,

@@ -14,7 +14,7 @@ export async function refreshRosters(deps: Deps, view: RosterView, opts: { excep
   for (const m of messages) {
     if (m.party === opts.except) continue;
     try {
-      await deps.rest.editMessage(view.threadId, m.messageId, renderRosterMessage(view));
+      await deps.rest.editMessage(view.threadId, m.messageId, renderRosterMessage(view, m.party));
     } catch (e) {
       console.error(JSON.stringify({
         evt: "roster_edit_failed", party: m.party, name: e instanceof Error ? e.name : "unknown",
