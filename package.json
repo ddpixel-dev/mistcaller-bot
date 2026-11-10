@@ -1,7 +1,7 @@
 {
   "name": "albion-bot",
   "private": true,
-  "version": "0.31.6",
+  "version": "0.31.7",
   "type": "module",
   "engines": {
     "node": "24.x"
