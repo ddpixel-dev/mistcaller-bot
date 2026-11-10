@@ -8,6 +8,7 @@ import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
 import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
@@ -68,7 +69,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
     const view = await getRosterView(deps.sql, got[0]!, deps.now());
     if (view?.messageId) {
       try {
-        await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+        await refreshRosters(deps, view, { strict: true });
         await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
         return pickerResponse(got[0]!, `You are in **${slot.position}. ${escapeText(slot.role)}**. Which weapon will you bring? This is optional.`);
       } catch (err) {

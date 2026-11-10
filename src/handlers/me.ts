@@ -8,6 +8,7 @@ import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
 import type { RosterView } from "../domain/types.ts";
 import { escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOT_FOUND = "This content or position no longer exists.";
@@ -67,7 +68,7 @@ async function refresh(deps: Deps, id: string, userId: string, promoted: Promoti
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   try {
-    if (view.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }

@@ -17,6 +17,7 @@ import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 import { announcePromotions } from "./waitlist.ts";
 import type { Promotion } from "../db/signup.ts";
 import { TYPE_LABEL, kindDef } from "../domain/kinds.ts";
@@ -47,7 +48,7 @@ export async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view?.messageId) return false;
-    await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    await refreshRosters(deps, view);
     return true;
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));

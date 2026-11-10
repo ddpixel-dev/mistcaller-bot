@@ -7,6 +7,7 @@ import { purgeDrafts } from "../db/draft.ts";
 import { pendingReports } from "../db/attendance.ts";
 import { postReport } from "../handlers/attendance.ts";
 import { escapeText, renderRosterMessage, voteLine } from "../render/roster.ts";
+import { refreshRosters } from "../handlers/rosters.ts";
 import { REMINDER_LEAD_MS, VOTE_CUTOFF_MS } from "../domain/vote.ts";
 
 export function isAuthorized(header: string | null, secret: string): boolean {
@@ -28,20 +29,11 @@ function logFailure(evt: string, contentId: string, e: unknown): void {
   );
 }
 
-// Edits the roster message. A 404 (message deleted) is logged and treated as handled.
-// Any other error propagates to the caller.
+// Edits every roster message. A failed edit is logged by refreshRosters and does not fail the job.
 async function editRoster(deps: Deps, id: string): Promise<void> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view || !view.messageId) return;
-  try {
-    await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
-  } catch (e) {
-    if (e instanceof DiscordApiError && e.status === 404) {
-      logFailure("roster_edit_404", id, e);
-      return;
-    }
-    throw e;
-  }
+  await refreshRosters(deps, view, { strict: true });
 }
 
 // Content nobody ended is ended by the scheduler this long after its start, or after its last reopen if later (owner

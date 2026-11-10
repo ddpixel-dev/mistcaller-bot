@@ -12,6 +12,7 @@ import {
 import { canManage, isAdmin } from "../domain/permissions.ts";
 import { renderAttendanceForm, renderReport } from "../render/attendance.ts";
 import { renderRosterMessage } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -81,7 +82,7 @@ export async function handleEnd(deps: Deps, i: Interaction): Promise<Interaction
   if (result === "unavailable") return reply("This content is already finished or cancelled.");
   try {
     const view = await getRosterView(deps.sql, a.contentId, deps.now());
-    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view?.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
@@ -100,7 +101,7 @@ export async function handleReopen(deps: Deps, i: Interaction): Promise<Interact
   if (result === "not_ended") return reply("This content is not ended, so there is nothing to reopen.");
   try {
     const view = await getRosterView(deps.sql, a.contentId, deps.now());
-    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view?.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
