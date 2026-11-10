@@ -204,3 +204,28 @@ test("startThread starts a public thread from a message and returns its id", asy
   assert.deepEqual(await rest.startThread!("c1", "m9", "Call to arms"), { id: "m9" });
   assert.deepEqual(calls, [{ method: "POST", url: "/channels/c1/messages/m9/threads", body: { name: "Call to arms", auto_archive_duration: 10080 } }]);
 });
+
+test("getMessage reads a message and keeps content, embeds, flags and attachment urls", async () => {
+  const calls: { method: string; url: string }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: url.replace("https://discord.com/api/v10", "") });
+    return res(200, {
+      id: "m1", content: "Join us", flags: 4, embeds: [{ type: "rich", title: "T" }],
+      attachments: [{ id: "a1", url: "https://cdn.example/a.png", filename: "a.png", size: 5 }],
+    });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  assert.deepEqual(await rest.getMessage!("c1", "m1"), {
+    ok: true,
+    message: { content: "Join us", flags: 4, embeds: [{ type: "rich", title: "T" }], attachments: [{ url: "https://cdn.example/a.png" }] },
+  });
+  assert.deepEqual(calls, [{ method: "GET", url: "/channels/c1/messages/m1" }]);
+});
+
+test("getMessage maps 404 to missing and 403 to forbidden, and throws on 500", async () => {
+  const get = (status: number) =>
+    createRest("token", (async () => res(status, { message: "x" })) as unknown as typeof fetch, async () => {}).getMessage!("c1", "m1");
+  assert.deepEqual(await get(404), { ok: false, reason: "missing" });
+  assert.deepEqual(await get(403), { ok: false, reason: "forbidden" });
+  await assert.rejects(get(500), (e: unknown) => e instanceof DiscordApiError && e.status === 500);
+});

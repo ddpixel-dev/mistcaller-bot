@@ -1,3 +1,5 @@
+import type { SourceMessage } from "../domain/ctamsg.ts";
+
 const API = "https://discord.com/api/v10";
 export const USER_AGENT = "DiscordBot (content-roster-bot, 0.1.0)";
 const MAX_RETRY_WAIT_MS = 2000;
@@ -31,6 +33,8 @@ export type Rest = {
   startThread?(channelId: string, messageId: string, name: string): Promise<{ id: string }>;
   // Pin a message in a post or channel (needs Pin Messages).
   pinMessage?(channelId: string, messageId: string): Promise<void>;
+  // Read one message (the source of the CTA copy). Missing and forbidden are answers, not errors.
+  getMessage?(channelId: string, messageId: string): Promise<{ ok: true; message: SourceMessage } | { ok: false; reason: "missing" | "forbidden" }>;
 };
 
 export const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -108,6 +112,26 @@ export function createRest(
       } catch (err) {
         if (!(err instanceof DiscordApiError) || (err.status !== 404 && err.status !== 405)) throw err;
         await call("PUT", `/channels/${channelId}/pins/${messageId}`, undefined);
+      }
+    },
+    async getMessage(channelId, messageId) {
+      try {
+        const m = (await call("GET", `/channels/${channelId}/messages/${messageId}`, undefined)) as {
+          content?: unknown; embeds?: unknown; attachments?: unknown; flags?: unknown;
+        };
+        const message: SourceMessage = {
+          content: typeof m.content === "string" ? m.content : "",
+          embeds: Array.isArray(m.embeds) ? (m.embeds as SourceMessage["embeds"]) : [],
+          attachments: (Array.isArray(m.attachments) ? m.attachments : [])
+            .filter((a): a is { url: string } => typeof (a as { url?: unknown })?.url === "string")
+            .map((a) => ({ url: a.url })),
+          ...(typeof m.flags === "number" ? { flags: m.flags } : {}),
+        };
+        return { ok: true, message };
+      } catch (err) {
+        if (err instanceof DiscordApiError && err.status === 404) return { ok: false, reason: "missing" };
+        if (err instanceof DiscordApiError && err.status === 403) return { ok: false, reason: "forbidden" };
+        throw err;
       }
     },
     async startThread(channelId, messageId, name) {
