@@ -80,8 +80,10 @@ export async function submitAttendance(sql: Sql, a: { contentId: string; markedB
       return "ok";
     }
     // Two parties: this party is submitted; the content is submitted once every party is (it can be redone until then).
-    const done = [...new Set([...(c.attendance_parties_submitted ?? []).map(Number), a.party])].sort();
-    const all = done.length >= (c.party_count as number);
+    const done = [...new Set([...(c.attendance_parties_submitted ?? []).map(Number), a.party])].sort((x, y) => x - y);
+    // A party with nobody signed up has nothing to submit, so it counts as submitted.
+    const populated = new Set((await tx`select distinct party from signup where content_id = ${a.contentId} and status in ('signed', 'fill')`).map((r) => Number(r.party)));
+    const all = Array.from({ length: c.party_count as number }, (_, k) => k + 1).every((n) => done.includes(n) || !populated.has(n));
     await tx`update content set attendance_parties_submitted = ${done}::smallint[],
       attendance_submitted_at = ${all ? a.now : null} where id = ${a.contentId}`;
     return "ok";

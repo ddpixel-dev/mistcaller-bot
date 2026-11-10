@@ -469,3 +469,23 @@ test("two parties: a party never shown stays not recorded when the other is subm
   await d(click(`att:submit:${id2}`));
   assert.deepEqual(await marks(sql, id2), { [P1]: "no_show", [P2]: "no_show" });
 });
+
+test("two parties: an empty party counts as submitted, so submitting the other posts the report once", async () => {
+  const { sql, id2, d, posts } = await setup2();
+  await sql`delete from signup where content_id = ${id2} and party = 2`;
+  const form: any = await d(click(`att:g:${id2}@2`));
+  assert.deepEqual(form.data.components, []);
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  const r: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(r).includes("report is posted"), text(r));
+  assert.equal(posts.length, 1);
+  await d(click(`att:submit:${id2}`));
+  assert.equal(posts.length, 1);
+});
+
+test("two parties: with nobody signed up the form does not crash", async () => {
+  const { sql, id2, d } = await setup2();
+  await sql`delete from signup where content_id = ${id2}`;
+  const r: any = await d(click(`att:g:${id2}`));
+  assert.ok(text(r).includes("nothing to record"));
+});
