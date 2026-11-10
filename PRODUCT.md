@@ -346,7 +346,7 @@ status: built, release 0.31.6 (owner request 2026-11-08, ADR 0043; changes FR-05
 A post the bot makes shall be named `Title | 12 Nov | 20:00 UTC` (the title, the day and month, the start in UTC), cut only in the title to stay within 100 characters. It is renamed when the title or the start changes; a refused rename (Discord allows two per ten minutes) is explained and the old name stays.
 
 ### FR-069: Pinned CTA message
-status: accepted 2026-11-10, not built (owner request 2026-11-10, ADR 0045; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0031)
+status: built, release 0.31.7 (owner request 2026-11-10, ADR 0045; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0031)
 An admin shall set one message with `cta-msg` (a message link) in `/content setup`, and every CTA created afterwards shall carry a copy of it as a separate, pinned message below the roster. The copy keeps the text, embeds and channel mentions, and never pings anyone. A missing source or a failed pin does not stop the CTA; the creator is told privately.
 
 ### FR-070: Two parties in a CTA

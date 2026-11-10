@@ -216,7 +216,7 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
     const got = await deps.rest.getMessage(link.value.channelId, link.value.messageId);
     if (!got.ok) return reply("I could not read that message, so the CTA message was not set. Check the link, and give the bot View Channel and Read Message History in that channel.");
     await setCtaMessage(deps.sql, i.guild_id, link.value.channelId, link.value.messageId);
-    lines.push("CTA message set: it is copied under every CTA you schedule.");
+    lines.push("CTA message set: it is copied and pinned under every CTA you schedule. Keep View Channel and Read Message History for the bot in the channel of the source message, and Pin Messages in the CTA channel.");
   } else if (clearCtaMsg) {
     lines.push((await clearCtaMessage(deps.sql, i.guild_id)) ? "CTA message cleared: CTAs no longer carry a copied message." : "The CTA message was not set.");
   }

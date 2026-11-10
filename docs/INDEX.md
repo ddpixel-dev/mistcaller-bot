@@ -46,7 +46,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0044 Two parties for a CTA](decisions/0044-cta-two-parties-one-message-each.md): accepted; one roster message per party, fill and waitlist per party, supersedes 0004 in part
 - [0045 Pinned CTA message](decisions/0045-cta-pinned-message-copied-at-creation.md): accepted; copied at creation from a message link, pinned below the roster
 - [CTA pinned message and two parties design](plan/2026-11-10-cta-pinned-message-and-parties-design.md): accepted 2026-11-10 (FR-069, FR-070)
-- [CTA pinned message implementation plan](plan/2026-11-10-cta-message-implementation.md): six tasks on `feature/cta-message`, migration 0031, awaiting owner review (FR-069)
+- [CTA pinned message implementation plan](plan/2026-11-10-cta-message-implementation.md): six tasks on `feature/cta-message`, migration 0031, built in 0.31.7 (FR-069)
 - [CTA two parties implementation plan](plan/2026-11-10-cta-parties-implementation.md): thirteen tasks on `feature/cta-parties`, migration 0032, awaiting owner review (FR-070)
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
 - [Tentative sign-up design](plan/2026-11-08-tentative-signup-design.md): ❓ toggle button, flag on the sign-up row, migration 0030 (FR-067, accepted)
