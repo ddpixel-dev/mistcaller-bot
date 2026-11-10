@@ -428,8 +428,8 @@ Guided steps shall let the officer find a weapon through a weapon list taken fro
 ## Non-functional requirements
 
 ### NFR-001: Security
-status: accepted
-Every Discord request shall be signature-verified before parsing. The cron route shall require a secret header. Secrets live only in environment variables. All tables have row-level security enabled with no policies. Queries are parameterized. The bot has no Administrator permission and no privileged intents. Authorization uses only the verified user and guild.
+status: accepted; changed 2026-11-10 by ADR 0046 (Message Content intent on)
+Every Discord request shall be signature-verified before parsing. The cron route shall require a secret header. Secrets live only in environment variables. All tables have row-level security enabled with no policies. Queries are parameterized. The bot has no Administrator permission and no privileged intents except Message Content (ADR 0046, 2026-11-10, for FR-069). Authorization uses only the verified user and guild.
 
 ### NFR-002: Responsiveness
 status: accepted
