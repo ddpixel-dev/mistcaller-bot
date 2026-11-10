@@ -242,3 +242,18 @@ The spec asked this plan to list every place. `slot.position` stays unique per c
 - [ ] **Step 3: Update the help text, then the records:** FR-070 `built` with the release number, the spec's refinement note confirmed, ZvZ brief points at the built model, Current state in `PRODUCT.md`. Run the audit in `docs/process/guardrails.md`. Expected: no new lines.
 - [ ] **Step 4: Verify end to end by hand** on a test guild: create a two-party CTA with a wrong role (error), then a valid one (three pinned messages if `cta-msg` is set), join, move between parties, fill, leave, host Assign and Remove for each party, attendance, cancel.
 - [ ] **Step 5: Release** by the checklist of `2026-11-06-zvz-brief.md`: `release/x.y.z`, bump `package.json` and `package-lock.json`, **run `scripts/migrate.ts` on production before the deploy**, merge to `main`, tag, push, wait for READY, `scripts/register-commands.ts` only if commands changed, write `changelog/x.y.z.md` (how to create a two-party CTA, the supported roles, how players choose a party), `scripts/post-changelog.ts x.y.z --dry-run`, then without the flag. Commit `docs: FR-070 built`.
+
+### Task 14: CTA announcement and thread in the post-name format (owner decision 2026-11-10, option B)
+
+**Files:** Modify `src/handlers/create.ts` (the CTA branch of `publish`), `src/handlers/manage.ts` (the title/start edit that renames the post), tests `tests/handlers/create.test.ts`, `tests/handlers/manage.test.ts`.
+
+**Interfaces:**
+- Consumes: `postName(title, startsAt)` (src/domain/postname.ts, ADR 0043), `rosterButton({ guildId, threadId, messageId })` (src/render/roster.ts, FR-063), `getCtaChannel` (src/db/cta.ts).
+- Produces: a CTA thread is named `postName(title, startsAt)` when it is started (today it is the bare title). The announcement reads `📣 **<postName>** · <t:epoch:f>` and, once the roster is posted, is edited to carry the Roster button (`rosterButton`) pointing at party 1's roster. A thread started from a message has the message's id, so the announcement is `(ctaChannel, content.threadId)`.
+- On a title or start edit of a CTA, after the thread is renamed, the announcement is edited to the new text (keeping the button). A failed announcement edit is logged (no text) and never fails the edit.
+
+- [ ] **Step 1: Write the failing tests:** a created CTA starts its thread with the name `Raid | 12 Nov | 20:00 UTC`; the announcement content starts `📣 **Raid | 12 Nov | 20:00 UTC**`; after the roster is posted the announcement is edited with a Roster button whose link is the party 1 roster; a title edit of a CTA edits the announcement at (cta channel, thread id) with the new name; a failing announcement edit still returns the edit's success; normal content makes no announcement calls.
+- [ ] **Step 2: Run** the two files. Expected: FAIL.
+- [ ] **Step 3: Implement.** Keep the button edit after the roster post and before the CTA message forward; it must not push the reply past 3 seconds (run it in the same `Promise.all` as the dashboard refresh and the forward).
+- [ ] **Step 4: Run** `docker compose run --rm node npm test`. Expected: PASS.
+- [ ] **Step 5: Commit** `feat: CTA announcement and thread use the post name`.

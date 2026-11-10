@@ -30,3 +30,6 @@ Creation starts from a pinned launcher post in each event forum (ADR 0032, 0033)
 
 ## Update 2026-11-10: a CTA card of its own (owner decision)
 Schedule CTA opened the same card as Plan Content, with Type and Category menus that mean nothing for a CTA. From release 0.31.8 the CTA card hides Type and Category; a CTA is stored as PvX with the category Other, as the Blank CTA already was. Title, start, gear tier, loot vote, sign-up mode, presets, Blank template and the Parties choice (ADR 0044) stay. Normal content is unchanged.
+
+## Update 2026-11-10: CTA announcement format (owner decision, option B)
+From release 0.31.8 the CTA thread is named like an event post (`Title | 12 Nov | 20:00 UTC`, ADR 0043) from the start, and the announcement reads the same with a Roster button. The announcement is the thread's starting message (same id), so it is updated when the host edits the title or start. This replaces "it is not updated by later edits" above.
