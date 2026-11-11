@@ -128,3 +128,21 @@ test("the PvP category is called Outpost, in the singular", () => {
   assert.equal(kindDef("pvp", "outposts")!.label, "Outpost");
   assert.ok(!kindsOf("pvp").some((k) => k.label === "Outposts"));
 });
+
+test("ZvZ is a content type of its own with Faction Warfare, Outpost, Siege, Territory Defense, Castle and Other", () => {
+  assert.deepEqual(kindsOf("zvz").map((k) => k.label), ["Castle", "Faction Warfare", "Outpost", "Siege", "Territory Defense", "Other"]);
+  assert.ok(kindsOf("zvz").every((k) => k.type === "zvz"));
+  assert.equal(kindDef("zvz", "siege")?.label, "Siege");
+  assert.equal(kindDef("zvz", "other")?.icon, "🏰");
+  assert.deepEqual(resolveKind("zvz", null), { ok: true, value: "other" });
+  assert.ok(resolveKind("zvz", "arena").ok === false, "a PvP category is not a ZvZ one");
+  assert.match((resolveKind("pve", "siege") as { error: string }).error, /Siege is a ZvZ category, but this content is PvE\./);
+});
+
+test("PvX still holds the PvP and PvE categories only, within one menu of 25; the old PvP names stay for older content", () => {
+  const pvx = kindsOf("pvx");
+  assert.ok(pvx.length <= 25);
+  assert.ok(!pvx.some((k) => k.id === "siege" || k.id === "territory-defense"), "ZvZ-only categories are not PvX");
+  assert.ok(kindsOf("pvp").some((k) => k.id === "zvz"), "ZvZ stays a PvP category for older content");
+  assert.equal(kindDef("pvx", "siege"), null);
+});

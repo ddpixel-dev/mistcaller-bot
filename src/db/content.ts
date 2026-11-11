@@ -13,6 +13,7 @@ export type NewContent = {
   kind?: string;
   title: string;
   notes: string | null;
+  massing?: string | null; // where the party gathers (FR-074)
   startsAt: Date;
   tier: string;
   hasLoot: boolean;
@@ -69,10 +70,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count, roster_channel_id, bombers)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count, roster_channel_id, bombers, massing_at)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1}, ${input.rosterChannelId ?? null}, ${input.bombers ?? null})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1}, ${input.rosterChannelId ?? null}, ${input.bombers ?? null}, ${input.massing ?? null})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).
@@ -169,6 +170,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     kind: c.kind,
     title: c.title,
     notes: c.notes,
+    massing: c.massing_at ?? null,
     startsAt: c.starts_at,
     tier: c.gear_tier ?? "",
     hasLoot: c.has_loot,
