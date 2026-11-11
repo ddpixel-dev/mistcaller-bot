@@ -258,3 +258,14 @@ test("editMessage with retry429 false gives up at once on a rate limit, without 
   await rest2.editMessage("c", "m", {});
   assert.deepEqual(waits2, [1000]);
 });
+
+test("listMessages reads the last messages of a channel", async () => {
+  const calls: string[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push(`${init.method} ${url.replace("https://discord.com/api/v10", "")}`);
+    return new Response(JSON.stringify([{ id: "n1", type: 6, content: "x", message_reference: { message_id: "m1" } }, { id: "m1", type: 0 }]), { status: 200 });
+  }) as unknown as typeof fetch;
+  const rest = createRest("token", fetchFn, async () => {});
+  assert.deepEqual(await rest.listMessages!("c1", 5), [{ id: "n1", type: 6, message_reference: { message_id: "m1" } }, { id: "m1", type: 0 }]);
+  assert.deepEqual(calls, ["GET /channels/c1/messages?limit=5"]);
+});

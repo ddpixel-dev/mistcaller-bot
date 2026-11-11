@@ -16,6 +16,7 @@ import { matchTags } from "../domain/card.ts";
 import { openCard } from "./card.ts";
 import { announcementBody } from "./ctaannounce.ts";
 import { postCtaMessage } from "./ctamsg.ts";
+import { pinQuietly } from "./pins.ts";
 import { forumOfLauncher } from "../db/eventForum.ts";
 import { formProblems } from "./retry.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
@@ -213,12 +214,12 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     }
     await setMessageId(deps.sql, id, postedId);
     // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
-    await deps.rest.pinMessage?.(threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
+    await pinQuietly(deps, threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
     // A second party has its own message, right after the first (FR-070).
     if (view.partyCount === 2) {
       party2Id = (await deps.rest.createMessage(threadId, renderRosterMessage(view, 2))).id;
       await setPartyMessageId(deps.sql, { guildId: a.guildId, contentId: id, party: 2, messageId: party2Id });
-      await deps.rest.pinMessage?.(threadId, party2Id).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
+      await pinQuietly(deps, threadId, party2Id).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
     }
   } catch (err) {
     await deleteContent(deps.sql, id).catch((e) => {
