@@ -56,7 +56,8 @@ test("a party 1 player picking a party 2 position is moved, the party 2 render a
   assert.equal((await entry(sql, id, A)).party, 2);
   assert.ok(text(r).includes(`join:${id}@2`), "answers with party 2 controls");
   assert.deepEqual(edits.map((e) => e.messageId), ["m1"]);
-  assert.ok(!JSON.stringify(edits[0]!.body).includes(`@2`), "the refreshed message is party 1");
+  // ADR 0047: the roster message holds the whole call to arms, both parties' headings included.
+  assert.ok(JSON.stringify(edits[0]!.body).includes("**Party 1 (") && JSON.stringify(edits[0]!.body).includes("**Party 2 ("), "the refreshed message is the whole CTA");
 });
 
 test("picking a taken position gives the private taken reply", async () => {

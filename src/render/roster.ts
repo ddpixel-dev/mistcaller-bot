@@ -2,7 +2,7 @@ import { buildRefText } from "../domain/buildref.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef, kindIcon } from "../domain/kinds.ts";
 import { dutyDef } from "../domain/duties.ts";
-import { displayNumber, withParty } from "../domain/parties.ts";
+import { displayNumber, partyLead, withParty } from "../domain/parties.ts";
 import { CANCELLED_TAG, RULE, VOTE_ICON, WORDS, embedColor, fillBar, roleIcon, statusBanner } from "./theme.ts";
 import { weaponEmojiByName, weaponEmojiTag } from "./weaponIcon.ts";
 
@@ -77,9 +77,7 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] =
 const EN = "\u2002";
 const HEADER_PAD: Record<string, number> = { Type: 6, Host: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2 };
 
-function headerText(view: RosterView, filled: number, notes: boolean, party = 1, count = { filled, of: view.slots.length }): string {
-  // A later party's message is small: its heading and its own count (the details are on party 1's message).
-  if (party > 1) return `## Party ${party}\n${partyCountLine(count.filled, count.of)}`;
+function headerText(view: RosterView, filled: number, notes: boolean, count = { filled, of: view.slots.length }): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
   const typeLabel = TYPE_LABEL[view.type];
   const def = kindDef(view.type, view.kind);
@@ -91,7 +89,6 @@ function headerText(view: RosterView, filled: number, notes: boolean, party = 1,
   const lines = [
     // A level-2 heading (ADR 0028: the level-1 title made the roster too tall).
     `## ${Array.from(title).slice(0, TITLE_LIMIT).join("")}`,
-    ...(view.partyCount > 1 && !view.blank ? ["**Party 1**"] : []),
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
     // FR-064: the creator, as a mention (it shows a name and never pings: every message sends no mentions).
     ...(view.ownerId ? [fact("👑", "Host", `<@${view.ownerId}>`)] : []),
@@ -106,8 +103,8 @@ function headerText(view: RosterView, filled: number, notes: boolean, party = 1,
   if (banner) lines.push(banner);
   if (notes && view.notes) lines.push(`📝 **${view.blank ? "Description" : "Notes"}:** ${escapeText(view.notes)}`);
   // A blank content has no roster, so no party line (FR-060).
-  // A two-party content counts each party on its own message (n of that party's positions) and the content total on party 1.
-  if (!view.blank) lines.push(RULE, `${partyCountLine(count.filled, count.of)}${view.partyCount > 1 && party === 1 ? ` · **Total** ${filled}/${view.slots.length}` : ""}`);
+  // A two-party call to arms shows the content total here; each party's count heads its own rows (ADR 0047).
+  if (!view.blank) lines.push(RULE, view.partyCount > 1 ? `**Total** ${filled}/${view.slots.length}` : partyCountLine(count.filled, count.of));
   return lines.join("\n");
 }
 
@@ -133,6 +130,16 @@ export const OWNER_TIPS = [
 // `party` picks which message of a call to arms to render (FR-070). Party 1 is the whole message of any other content;
 // a later party shows only its rows, lists and menus, with every custom id ending in its party.
 export function renderRosterMessage(view: RosterView, party = 1): {
+  flags: number;
+  components: unknown[];
+  allowed_mentions: { parse: [] };
+} {
+  // ADR 0047: a call to arms is one message holding every party, so `party` does not apply to it.
+  if (view.cta && !view.blank) return renderCtaMessage(view);
+  return renderPartyMessage(view, party);
+}
+
+function renderPartyMessage(view: RosterView, party: number): {
   flags: number;
   components: unknown[];
   allowed_mentions: { parse: [] };
@@ -168,7 +175,7 @@ export function renderRosterMessage(view: RosterView, party = 1): {
   const waitLen = Math.min(600, waitingAll.reduce((n, w) => n + 40 + w.role.length, 30)) + Math.min(600, fillsAll.length * 50 + 20) + Math.min(600, applicantsAll.length * 50 + 20) + 2;
   const tent = (u: string) => (view.tentative?.includes(u) ? TENTATIVE : "");
   const waitTentative = (view.tentative ?? []).length * TENTATIVE.length;
-  const fits = () => headerText(view, filled, notes, party, count).length + waitLen + waitTentative + tips + rowLines(mine, withEmoji, view.tentative, view.slots).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
+  const fits = () => headerText(view, filled, notes, count).length + waitLen + waitTentative + tips + rowLines(mine, withEmoji, view.tentative, view.slots).reduce((n, l) => n + l.length + 1, 0) <= TEXT_LIMIT;
   if (!fits()) withEmoji = false;
   if (!fits()) notes = false;
 
@@ -188,14 +195,14 @@ export function renderRosterMessage(view: RosterView, party = 1): {
       ? `🕒 **Waitlist (${waiting.length}):** ${waiting.map((w, i) => `${i + 1}. <@${w.userId}>${tent(w.userId)} (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600)
       : "",
   ].filter(Boolean).join("\n");
-  const budget = TEXT_LIMIT - headerText(view, filled, notes, party, count).length - waitText.length - 2 - tips;
+  const budget = TEXT_LIMIT - headerText(view, filled, notes, count).length - waitText.length - 2 - tips;
   let used = 0;
   const kept = rowLines(mine, withEmoji, view.tentative, view.slots).filter((l) => (used += l.length + 1) <= budget);
 
   // All rows in one text block. Leave is one shared button (owner decision 2026-10-07): Discord cannot enable a
   // control for some viewers only, so it is enabled while anyone is signed up and only acts for signed-up players.
   // A blank line sets the applicants apart from the players (owner request 2026-11-06).
-  const body: unknown[] = [text(headerText(view, filled, notes, party, count)), text([...kept, ...(waitText ? [...(applicantText ? [""] : []), waitText] : [])].join("\n"))];
+  const body: unknown[] = [text(headerText(view, filled, notes, count)), text([...kept, ...(waitText ? [...(applicantText ? [""] : []), waitText] : [])].join("\n"))];
 
   const open = mine.filter((s) => s.userId === null);
   if (view.status === "open" && open.length > 0) {
@@ -264,11 +271,159 @@ export function renderRosterMessage(view: RosterView, party = 1): {
   };
 }
 
+// The whole call to arms in one message (ADR 0047, FR-070, FR-071): the header; each party's heading and rows (the
+// heading only with two parties); the Bombers line; the applicants, fill and waitlist lines (with a party lead only with
+// two parties); one join menu and one waitlist menu per party; shared Leave and Tentative (a player holds one place);
+// Bombers; the vote, Ping and Manage; the tips. One party with no Bombers renders as a one-party roster always has.
+function renderCtaMessage(view: RosterView): {
+  flags: number;
+  components: unknown[];
+  allowed_mentions: { parse: [] };
+} {
+  const parties = Array.from({ length: Math.max(1, view.partyCount) }, (_, i) => i + 1);
+  const many = parties.length > 1;
+  const filled = view.slots.filter((s) => s.userId !== null).length;
+  const live = view.status === "open" || view.status === "locked";
+  const partyOfUser = (u: string, explicit?: number) => explicit ?? view.partyOf?.[u] ?? 1;
+  const tent = (u: string) => (view.tentative?.includes(u) ? TENTATIVE : "");
+  const waitlist = view.waitlist ?? [];
+  const fills = view.fills ?? [];
+  const applicants = view.applicants ?? [];
+  const bomberIds = view.bomberIds ?? [];
+
+  const per = parties.map((party) => {
+    const mine = view.slots.filter((s) => s.party === party);
+    return {
+      party,
+      mine,
+      heading: many ? `**Party ${party} (${mine.filter((s) => s.userId !== null).length}/${mine.length})** ${fillBar(mine.filter((s) => s.userId !== null).length, mine.length)}` : null,
+      waiting: waitlist.filter((w) => partyOfUser(w.userId, w.party) === party),
+      fills: fills.filter((u) => partyOfUser(u) === party),
+      applicants: applicants.filter((a) => partyOfUser(a.userId) === party),
+    };
+  });
+  const lead = (party: number) => partyLead(view.partyCount, party);
+  // Each line is cut at 600 characters, as before; the party lead is part of the line.
+  const applicantLines = per.filter((x) => x.applicants.length).map((x) =>
+    `${lead(x.party)}📨 **Applicants (${x.applicants.length}):** ${x.applicants.map((a) => `<@${a.userId}>${tent(a.userId)} (${escapeText(a.wants)})`).join(" · ")}`.slice(0, 600));
+  const fillLines = per.filter((x) => x.fills.length).map((x) =>
+    `${lead(x.party)}🔁 **Fill (${x.fills.length}):** ${x.fills.map((u) => `<@${u}>${tent(u)} (${escapeText(view.fillWants?.[u] ?? "Any")})`).join(" · ")}`.slice(0, 600));
+  const waitLines = per.filter((x) => x.waiting.length).map((x) =>
+    `${lead(x.party)}🕒 **Waitlist (${x.waiting.length}):** ${x.waiting.map((w, i) => `${i + 1}. <@${w.userId}>${tent(w.userId)} (${escapeText(w.role)})`).join(" · ")}`.slice(0, 600));
+  const waitText = [...applicantLines, ...fillLines, ...waitLines].join("\n");
+  const bomberText = view.bombers !== null && view.bombers !== undefined
+    ? `**💣 Bombers (${bomberIds.length}/${view.bombers})${bomberIds.length ? `:** ${bomberIds.map((u) => `<@${u}>${tent(u)}`).join(" · ")}` : "**"}`.slice(0, 600)
+    : "";
+  const tips = OWNER_TIPS.length;
+  const headings = per.reduce((n, x) => n + (x.heading ? x.heading.length + 1 : 0), 0);
+  // The tail after the rows: the Bombers line, a blank line before the applicants, then the lists.
+  const tail = [...(bomberText ? [bomberText] : []), ...(waitText ? [...(applicantLines.length ? [""] : []), waitText] : [])];
+  const tailLen = tail.reduce((n, l) => n + l.length + 1, 0);
+
+  // Keep the text under Discord's 4000 over the whole message: drop the weapon icons, then the notes, then cut rows.
+  let withEmoji = true;
+  let notes = true;
+  const head = () => headerText(view, filled, notes);
+  const rowsLen = () => per.reduce((n, x) => n + rowLines(x.mine, withEmoji, view.tentative, view.slots).reduce((m, l) => m + l.length + 1, 0), 0);
+  const fits = () => head().length + headings + tailLen + tips + rowsLen() <= TEXT_LIMIT;
+  if (!fits()) withEmoji = false;
+  if (!fits()) notes = false;
+  const budget = TEXT_LIMIT - head().length - headings - tailLen - tips;
+  let used = 0;
+  const rowBlock: string[] = [];
+  for (const x of per) {
+    if (x.heading) rowBlock.push(x.heading);
+    rowBlock.push(...rowLines(x.mine, withEmoji, view.tentative, view.slots).filter((l) => (used += l.length + 1) <= budget));
+  }
+  const body: unknown[] = [text(head()), text([...rowBlock, ...tail].join("\n"))];
+
+  if (view.status === "open") {
+    for (const x of per) {
+      const open = x.mine.filter((s) => s.userId === null);
+      if (open.length === 0) continue;
+      const placeholder = view.selection
+        ? (many ? `Party ${x.party}: apply for a position (${open.length})` : `Apply for a position (${open.length})`)
+        : (many ? `Party ${x.party}: pick an open position (${open.length})` : `Pick an open position (${open.length})`);
+      body.push({
+        type: 1,
+        components: [{
+          type: 3, custom_id: withParty(`join:${view.id}`, x.party), placeholder,
+          options: [
+            { label: "Fill (choose what you can play)", value: FILL_VALUE, emoji: { name: "🔁" } },
+            ...open.slice(0, 24).map((s) => ({
+              label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+              value: s.id,
+              emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(s.role) },
+            })),
+          ],
+        }],
+      });
+    }
+    // A role with no open position in that party can be waited for (FR-007, per role).
+    for (const x of view.selection ? [] : per) {
+      const fullRoles = [...new Set(x.mine.map((s) => s.role))].filter((role) => !x.mine.some((s) => s.role === role && s.userId === null));
+      if (fullRoles.length === 0) continue;
+      body.push({
+        type: 1,
+        components: [{
+          type: 3, custom_id: withParty(`wait:${view.id}`, x.party),
+          placeholder: many ? `Party ${x.party}: join the waitlist for a full role` : "Join the waitlist for a full role",
+          options: [
+            { label: "Fill (choose what you can play)", value: WAIT_FILL_VALUE, emoji: { name: "🔁" } },
+            ...fullRoles.slice(0, 24).map((role) => ({
+              label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
+              description: `${x.waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
+            })),
+          ],
+        }],
+      });
+    }
+  }
+
+  // One shared Leave and Tentative for the whole call to arms: a player holds one place (seat, waitlist, fill,
+  // application or Bombers), and the button acts on it.
+  const anyone = filled > 0 || waitlist.length > 0 || fills.length > 0 || applicants.length > 0 || bomberIds.length > 0;
+  const buttons: unknown[] = [
+    { type: 2, style: 4, label: "Leave", emoji: { name: "🚪" }, custom_id: `leave:${view.id}`, disabled: !(live && anyone) },
+    { type: 2, style: 2, label: "Tentative", emoji: { name: "❓" }, custom_id: `tent:${view.id}`, disabled: !(live && anyone) },
+  ];
+  if (view.bombers !== null && view.bombers !== undefined) buttons.push({
+    type: 2, style: 2, label: `Bombers ${bomberIds.length}/${view.bombers}`, emoji: { name: "💣" }, custom_id: `bomb:${view.id}`,
+    disabled: view.status !== "open" || bomberIds.length >= view.bombers,
+  });
+  if (view.hasLoot) buttons.push(...voteButtons(view));
+  buttons.push({
+    type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
+    disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || fills.length > 0 || bomberIds.length > 0)),
+  });
+  if (live || view.status === "done") buttons.push({ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
+  for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
+  if (live) body.push(text(OWNER_TIPS));
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [{ type: 17, accent_color: embedColor(view.type, view.status, view.kind), components: body }],
+    allowed_mentions: { parse: [] },
+  };
+}
+
+// A 0.31.8 call to arms had a second message for party 2. Now that the roster above holds both parties, that message
+// is edited once into this note, with no controls (ADR 0047).
+export function renderMovedNote(): { flags: number; components: unknown[]; allowed_mentions: { parse: [] } } {
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [{ type: 17, components: [text("This party is now shown in the roster above.")] }],
+    allowed_mentions: { parse: [] },
+  };
+}
+
 // A link back to the roster, for the bot's own posts in the thread: the roster scrolls away as people talk. A link button
 // sits under the message instead of adding a line of text (owner request 2026-11-06).
-export function rosterUrl(v: { guildId: string; threadId: string; messageId: string | null }): string {
-  return `https://discord.com/channels/${v.guildId}/${v.threadId}${v.messageId ? `/${v.messageId}` : ""}`;
+// The roster sits in its own channel for a call to arms (ADR 0047: `rosterChannelId`), in the thread otherwise.
+export type RosterLink = { guildId: string; threadId: string; messageId: string | null; rosterChannelId?: string | null };
+export function rosterUrl(v: RosterLink): string {
+  return `https://discord.com/channels/${v.guildId}/${v.rosterChannelId ?? v.threadId}${v.messageId ? `/${v.messageId}` : ""}`;
 }
-export function rosterButton(v: { guildId: string; threadId: string; messageId: string | null }): unknown[] {
+export function rosterButton(v: RosterLink): unknown[] {
   return [{ type: 1, components: [{ type: 2, style: 5, label: "Roster", emoji: { name: "📋" }, url: rosterUrl(v) }] }];
 }

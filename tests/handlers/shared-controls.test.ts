@@ -90,9 +90,9 @@ test("Ping dims the button on party 1's message once nobody is left, re-renders 
   await press();
   const m1 = edits.find((e) => e.message === "m1")!.body, m2 = edits.find((e) => e.message === "m2")!.body;
   assert.equal(pingBtn(m1).disabled, true, "nobody left to ping");
-  assert.equal(pingBtn(m2), undefined, "party 2 has no Ping button");
-  assert.ok(JSON.stringify(m2).includes("Party 2"), "m2 is party 2's render");
-  assert.ok(ctl(m2, "leave:").length === 1 && (ctl(m2, "leave:")[0] as any).disabled === false, "party 2 Leave is live: p2 sits there");
+  // ADR 0047: a CTA renders as one message whatever party is asked for (Task 6 turns m2 into the moved note).
+  assert.deepEqual(m2, m1, "m2 gets the one-message render");
+  assert.ok(ctl(m1, "leave:").length === 1 && (ctl(m1, "leave:")[0] as any).disabled === false, "the shared Leave is live: p2 sits in party 2");
   const before = posts.length;
   const again: any = await press();
   assert.ok(again.data.content.includes("Nobody is left to ping"));
@@ -130,9 +130,10 @@ test("Lock closes party 2's join menu on its message; unlock brings it back", as
   edits.length = 0;
   await handleUnlock(deps, command("unlock"));
   bothEdited(edits);
-  assert.equal(joinMenu("m2").length, 1, "party 2 can be joined again");
-  assert.ok((joinMenu("m2")[0] as any).custom_id.endsWith("@2"), "and its menu is party 2's");
-  assert.equal(joinMenu("m1").length, 1);
+  // ADR 0047: one join menu per party in the one message.
+  assert.equal(joinMenu("m2").length, 2, "party 2 can be joined again");
+  assert.ok(joinMenu("m2").some((c: any) => c.custom_id.endsWith("@2")), "with party 2's menu");
+  assert.equal(joinMenu("m1").length, 2);
 });
 
 test("End greys both messages (done, no join menu, Leave disabled); reopen makes both live again", async () => {
@@ -152,18 +153,19 @@ test("End greys both messages (done, no join menu, Leave disabled); reopen makes
   bothEdited(edits);
   for (const n of ["m1", "m2"]) {
     const body = edits.find((e) => e.message === n)!.body;
-    assert.equal(ctl(body, "join:").length, 1, `${n}: join menu is back after reopen`);
+    assert.equal(ctl(body, "join:").length, 2, `${n}: both parties' join menus are back after reopen`);
     assert.equal((ctl(body, "leave:")[0] as any).disabled, false, `${n}: Leave live after reopen`);
   }
   assert.ok(!JSON.stringify(edits.find((e) => e.message === "m1")!.body).includes("Concluded"));
 });
 
-test("party 2's message has no vote, Ping or Manage button, even with a loot vote", async () => {
+test("a CTA is one message: the vote, Ping and Manage appear once, whatever party is asked for (ADR 0047)", async () => {
   const { sql, id } = await setup({ hasLoot: true });
   const v = (await getRosterView(sql, id, NOW))!;
   const ids = (n: number) => flatComponents(renderRosterMessage(v, n)).map((c: any) => String(c.custom_id ?? ""));
-  assert.ok(ids(1).some((x) => x.startsWith("vote:")));
-  assert.ok(!ids(2).some((x) => x.startsWith("vote:") || x.startsWith("ping:") || x.startsWith("mg:")));
+  assert.deepEqual(ids(2), ids(1));
+  for (const pre of ["vote:", "ping:", "mg:"]) assert.ok(ids(1).some((x) => x.startsWith(pre)), pre);
+  assert.equal(ids(1).filter((x) => x.startsWith("ping:")).length, 1);
 });
 
 test("the reminder pings both parties' players and the vote result job refreshes both messages", async () => {
