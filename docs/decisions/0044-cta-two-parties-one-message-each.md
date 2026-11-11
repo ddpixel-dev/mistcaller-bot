@@ -1,7 +1,7 @@
 ---
 title: A CTA may have two parties, one roster message each
 type: decision
-status: accepted
+status: superseded in part by 0047 (2026-11-11)
 date: 2026-11-10
 tags: [roster, cta, zvz, parties]
 satisfies: [FR-070]
@@ -25,3 +25,6 @@ The owner asked (2026-11-10) for CTA content with up to two parties of 20 player
 - Migration 0032 changes the unique key on `slot`; production must be migrated before the code is deployed.
 - Every handler that identified a position by its number alone needs the party. The plan lists them first.
 - Not built: shared fill or waitlist across parties, a changeable party count, more than two parties.
+
+## Update 2026-11-11
+Superseded in part by [ADR 0047](0047-cta-one-message-in-channel-bombers.md): a CTA is now one message for all parties, in the CTA channel. The party model, fill and waitlist per party and `maxPartiesFor` stay.

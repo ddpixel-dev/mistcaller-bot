@@ -324,6 +324,7 @@ Events in the calendar shall have no emoji in the title and shall use larger tex
 ### FR-063: Pinned roster and Roster button
 status: built, release 0.30.2 (owner request 2026-11-06)
 The bot shall pin each roster in its post when it creates the content (a failed pin never stops the creation; it needs the Pin Messages permission), and its own posts in the thread (a fill seated, an applicant accepted or declined, a player added or removed, a position opened from the waitlist) shall carry a link button, **Roster**, to the roster message.
+Changed 2026-11-11 (ADR 0047): a new CTA's roster is not pinned (it is the message in the CTA channel the thread starts from); the Roster button links to it there. FR-072 removes the pin notices.
 
 ### FR-064: Host name on the roster and the calendar
 status: built, release 0.31.5 (owner request 2026-11-08, ADR 0040)
@@ -352,6 +353,19 @@ An admin shall set one message with `cta-msg` (a message link) in `/content setu
 ### FR-070: Two parties in a CTA
 status: built, release 0.31.8 (owner request 2026-11-10, ADR 0044; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0032)
 A CTA shall be created with 1 or 2 parties of up to 20 players each, each party with its own roster message, menu, fills and waitlist. Positions are typed per party and a role other than Tank, DTank, Healer, Support or DPS is rejected with a clear error. Host panels ask which party first. The party count is fixed after creation. The model is built to be reused by ZvZ.
+Changed 2026-11-11 (ADR 0047, planned for 0.31.9): all parties are in one message, which is the CTA's message in the CTA channel (the thread is started from it), with one open-positions menu per party and shared Leave and Tentative; the CTA card's Details holds the title, start, gear tier, notes and Bombers cap, with separate Slots / Party 1 slots and Party 2 slots buttons; the Parties menu reads "How many parties?" with One Party and Two Parties.
+
+### FR-071: Bombers in a CTA
+status: accepted 2026-11-11 (owner request, ADR 0047), planned for 0.31.9
+A CTA may have a Bombers list with no positions and a cap of 1 to 20, set at creation and editable. Players join it with a 💣 Bombers button beside Leave and Tentative. A player holds one place per CTA, so joining Bombers leaves their seat, waitlist spot or fill, and the other way round. Hosts can remove bombers and mark their attendance; Ping includes them.
+
+### FR-072: No pin notices
+status: accepted 2026-11-11 (owner request, ADR 0047), planned for 0.31.9
+After the bot pins a message it shall delete Discord's "pinned a message" notice, when it has Manage Messages. Without the permission the notice stays and nothing else changes.
+
+### FR-073: CTA presets
+status: accepted 2026-11-11 (owner request, ADR 0047), planned for 0.31.9
+Presets saved from the CTA card shall be listed only on the CTA card, with both parties and the Bombers cap; presets saved from Plan Content only on Plan Content. Each kind has its own cap of 25.
 
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
