@@ -44,7 +44,9 @@ test("splitParty reads the @2 suffix", () => {
   assert.deepEqual(splitParty("join:abc@2"), { id: "join:abc", party: 2 });
   assert.deepEqual(splitParty("join:abc@1"), { id: "join:abc", party: 1 });
   assert.deepEqual(splitParty("join:abc"), { id: "join:abc", party: 1 });
-  for (const bad of ["join:abc@3", "join:abc@0", "join:abc@x", "join:abc@-1"]) assert.equal(splitParty(bad), null, bad);
+  // Group 3 is Bombers: only Remove player and Attendance accept it, which the dispatcher and the handlers check.
+  assert.deepEqual(splitParty("rm:g:abc@3"), { id: "rm:g:abc", party: 3 });
+  for (const bad of ["join:abc@4", "join:abc@0", "join:abc@x", "join:abc@-1"]) assert.equal(splitParty(bad), null, bad);
 });
 
 test("withParty adds a suffix only for party 2", () => {
@@ -58,4 +60,10 @@ test("displayNumber restarts at 1 in each party", () => {
   assert.equal(displayNumber(all[2]!, all), 3);
   assert.equal(displayNumber(all[3]!, all), 1);
   assert.equal(displayNumber(all[4]!, all), 2);
+});
+
+test("the party picker text", async () => {
+  const p = await import("../../src/domain/parties.ts");
+  assert.equal(p.PARTIES_PLACEHOLDER, "How many parties?");
+  assert.deepEqual([p.ONE_PARTY_LABEL, p.ONE_PARTY_EMOJI, p.TWO_PARTIES_LABEL, p.TWO_PARTIES_EMOJI], ["One Party", "👤", "Two Parties", "👥"]);
 });

@@ -2,7 +2,7 @@ import type { Deps, Handler } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, textInput } from "../discord/modal.ts";
-import { getManageTarget, getManageTargetById, updateContentSettings } from "../db/manage.ts";
+import { getManageTargetById, getManageTargetFor, updateContentSettings } from "../db/manage.ts";
 import { getRosterView } from "../db/content.ts";
 import { authorize, handleCancel, handleLock, handleUnlock, openEditForm, refreshRoster } from "./manage.ts";
 import { handleAttendance, handleEnd, handleReopen } from "./attendance.ts";
@@ -17,7 +17,7 @@ const INVALID = "That panel is out of date. Press **Manage** on the roster again
 const NOT_OPEN = "Only open content can be edited. Locked, finished or cancelled content cannot.";
 
 // Each panel button runs the host action that used to be a command (FR-048, ADR 0029). The actions find the content
-// from the post they are used in, and the panel is a private message in that same post; they check the member themselves.
+// from the id the button carries (targetOf), in the channel the panel was opened in; they check the member themselves.
 const ACTIONS: Record<string, Handler> = {
   f: openEditForm, l: handleLock, u: handleUnlock, n: handleEnd, c: handleCancel, a: handleAttendance, r: handleReopen,
 };
@@ -109,6 +109,8 @@ function editPanel(view: RosterView, note: string | null) {
         type: 1,
         components: [
           button("Edit details", "📝", `mg:f:${id}`, 1),
+          // A CTA's slots are edited per party in their own forms (owner request 2026-11-11).
+          ...(view.cta && !view.blank ? [button(view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots", "📝", `ed:o:${id}`, 1)] : []),
           ...(view.partyCount === 2 && !view.blank ? [button("Edit party 2 slots", "📝", `ed:p:${id}`, 1)] : []),
           button("Build link", "🧰", `ed:b:${id}`),
         ],
@@ -143,8 +145,9 @@ export async function handleManageComponent(deps: Deps, i: Interaction): Promise
 
   const action = parts.length === 3 && Object.hasOwn(ACTIONS, parts[1]!) ? ACTIONS[parts[1]!] : undefined;
   if (!action || !UUID.test(parts[2]!)) return reply(INVALID);
-  // The panel must still belong to this post's content (a stale panel never acts on another one).
-  const target = i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  // The panel must belong to content of this guild that owns this channel: its post, or the CTA channel that holds its
+  // roster (ADR 0047). A stale or forged panel never acts on other content.
+  const target = i.channel?.id ? await getManageTargetFor(deps.sql, i.guild_id, i.channel.id, parts[2]!) : null;
   if (!target || target.id !== parts[2]) return reply(INVALID);
   if (!IN_PLACE.has(parts[1]!)) return await action(deps, i);
 
@@ -187,6 +190,17 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
         custom_id: `edp:${id}`,
         title: "Edit party 2 slots",
         components: [textInput("slots", "Party 2 slots", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 2)) })],
+      },
+    };
+  }
+  if (parts[1] === "o") {
+    if (!view.cta || view.blank) return reply(INVALID);
+    return {
+      type: MODAL,
+      data: {
+        custom_id: `edp1:${id}`,
+        title: view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots",
+        components: [textInput("slots", view.partyCount === 2 ? "Party 1 slots" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) })],
       },
     };
   }

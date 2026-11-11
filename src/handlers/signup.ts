@@ -1,20 +1,20 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
-import { getRosterView } from "../db/content.ts";
-import { claimSlot, getEntryParty, joinWaitlist, leaveContent, setTentative, type Promotion } from "../db/signup.ts";
+import { getPartyMessages, getRosterView } from "../db/content.ts";
+import { claimSlot, joinWaitlist, leaveContent, setTentative, type Promotion } from "../db/signup.ts";
 import { openFillPanel } from "./fill-pref.ts";
 import { pickerResponse } from "./weapon-pick.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
-import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
-import { refreshRosters } from "./rosters.ts";
+import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderMovedNote, renderRosterMessage, rosterButton } from "../render/roster.ts";
+import { isOneMessage, refreshRosters } from "./rosters.ts";
 import { displayNumber, partyLead, positionText } from "../domain/parties.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
-const NOT_FOUND = "This content or position no longer exists.";
-const SELECTED = "You already hold a position. In a host-selected event only the host can move you.";
+export const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
+export const NOT_FOUND = "This content or position no longer exists.";
+export const SELECTED = "You already hold a position. In a host-selected event only the host can move you.";
 export const OLD_LAYOUT =
   "This roster was posted with an older layout, which can no longer be updated. Ask its creator to cancel it and create a new one.";
 
@@ -33,11 +33,25 @@ function ids(i: Interaction, prefix: string, parts: number): string[] | null {
 }
 
 // Everyone sees the same roster, so a change answers by updating the shared message.
-// The response is the pressed party's message; the other party's message is edited through the API.
-async function refreshed(deps: Deps, id: string, party: number, promoted: Promotion[] = []): Promise<InteractionResponse> {
+// A call to arms is one message (ADR 0047): the answer is the whole roster and no other message is edited, except the
+// party 2 message of a 0.31.8 call to arms, which refreshRosters turns into the moved note once. A click on that old
+// message is answered with the note itself, and the roster above is edited through the API. A click on any other
+// message than the CTA's (an old party 2 message whose row is already gone) gets the note too, and the CTA is edited
+// through the API.
+// Other content: the response is the pressed party's message; the other party's message is edited through the API.
+export async function refreshed(deps: Deps, i: Interaction, id: string, party: number, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
+  if (isOneMessage(view)) {
+    const old = view.partyCount > 1 ? (await getPartyMessages(deps.sql, view.id)).filter((m) => m.party > 1) : [];
+    const pressed = old.find((m) => m.messageId === i.message?.id)?.party;
+    const stale = !pressed && !!i.message?.id && !!view.messageId && i.message.id !== view.messageId;
+    const response = { type: UPDATE_MESSAGE, data: pressed || stale ? renderMovedNote() : renderRosterMessage(view) };
+    if (stale) await refreshRosters(deps, view, { noRetry: true });
+    else if (old.length > 0) await refreshRosters(deps, view, { except: pressed ?? 1, noRetry: true });
+    return response;
+  }
   const response = { type: UPDATE_MESSAGE, data: renderRosterMessage(view, party) };
   if (view.partyCount > 1) await refreshRosters(deps, view, { except: party, noRetry: true });
   return response;
@@ -91,7 +105,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
       }
     }
   }
-  return await refreshed(deps, got[0]!, party, promoted);
+  return await refreshed(deps, i, got[0]!, party, promoted);
 }
 
 // FR-007 (per role): wait for a role whose positions are all taken. A seat for that role goes to the first waiter.
@@ -115,13 +129,7 @@ export async function handleWait(deps: Deps, i: Interaction): Promise<Interactio
   if (result === "selection") return reply("This is a host-selected event: use Fill or pick a position to apply.");
   if (result === "locked") return reply("Signups are locked for this content.");
   if (result === "not_found") return reply(NOT_FOUND);
-  return await refreshed(deps, got[0]!, party);
-}
-
-// A player in the other party is pointed to that party's own button.
-async function otherParty(deps: Deps, id: string, userId: string, party: number): Promise<string | null> {
-  const mine = await getEntryParty(deps.sql, id, userId);
-  return mine !== null && mine !== party ? `You are in Party ${mine}. Use its Leave button.` : null;
+  return await refreshed(deps, i, got[0]!, party);
 }
 
 async function leave(deps: Deps, i: Interaction, id: string, slotId?: string): Promise<InteractionResponse> {
@@ -129,16 +137,16 @@ async function leave(deps: Deps, i: Interaction, id: string, slotId?: string): P
   const guildId = i.guild_id;
   if (!userId || !guildId) return reply(INVALID);
   const party = i.party ?? 1;
+  // Leave and Tentative act on the player's own place, in whichever party (ADR 0047). An "@2" from a 0.31.8 message is
+  // still accepted on content with two parties.
   if (await noSuchParty(deps, id, party)) return reply(NOT_VALID);
-  const other = await otherParty(deps, id, userId, party);
-  if (other) return reply(other);
   const promoted: Promotion[] = [];
   const result = await leaveContent(deps.sql, { contentId: id, userId, guildId, now: deps.now(), promoted, ...(slotId ? { slotId } : {}) });
   if (result === "not_found") return reply(NOT_FOUND);
   if (result === "not_yours") return reply("That is not your position. Only the player on a row can use its Leave button.");
   if (result === "not_signed") return reply("You are not signed up for this content.");
   if (result === "unavailable") return reply("This content is no longer open, so you cannot leave it.");
-  return await refreshed(deps, id, party, promoted);
+  return await refreshed(deps, i, id, party, promoted);
 }
 
 // The Leave button on a player's own row.
@@ -164,13 +172,11 @@ export async function handleTentative(deps: Deps, i: Interaction): Promise<Inter
   if (!got || !userId || !i.guild_id) return reply(INVALID);
   const party = i.party ?? 1;
   if (await noSuchParty(deps, got[0]!, party)) return reply(NOT_VALID);
-  const other = await otherParty(deps, got[0]!, userId, party);
-  if (other) return reply(other);
   const result = await setTentative(deps.sql, { contentId: got[0]!, guildId: i.guild_id, userId });
   if (result.result === "not_found") return reply(NOT_FOUND);
   if (result.result === "not_signed") return reply("You are not signed up for this content. Sign up first, then mark yourself tentative.");
   if (result.result === "unavailable") return reply("This content is no longer open, so you cannot change that.");
-  return await refreshed(deps, got[0]!, party);
+  return await refreshed(deps, i, got[0]!, party);
 }
 
 // Controls of rosters posted before the new layout (menu "signup:", buttons "pick:").

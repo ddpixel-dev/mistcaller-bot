@@ -33,3 +33,6 @@ Schedule CTA opened the same card as Plan Content, with Type and Category menus 
 
 ## Update 2026-11-10: CTA announcement format (owner decision, option B)
 From release 0.31.8 the CTA thread is named like an event post (`Title | 12 Nov | 20:00 UTC`, ADR 0043) from the start, and the announcement reads the same with a Roster button. The announcement is the thread's starting message (same id), so it is updated when the host edits the title or start. This replaces "it is not updated by later edits" above.
+
+## Update 2026-11-11
+Changed by [ADR 0047](0047-cta-one-message-in-channel-bombers.md): a new CTA has no one-line announcement: the roster itself is the message in the CTA channel and the thread is started from it.

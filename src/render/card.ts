@@ -4,7 +4,7 @@ import { DEFAULT_KIND, TYPE_LABEL, kindsOf, kindIcon, typeIcon } from "../domain
 import { buildRefText } from "../domain/buildref.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { parseUtcStart } from "../domain/parse.ts";
-import { CTA_ROLES, maxPartiesFor } from "../domain/parties.ts";
+import { CTA_ROLES, ONE_PARTY_EMOJI, ONE_PARTY_LABEL, PARTIES_PLACEHOLDER, TWO_PARTIES_EMOJI, TWO_PARTIES_LABEL, maxPartiesFor } from "../domain/parties.ts";
 import type { SlotDef } from "../domain/types.ts";
 import type { ContentType } from "../domain/types.ts";
 import { IS_COMPONENTS_V2, escapeText, formatUtc } from "./roster.ts";
@@ -49,11 +49,11 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `🗒️ **Notes** ${d.notes ? escapeText(d.notes).slice(0, 300) : NONE}`,
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
     `🎯 **Sign-up** ${d.selection ? "Selection: players apply and you pick the party" : "Open: players take their own position"}`,
-    ...(d.cta ? [`-# Roles: ${CTA_ROLES.join(", ")}`] : []),
+    ...(d.cta ? [`💣 **Bombers** ${d.bombers ? `up to ${d.bombers}` : NONE}`, `-# Roles: ${CTA_ROLES.join(", ")}`] : []),
     ...(two
-      ? [...slotBlock("Party 1", d.slots, d.slotsText, "Details"), ...slotBlock("Party 2", d.slots2, d.slots2Text, "Party 2 slots"),
+      ? [...slotBlock("Party 1", d.slots, d.slotsText, "Party 1 slots"), ...slotBlock("Party 2", d.slots2, d.slots2Text, "Party 2 slots"),
         "-# Roles fills party 1; use Party 2 slots for the second party."]
-      : slotBlock("Slots", d.slots, d.slotsText, "Details")),
+      : slotBlock("Slots", d.slots, d.slotsText, d.cta ? "Slots" : "Details")),
     ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
     ...(ctx.note ? ["", ctx.note] : []),
   ];
@@ -77,10 +77,10 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     ...(d.cta ? (ctaParties ? [{
       type: 1,
       components: [{
-        type: 3, custom_id: `cc:parties:${id}`, placeholder: "Parties",
+        type: 3, custom_id: `cc:parties:${id}`, placeholder: PARTIES_PLACEHOLDER,
         options: [
-          { label: "1 party", value: "1", default: !two },
-          { label: "2 parties", value: "2", emoji: { name: "👥" }, default: two },
+          { label: ONE_PARTY_LABEL, value: "1", emoji: { name: ONE_PARTY_EMOJI }, default: !two },
+          { label: TWO_PARTIES_LABEL, value: "2", emoji: { name: TWO_PARTIES_EMOJI }, default: two },
         ],
       }],
     }] : []) : [
@@ -130,17 +130,38 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         btn("Manage presets", "💾", `cc:presets:${id}`), // ADR 0039: admins save the card as a preset or delete one
       ],
     },
-    {
-      type: 1,
-      components: [
-        btn("Details", "✏️", `cc:details:${id}`, 1),
-        btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
-        btn("Build link", "🧰", `cc:build:${id}`),
-        { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 },
-        btn("Cancel", "✖️", `cc:cancel:${id}`),
-      ],
-    },
-    ...(two ? [{ type: 1, components: [btn("Party 2 slots", "👥", `cc:p2:${id}`), btn("Copy party 1", "📋", `cc:copy:${id}`)] }] : []),
+    // A CTA keeps the card's text in Details (title, start, tier, notes, Bombers) and each party's slots in its own button
+    // (owner request 2026-11-11); normal content has the slots in Details as before.
+    ...(d.cta
+      ? [
+        {
+          type: 1,
+          components: [
+            btn("Details", "✏️", `cc:details:${id}`, 1),
+            btn(two ? "Party 1 slots" : "Slots", "👥", `cc:p1:${id}`, 1),
+            ...(two ? [btn("Party 2 slots", "👥", `cc:p2:${id}`, 1), btn("Copy party 1", "📋", `cc:copy:${id}`)] : []),
+            btn("Roles", "🧩", `cc:guided:${id}`),
+          ],
+        },
+        {
+          type: 1,
+          components: [
+            btn("Build link", "🧰", `cc:build:${id}`),
+            { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 },
+            btn("Cancel", "✖️", `cc:cancel:${id}`),
+          ],
+        },
+      ]
+      : [{
+        type: 1,
+        components: [
+          btn("Details", "✏️", `cc:details:${id}`, 1),
+          btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
+          btn("Build link", "🧰", `cc:build:${id}`),
+          { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 },
+          btn("Cancel", "✖️", `cc:cancel:${id}`),
+        ],
+      }]),
   ];
   return {
     flags: IS_COMPONENTS_V2,

@@ -19,6 +19,9 @@ export type RosterView = {
   guildId: string;
   threadId: string;
   messageId: string | null;
+  rosterChannelId: string | null; // the channel of the one CTA roster message (ADR 0047); null for other content
+  bombers: number | null; // the Bombers cap, or null when the content has no Bombers
+  bomberIds: string[]; // Bombers in sign-up order; they hold no position
   type: ContentType;
   kind: string;
   title: string;

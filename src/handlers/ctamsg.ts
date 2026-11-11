@@ -2,6 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import { getCtaMessage } from "../db/cta.ts";
 import { forwardBody } from "../domain/ctamsg.ts";
+import { pinQuietly } from "./pins.ts";
 
 const GONE = "The CTA message was not added: the message or its channel no longer exists. Ask an admin to set it again with /content setup cta-msg.";
 const CANNOT_OPEN = "The CTA message was not added: the bot cannot open it. Ask an admin to give the bot View Channel and Read Message History on that channel.";
@@ -37,7 +38,7 @@ export async function postCtaMessage(deps: Deps, a: { guildId: string; threadId:
     }
     if (!deps.rest.pinMessage) return [NOT_PINNED];
     try {
-      await deps.rest.pinMessage(a.threadId, id);
+      await pinQuietly(deps, a.threadId, id);
     } catch (e) {
       logFailure("cta_message_pin_failed", e);
       return [NOT_PINNED];

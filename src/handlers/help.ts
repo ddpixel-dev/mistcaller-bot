@@ -13,7 +13,7 @@ export const HELP_TEXT = [
   "• **Leave** takes you off. **Waitlist:** join it when a role is full; it seats you when a spot frees.",
   "• **❓ Tentative:** maybe coming; you keep your place. Press again to undo.",
   "• **Split / Regear:** vote on the loot, while the vote is open.",
-  "• **Plan Content** opens a creation card; **Blank template** is a quick event. **Schedule CTA** (admins, CTA roles) makes a CTA of one or two parties. Slot roles: Tank, DTank, Healer, Support, DPS.",
+  "• **Plan Content** opens a creation card; **Blank template** is a quick event. **Schedule CTA** (admins, CTA roles): one or two parties, optional 💣 Bombers. Roles: Tank, DTank, Healer, Support, DPS.",
   "• `/content list` shows live and upcoming content. `/content me` is your own private panel.",
   "• `/content stats` shows this server's numbers (private). `/content history` shows your own attendance.",
   "• `/content help` shows this message.",
@@ -30,7 +30,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do on any content, and `/content history` for any member.",
-  "• `/content setup` sets admin roles, channels, the forum per type (PvP, PvE, PvX), CTA roles. `cta-msg` pins a forward of a message under every new CTA.",
+  "• `/content setup` sets admin roles, channels, the forum per type (PvP, PvE, PvX), CTA roles. `cta-msg` pins a message in every new CTA.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {
