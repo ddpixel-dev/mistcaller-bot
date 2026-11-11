@@ -22,6 +22,8 @@ export type NewContent = {
   createdBy: string;
   slots: SlotDef[];
   slots2?: SlotDef[]; // party 2 of a CTA (FR-070)
+  rosterChannelId?: string | null; // the channel of the CTA's one roster message (ADR 0047)
+  bombers?: number | null; // the Bombers cap (ADR 0047)
   buildRef?: string | null;
   ownPost?: boolean; // the bot created the post (ADR 0032): renamed when the title changes
   now?: Date;
@@ -67,10 +69,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count, roster_channel_id, bombers)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1}, ${input.rosterChannelId ?? null}, ${input.bombers ?? null})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).
@@ -129,7 +131,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   const rows = await sql`select * from content where id = ${contentId}`;
   const c = rows[0];
   if (!c) return null;
-  const [slots, voteRows, waiting, fills, applied, tentative] = await Promise.all([
+  const [slots, voteRows, waiting, fills, applied, tentative, bombers] = await Promise.all([
     sql`
       select s.id, s.position, s.party, s.role, s.weapon, s.duty, su.user_id, su.chosen_weapon
       from slot s
@@ -141,6 +143,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     sql`select user_id, fill_roles, fill_slots, party from signup where content_id = ${contentId} and status = 'fill' order by joined_at, user_id`,
     sql`select user_id, fill_roles, fill_slots, party from signup where content_id = ${contentId} and status = 'applied' order by joined_at, user_id`,
     sql`select user_id from signup where content_id = ${contentId} and tentative order by joined_at, user_id`,
+    sql`select user_id from signup where content_id = ${contentId} and status = 'bomber' order by joined_at, user_id`,
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const voteClosed = !isVoteOpen(c.starts_at, now);
@@ -154,6 +157,9 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     guildId: c.guild_id,
     threadId: c.thread_id,
     messageId: c.message_id,
+    rosterChannelId: c.roster_channel_id ?? null,
+    bombers: c.bombers ?? null,
+    bomberIds: bombers.map((b) => b.user_id as string),
     type: c.type as ContentType,
     kind: c.kind,
     title: c.title,

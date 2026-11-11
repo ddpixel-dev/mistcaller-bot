@@ -3,7 +3,7 @@
 import type { RosterSlot, RosterView } from "../../../src/domain/types.ts";
 
 const base: RosterView = {
-  id: "c1", guildId: "g1", threadId: "t1", messageId: "m1", type: "pvp", kind: "other", partyCount: 1,
+  id: "c1", guildId: "g1", threadId: "t1", messageId: "m1", rosterChannelId: null, bombers: null, bomberIds: [], type: "pvp", kind: "other", partyCount: 1,
   title: "Ava roam", notes: "Bring food", startsAt: new Date("2026-10-07T18:00:00Z"), tier: "T5.3–T7.0",
   hasLoot: true, status: "open", ownerId: "900",
   slots: [], votes: { split: 1, regear: 2 }, voteClosed: false, voteResult: null,

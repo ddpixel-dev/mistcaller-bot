@@ -10,7 +10,7 @@ import { WEAPON_EMOJI } from "../../src/data/weapon-emoji.ts";
 
 function view(over: Partial<RosterView> = {}): RosterView {
   return {
-    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other", partyCount: 1,
+    id: "c1", guildId: "g1", threadId: "t1", messageId: null, rosterChannelId: null, bombers: null, bomberIds: [], type: "pvp", kind: "other", partyCount: 1,
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
     tier: "T5.3–T7.0",

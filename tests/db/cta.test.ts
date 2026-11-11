@@ -60,3 +60,35 @@ test("a server has at most one CTA message; setting it again replaces it, other 
   assert.equal(await clearCtaMessage(sql, "g1"), false);
   assert.equal(await getCtaMessage(sql, "g1"), null);
 });
+
+test("a content keeps its roster channel and Bombers cap; bomber rows list in sign-up order, apart from seats, fills and the waitlist", async () => {
+  const sql = await testSql();
+  const start = new Date("2026-12-01T18:00:00Z");
+  const base = { guildId: "g1", type: "pvx" as const, title: "CTA", notes: null, startsAt: start, tier: "T8", hasLoot: false, createdBy: "o", now: new Date(start.getTime() - 3600000), slots: [{ role: "Tank", weapon: "" }], cta: true };
+  const id = await createContent(sql, { ...base, threadId: "t1", rosterChannelId: "ch9", bombers: 5 });
+  const plain = await getRosterView(sql, await createContent(sql, { ...base, threadId: "t2" }), start);
+  assert.equal(plain?.rosterChannelId, null);
+  assert.equal(plain?.bombers, null);
+  assert.deepEqual(plain?.bomberIds, []);
+  await sql`insert into signup (guild_id, content_id, user_id, status, joined_at) values ('g1', ${id}, 'b2', 'bomber', '2026-11-30T10:00:01Z'), ('g1', ${id}, 'b1', 'bomber', '2026-11-30T10:00:00Z')`;
+  const v = await getRosterView(sql, id, start);
+  assert.equal(v?.rosterChannelId, "ch9");
+  assert.equal(v?.bombers, 5);
+  assert.deepEqual(v?.bomberIds, ["b1", "b2"]);
+  assert.deepEqual(v?.slots.map((s) => s.userId), [null]);
+  assert.deepEqual(v?.fills, []);
+  assert.deepEqual(v?.waitlist, []);
+  assert.deepEqual(v?.applicants, []);
+  assert.deepEqual(v?.partyOf, {});
+  await assert.rejects(sql`update content set bombers = 21 where id = ${id}`);
+});
+
+test("migration 0033 marks a preset with party 2 slots as a CTA preset", async () => {
+  const sql = await testSql();
+  await sql`insert into slot_preset (guild_id, name, slots, created_by) values
+    ('g1', 'one', '[{"role":"Tank","weapon":""}]'::jsonb, 'o'),
+    ('g1', 'two', '[{"role":"Tank","weapon":""},{"role":"DPS","weapon":"","party":2}]'::jsonb, 'o')`;
+  await sql`update slot_preset set cta = true where slots @> '[{"party": 2}]'`;
+  const rows = await sql`select name, cta from slot_preset order by name`;
+  assert.deepEqual(rows.map((r) => [r.name, r.cta]), [["one", false], ["two", true]]);
+});
