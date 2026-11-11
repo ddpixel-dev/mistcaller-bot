@@ -75,7 +75,7 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] =
 // measured on a screenshot of Discord's desktop text (a label's width, plus 6.7 px per en space, plus about 4 px),
 // so the columns agree to within a few pixels. Discord's font is proportional, so this cannot be exact.
 const EN = "\u2002";
-const HEADER_PAD: Record<string, number> = { Type: 6, Host: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2 };
+const HEADER_PAD: Record<string, number> = { Type: 6, Host: 6, "Gear tier": 3, Build: 6, UTC: 7, "Your time": 2, "Massing at": 2 };
 
 function headerText(view: RosterView, filled: number, notes: boolean, count = { filled, of: view.slots.length }): string {
   const epoch = Math.floor(view.startsAt.getTime() / 1000);
@@ -92,7 +92,8 @@ function headerText(view: RosterView, filled: number, notes: boolean, count = { 
     fact("🏷️", "Type", `**${kind}**`), // not ⚔️, which is also the title icon of Small-scale and PvP Other (ADR 0031)
     // FR-064: the creator, as a mention (it shows a name and never pings: every message sends no mentions).
     ...(view.ownerId ? [fact("👑", "Host", `<@${view.ownerId}>`)] : []),
-    ...(view.cta ? [CTA_NOTE] : []),
+    // FR-074: where the party gathers, typed by the host.
+    ...(view.massing ? [fact("📍", "Massing at", massingText(view.massing))] : []),
     ...(view.selection ? [SELECTION_NOTE] : []),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
@@ -108,14 +109,16 @@ function headerText(view: RosterView, filled: number, notes: boolean, count = { 
   return lines.join("\n");
 }
 
-// FR-059: a call to arms says so in the post.
 // FR-067: shown after a tentative player's name, wherever the player is listed.
 export const TENTATIVE = " ❓";
 
-export const CTA_NOTE = "📣 **Call to arms**";
-
 // FR-058: the disclaimer of a host-selected event, in the post itself.
-export const SELECTION_NOTE = "⚠️ **Disclaimer:** the host picks the party.";
+export const SELECTION_NOTE = "Host picks the party";
+
+// The host's text, escaped; a channel mention (<#id>) stays a link. Mentions never ping: every message sends none.
+export function massingText(s: string): string {
+  return s.split(/(<#\d{5,25}>)/).map((part, n) => (n % 2 === 1 ? part : escapeText(part))).join("");
+}
 
 const partyCountLine = (filled: number, of: number) => `**${WORDS.company} (${filled}/${of})** ${fillBar(filled, of)}`;
 
@@ -275,6 +278,9 @@ function renderPartyMessage(view: RosterView, party: number): {
 // heading only with two parties); the Bombers line; the applicants, fill and waitlist lines (with a party lead only with
 // two parties); one join menu and one waitlist menu per party; shared Leave and Tentative (a player holds one place);
 // Bombers; the vote, Ping and Manage; the tips. One party with no Bombers renders as a one-party roster always has.
+// The icon of each party's title in a call to arms.
+const PARTY_ICONS = ["⚔️", "🛡️"];
+
 function renderCtaMessage(view: RosterView): {
   flags: number;
   components: unknown[];
@@ -291,12 +297,14 @@ function renderCtaMessage(view: RosterView): {
   const applicants = view.applicants ?? [];
   const bomberIds = view.bomberIds ?? [];
 
+  // Each group (a party, then Bombers) has an icon in its title and a blank line after its list (owner request 2026-11-11).
+  const showHeads = many || (view.bombers !== null && view.bombers !== undefined);
   const per = parties.map((party) => {
     const mine = view.slots.filter((s) => s.party === party);
     return {
       party,
       mine,
-      heading: many ? `**Party ${party} (${mine.filter((s) => s.userId !== null).length}/${mine.length})** ${fillBar(mine.filter((s) => s.userId !== null).length, mine.length)}` : null,
+      heading: showHeads ? `${PARTY_ICONS[(party - 1) % PARTY_ICONS.length]} **Party ${party} (${mine.filter((s) => s.userId !== null).length}/${mine.length})** ${fillBar(mine.filter((s) => s.userId !== null).length, mine.length)}` : null,
       waiting: waitlist.filter((w) => partyOfUser(w.userId, w.party) === party),
       fills: fills.filter((u) => partyOfUser(u) === party),
       applicants: applicants.filter((a) => partyOfUser(a.userId) === party),
@@ -315,9 +323,10 @@ function renderCtaMessage(view: RosterView): {
     ? `**💣 Bombers (${bomberIds.length}/${view.bombers})${bomberIds.length ? `:** ${bomberIds.map((u) => `<@${u}>${tent(u)}`).join(" · ")}` : "**"}`.slice(0, 600)
     : "";
   const tips = OWNER_TIPS.length;
-  const headings = per.reduce((n, x) => n + (x.heading ? x.heading.length + 1 : 0), 0);
-  // The tail after the rows: the Bombers line, a blank line before the applicants, then the lists.
-  const tail = [...(bomberText ? [bomberText] : []), ...(waitText ? [...(applicantLines.length ? [""] : []), waitText] : [])];
+  // The blank lines after each list count in the budget.
+  const headings = per.reduce((n, x) => n + (x.heading ? x.heading.length + 1 : 0), 0) + (showHeads ? per.length : 0);
+  // The tail after the rows: the Bombers line and a blank line, a blank line before the applicants when no group set one, then the lists.
+  const tail = [...(bomberText ? [bomberText, ""] : []), ...(waitText ? [...(applicantLines.length && !showHeads ? [""] : []), waitText] : [])];
   const tailLen = tail.reduce((n, l) => n + l.length + 1, 0);
 
   // Keep the text under Discord's 4000 over the whole message: drop the weapon icons, then the notes, then cut rows.
@@ -334,6 +343,7 @@ function renderCtaMessage(view: RosterView): {
   for (const x of per) {
     if (x.heading) rowBlock.push(x.heading);
     rowBlock.push(...rowLines(x.mine, withEmoji, view.tentative, view.slots).filter((l) => (used += l.length + 1) <= budget));
+    if (showHeads) rowBlock.push("");
   }
   const body: unknown[] = [text(head()), text([...rowBlock, ...tail].join("\n"))];
 

@@ -502,12 +502,13 @@ test("role icons: DTank has its own brick, Tank its shield, a Scout role the tel
 
 test("a selection event says so in the post, lists the applicants with what they asked for, and has no waitlist menu", () => {
   const v = view({ slots: slots(3, 3), selection: true, applicants: [{ userId: "9001", wants: "Healer, #7" }, { userId: "9002", wants: "Any" }] });
-  assert.ok(raw(v).includes("⚠️ **Disclaimer:** the host picks the party."));
+  assert.ok(raw(v).includes("\nHost picks the party\n"), "a plain sentence, no disclaimer label or icon");
+  assert.ok(!raw(v).includes("Disclaimer") && !raw(v).includes("⚠️"));
   assert.ok(raw(v).includes("\n\n📨 **Applicants"), "a blank line sets the applicants apart from the players");
   assert.ok(raw(v).includes("📨 **Applicants (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
   assert.equal(byId(v, "wait:").length, 0, "nobody is seated automatically, so there is nothing to wait for");
   assert.equal(byId(v, "leave:")[0]!.disabled, false, "an applicant can withdraw");
-  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Disclaimer"));
+  assert.ok(!raw(view({ slots: slots(3, 1) })).includes("Host picks the party"));
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
@@ -525,10 +526,24 @@ test("the roster button is a link button to the roster message, or to the post w
 
 // ---- FR-059, FR-060: CTA and blank content ----
 
-test("a CTA says so in the post", () => {
-  const v = view({ cta: true });
-  assert.ok(raw(v).includes("📣 **Call to arms**"));
-  assert.ok(!raw(view()).includes("Call to arms"));
+test("a CTA has no Call to arms line in the post (owner request 2026-11-11); its Type line is ZvZ", () => {
+  assert.ok(!raw(view({ cta: true })).includes("Call to arms"));
+  const z = raw(view({ cta: true, type: "zvz", kind: "other" }));
+  assert.ok(z.includes("🏷️ **Type**") && z.includes("**ZvZ**") && !z.includes("PvX"), z);
+  assert.ok(z.startsWith("## 🏰") || z.includes("## 🏰"), "the ZvZ icon heads the title");
+});
+
+test("Massing at is a line under the host, on every kind of content, only when set; a channel mention stays a link", () => {
+  const lines = (v: RosterView) => raw(v).split("\n");
+  const withHost = view({ ownerId: "900", massing: "Caerleon bank" });
+  const at = lines(withHost).findIndex((l) => l.startsWith("📍 **Massing at**"));
+  assert.ok(at > 0 && lines(withHost)[at]!.endsWith("Caerleon bank"));
+  assert.ok(lines(withHost)[at - 1]!.includes("**Host**"), "right under the host");
+  assert.ok(!raw(view()).includes("Massing at"), "no line when it is not set");
+  assert.ok(raw(view({ blank: true, slots: [], massing: "Here" })).includes("📍 **Massing at**"), "blank content too");
+  assert.ok(raw(view({ cta: true, massing: "Here" })).includes("📍 **Massing at**"), "a CTA too");
+  assert.ok(raw(view({ massing: "Meet in <#123456789012345678> *now*" })).includes("<#123456789012345678> \\*now\\*"), "channel mention kept, other text escaped");
+  assert.deepEqual(discordProblems(msg(view({ massing: "Caerleon bank" }))), []);
 });
 
 test("a blank content has no roster: no party line, no menus, no Leave, Ping or vote; only Manage", () => {
@@ -647,14 +662,16 @@ test("a CTA is one message whatever party is asked for: both parties' rows, numb
   const v = twoParty();
   assert.equal(JSON.stringify(p(v, 2)), JSON.stringify(p(v, 1)), "the party argument is ignored for a CTA");
   const lines = ptxt(v).split("\n");
-  const h1 = lines.findIndex((l) => l.startsWith("**Party 1 (1/2)**"));
-  const h2 = lines.findIndex((l) => l.startsWith("**Party 2 (1/3)**"));
+  const h1 = lines.findIndex((l) => l.startsWith("⚔️ **Party 1 (1/2)**"));
+  const h2 = lines.findIndex((l) => l.startsWith("🛡️ **Party 2 (1/3)**"));
   assert.ok(h1 > 0 && h2 > h1, lines.join("\n"));
   assert.ok(lines[h1 + 1]!.startsWith("1. ") && lines[h1 + 1]!.includes("Mace"));
   assert.ok(lines[h1 + 2]!.startsWith("2. ") && lines[h1 + 2]!.includes("Holy"));
   assert.ok(lines[h2 + 1]!.startsWith("1. ") && lines[h2 + 1]!.includes("Bow"));
   assert.ok(lines[h2 + 3]!.startsWith("3. ") && lines[h2 + 3]!.includes("Nature"));
   assert.ok(!lines.includes("**Party 1**") && !lines.includes("## Party 2"), "no old per-message party lines");
+  assert.equal(lines[h2 - 1], "", "a blank line after party 1's list");
+  assert.equal(lines[h2 + 3 + 1], "", "and after party 2's list");
   assert.ok(!ptxt(v).includes("Total"), "no total line");
   assert.equal(lines[h1 - 1], "═══════════════════════", "the rule is followed directly by the party headings");
   assert.ok(ptxt(v).includes("Gear tier") && ptxt(v).includes("Tips for the owner"));
@@ -730,6 +747,8 @@ test("Bombers: a line after the parties with ❓ after tentative bombers, and a 
   assert.ok(raw1.includes("**💣 Bombers (2/3):** <@501> · <@502> ❓"), raw1);
   const lines = plain(raw1).split("\n");
   const b = lines.findIndex((l) => l.startsWith("**💣 Bombers"));
+  assert.equal(lines[b - 1], "", "a blank line after party 2's list, before Bombers");
+  assert.equal(lines[b + 1], "", "and after Bombers");
   const lastRow = lines.findIndex((l) => l.includes("Nature"));
   const firstList = lines.findIndex((l) => l.startsWith("Party 1 · "));
   assert.ok(b > lastRow && b < firstList, lines.join("\n"));
@@ -738,10 +757,10 @@ test("Bombers: a line after the parties with ❓ after tentative bombers, and a 
   assert.equal(bomb({ ...v, bomberIds: ["501", "502", "503"] }).disabled, true, "full");
   assert.equal(bomb({ ...v, status: "locked" }).disabled, true, "locked");
   assert.equal(bomb({ ...v, status: "done" }).disabled, true, "done");
-  // A one-party CTA with Bombers: the line and button, still no Party 1 heading.
+  // A one-party CTA with Bombers: the groups read the same, so the party has its icon heading too.
   const one = view({ cta: true, bombers: 10, bomberIds: [] });
   assert.ok(textOf(p(one)).includes("💣 Bombers (0/10)"));
-  assert.ok(!ptxt(one).includes("Party 1"));
+  assert.ok(ptxt(one).includes("⚔️ **Party 1 ("));
   assert.equal(bomb(one).label, "Bombers 0/10");
   // Bombers is for a CTA only, and no Bombers line or button when it is not set.
   assert.ok(!textOf(p(twoParty())).includes("Bombers"));
@@ -809,4 +828,19 @@ test("the roster link uses the roster channel when it is set, the thread otherwi
   assert.equal(rosterUrl({ guildId: "g1", threadId: "t1", messageId: "m1", rosterChannelId: "ch9" }), "https://discord.com/channels/g1/ch9/m1");
   assert.equal(rosterUrl({ guildId: "g1", threadId: "t1", messageId: "m1", rosterChannelId: null }), "https://discord.com/channels/g1/t1/m1");
   assert.equal((rosterButton(view({ rosterChannelId: "ch9", messageId: "m2" }))[0] as any).components[0].url, "https://discord.com/channels/g1/ch9/m2");
+});
+
+test("every position row reads role - weapon - player - duty, in a one-party roster and in a CTA with two parties", () => {
+  const rows = (v: RosterView) => ptxt(v).split("\n").filter((l) => /^\d+\. /.test(l));
+  const duty = (v: RosterView) => ({ ...v, slots: v.slots.map((x, n) => (n === 0 ? { ...x, duty: "caller" } : x)) });
+  for (const v of [duty(twoParty()), duty(view({ cta: true }))]) {
+    const first = rows(v)[0]!;
+    const parts = first.replace(/^\d+\. /, "").split(" - ");
+    assert.equal(parts.length, 4, first);
+    assert.ok(/(Tank)$/.test(parts[0]!) && parts[0]!.includes("🛡️"), "role first");
+    assert.ok(parts[1]!.includes("Mace") || parts[1]!.includes("Broadsword"), "then the weapon");
+    assert.equal(parts[2], "<@111>", "then the player");
+    assert.ok(parts[3]!.includes("Caller"), "then the duty");
+  }
+  assert.ok(rows(twoParty())[1]!.includes("- Open"), "an empty position shows Open in the player place");
 });

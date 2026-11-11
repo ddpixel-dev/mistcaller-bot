@@ -176,10 +176,10 @@ export type SettingsResult = "ok" | "unavailable" | "has_applicants";
 // The Edit panel (ADR 0029): the category, the loot vote and the build reference, each on its own, while open.
 // A field left out keeps its value; buildRef null removes the reference.
 export async function updateContentSettings(
-  sql: Sql, id: string, s: { kind?: string; hasLoot?: boolean; buildRef?: string | null; selection?: boolean },
+  sql: Sql, id: string, s: { kind?: string; hasLoot?: boolean; buildRef?: string | null; selection?: boolean; massing?: string | null },
 ): Promise<SettingsResult> {
   return await sql.begin(async (tx): Promise<SettingsResult> => {
-    const [c] = await tx`select status, kind, has_loot, build_channel_id, selection from content where id = ${id} for update`;
+    const [c] = await tx`select status, kind, has_loot, build_channel_id, selection, massing_at from content where id = ${id} for update`;
     if (!c || c.status !== "open") return "unavailable";
     if (s.selection === false && c.selection) {
       // FR-058: switching selection off with applicants waiting would strand them; the host reviews them first.
@@ -195,7 +195,8 @@ export async function updateContentSettings(
     await tx`
       update content set kind = ${s.kind ?? c.kind}, has_loot = ${s.hasLoot ?? c.has_loot},
         build_channel_id = ${s.buildRef === undefined ? c.build_channel_id : s.buildRef},
-        selection = ${s.selection ?? c.selection}
+        selection = ${s.selection ?? c.selection},
+        massing_at = ${s.massing === undefined ? c.massing_at : s.massing}
       where id = ${id}`;
     return "ok";
   });

@@ -1,7 +1,8 @@
 import type { Sql } from "./client.ts";
+import type { ContentType } from "../domain/types.ts";
 
 // Event forums (FR-053, ADR 0037): the forum where the bot posts each content of one type. A forum may serve several types.
-export type ForumType = "pvp" | "pve" | "pvx";
+export type ForumType = ContentType;
 export type EventForum = { guildId: string; forumId: string; type: ForumType; launcherThreadId: string | null };
 
 const toForum = (r: Record<string, any>): EventForum => ({

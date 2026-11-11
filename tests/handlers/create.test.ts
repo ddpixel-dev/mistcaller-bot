@@ -114,7 +114,7 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.deepEqual(discordProblems(r.data), []);
   assert.ok(say(r).includes("Create event"));
   const [type, kind, loot, signup] = cardMenus(r);
-  assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
+  assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx", "zvz"]);
   assert.equal(kind.disabled, true, "the category waits for the type");
   assert.deepEqual(loot.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]]);
   assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");

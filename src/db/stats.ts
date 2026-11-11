@@ -62,7 +62,7 @@ export async function getStats(sql: Sql, guildId: string, now: Date): Promise<St
       where c.guild_id = ${guildId} and c.status <> 'cancelled' and su.status in ('signed', 'fill', 'bomber')
       group by su.user_id order by count desc, su.user_id limit 10`,
   ]);
-  const byType: Record<ContentType, number> = { pvp: 0, pve: 0, pvx: 0 };
+  const byType: Record<ContentType, number> = { pvp: 0, pve: 0, pvx: 0, zvz: 0 };
   for (const k of kinds) byType[k.type as ContentType] += k.count as number;
   return {
     all, month, byType,

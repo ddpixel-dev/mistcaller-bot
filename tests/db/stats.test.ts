@@ -52,7 +52,7 @@ test("type and category counts leave out cancelled content", async () => {
   const d = await make({ threadId: "d", startsAt: new Date(NOW.getTime() + DAY), type: "pve", kind: "mists" });
   await sql`update content set status = 'cancelled' where id = ${d}`;
   const s = await getStats(sql, "g1", NOW);
-  assert.deepEqual(s.byType, { pvp: 2, pve: 1, pvx: 0 });
+  assert.deepEqual(s.byType, { pvp: 2, pve: 1, pvx: 0, zvz: 0 });
   assert.deepEqual(s.byKind.map((k) => [k.type, k.kind, k.count]), [["pvp", "zvz", 2], ["pve", "group-dungeon", 1]]);
 });
 

@@ -47,6 +47,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0045 Pinned CTA message](decisions/0045-cta-pinned-message-copied-at-creation.md): accepted; copied at creation from a message link, pinned below the roster
 - [0046 Message Content intent](decisions/0046-message-content-intent-on.md): accepted; needed to forward a member's message (FR-069), changes NFR-001
 - [0047 One CTA message, Bombers](decisions/0047-cta-one-message-in-channel-bombers.md): accepted; the roster is the message in the CTA channel, all parties in it, optional Bombers, CTA presets, quiet pins
+- [0048 ZvZ type, Massing at](decisions/0048-zvz-content-type-and-massing-at.md): accepted; ZvZ is a content type, every content may name where it masses, quieter roster notes
 - [CTA in one message, Bombers design](plan/2026-11-11-cta-one-message-bombers-design.md): accepted 2026-11-11 (FR-070 to FR-073), release 0.31.9
 - [CTA in one message implementation plan](plan/2026-11-11-cta-one-message-implementation.md): tasks on `feature/cta-one-message`, migration 0033
 - [CTA pinned message and two parties design](plan/2026-11-10-cta-pinned-message-and-parties-design.md): accepted 2026-11-10 (FR-069, FR-070)

@@ -3,7 +3,7 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { NOT_VALID, reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
-import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardParty1, handleCardParty2, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
+import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardMassing, handleCardParty1, handleCardParty2, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
 import { handleHub } from "../handlers/hub.ts";
 import { handleMeComponent } from "../handlers/me.ts";
 import { handleSetupComponent } from "../handlers/setup.ts";
@@ -19,7 +19,7 @@ import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handl
 import { handleVote } from "../handlers/vote.ts";
 import { handleRetryComponent } from "../handlers/retry.ts";
 import { handleRemoveComponent } from "../handlers/remove.ts";
-import { handleBuildLinkModal, handleEditPanelComponent, handleManageComponent } from "../handlers/manage-panel.ts";
+import { handleBuildLinkModal, handleMassingModal, handleEditPanelComponent, handleManageComponent } from "../handlers/manage-panel.ts";
 import { handleSetWeaponComponent } from "../handlers/set-weapon.ts";
 import { handleDutyComponent } from "../handlers/duty.ts";
 import { handleBombers } from "../handlers/bombers.ts";
@@ -30,7 +30,7 @@ export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionRespons
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccs1: handleCardParty1, ccs2: handleCardParty2, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, edp: handleParty2Modal, edp1: handleParty1Modal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccs1: handleCardParty1, ccs2: handleCardParty2, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, edp: handleParty2Modal, edp1: handleParty1Modal, gsc: handleGuidedModal, edb: handleBuildLinkModal, edm: handleMassingModal, ccm: handleCardMassing };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, fp: handleFillChoice, leaveslot: handleLeaveSlot, leave: handleLeave, tent: handleTentative, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
   cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent, bomb: handleBombers,

@@ -5,8 +5,8 @@ import type { ContentType, Result } from "./types.ts";
 export type KindDef = { id: string; label: string; type: ContentType; color: number; icon: string };
 
 export const DEFAULT_KIND = "other";
-export const TYPE_LABEL: Record<ContentType, string> = { pvp: "PvP", pve: "PvE", pvx: "PvX" };
-const TYPE_ICON: Record<ContentType, string> = { pvp: "⚔️", pve: "🐉", pvx: "🌀" };
+export const TYPE_LABEL: Record<ContentType, string> = { pvp: "PvP", pve: "PvE", pvx: "PvX", zvz: "ZvZ" };
+const TYPE_ICON: Record<ContentType, string> = { pvp: "⚔️", pve: "🐉", pvx: "🌀", zvz: "🏰" };
 
 export const KINDS: KindDef[] = [
   { id: "zvz", label: "ZvZ", type: "pvp", color: 0x1c3a8a, icon: "🏰" },
@@ -27,6 +27,13 @@ export const KINDS: KindDef[] = [
   { id: "depths", label: "Depths", type: "pvp", color: 0x7b6a3a, icon: "⛏️" },
   { id: "ancient-lands", label: "Ancient Lands", type: "pvp", color: 0x7a5fa8, icon: "🗿" },
   { id: DEFAULT_KIND, label: "Other", type: "pvp", color: 0x2b4db0, icon: "⚔️" },
+  // ZvZ (ADR 0048): its own type. Faction Warfare, Outposts and Castle also stay under PvP for older content.
+  { id: "faction-warfare", label: "Faction Warfare", type: "zvz", color: 0x3b6fd1, icon: "🚩" },
+  { id: "outposts", label: "Outpost", type: "zvz", color: 0x3f7f8f, icon: "🛡️" },
+  { id: "siege", label: "Siege", type: "zvz", color: 0x8a3a2f, icon: "🪜" },
+  { id: "territory-defense", label: "Territory Defense", type: "zvz", color: 0x2f7f5f, icon: "🏴" },
+  { id: "castle", label: "Castle", type: "zvz", color: 0x35508f, icon: "🏯" },
+  { id: DEFAULT_KIND, label: "Other", type: "zvz", color: 0x1c3a8a, icon: "🏰" },
   { id: "group-dungeon", label: "Group dungeon", type: "pve", color: 0xc9a227, icon: "🏚️" },
   { id: "avalonian-dungeon", label: "Avalonian dungeon", type: "pve", color: 0xb8860b, icon: "🌌" },
   { id: "world-boss", label: "World boss", type: "pve", color: 0xd4a017, icon: "🐉" },
@@ -65,7 +72,8 @@ const alphabetical = (list: KindDef[]): KindDef[] =>
 export function kindsOf(type: ContentType): KindDef[] {
   if (type !== "pvx") return alphabetical(KINDS.filter((k) => k.type === type));
   const seen = new Set<string>();
-  const all = KINDS.filter((k) => !PVX_LEFT_OUT.has(k.id) && !seen.has(k.id) && !!seen.add(k.id));
+  // PvX holds the PvP and PvE categories only; ZvZ categories are not part of it.
+  const all = KINDS.filter((k) => (k.type === "pvp" || k.type === "pve") && !PVX_LEFT_OUT.has(k.id) && !seen.has(k.id) && !!seen.add(k.id));
   return alphabetical([...all.filter((k) => k.id !== DEFAULT_KIND), ...all.filter((k) => k.id === DEFAULT_KIND).map((k) => ({ ...k, color: PVX_COLOR }))]);
 }
 
@@ -75,7 +83,7 @@ export function kindDef(type: ContentType, id: string): KindDef | null {
   if (offered) return offered;
   const old = LEGACY_KINDS.find((k) => k.id === id && (type === "pvx" || k.type === type));
   if (old) return old;
-  return type === "pvx" ? KINDS.find((k) => k.id === id) ?? null : null;
+  return type === "pvx" ? KINDS.find((k) => k.id === id && k.type !== "zvz") ?? null : null;
 }
 
 export const typeIcon = (type: ContentType): string => TYPE_ICON[type];
@@ -93,7 +101,7 @@ export function resolveKind(type: ContentType, id: string | null): Result<string
   const other = KINDS.find((k) => k.id === id);
   if (other) {
     const here = TYPE_LABEL[type];
-    const there = other.type === "pvp" ? "PvP" : "PvE";
+    const there = TYPE_LABEL[other.type];
     return { ok: false, error: `${other.label} is a ${there} category, but this content is ${here}.` };
   }
   return { ok: false, error: "That category is not on the list." };

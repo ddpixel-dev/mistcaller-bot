@@ -15,7 +15,7 @@ export type CardInput = {
   notes: string | null;
   slots: SlotDef[];
   slotsText: string | null; // typed slot lines that did not parse; they win over `slots` until fixed
-  // A CTA card (FR-070): no type or category (stored as PvX, Other), roles limited to CTA_ROLES, and up to two parties.
+  // A CTA card (FR-070): no type or category (stored as ZvZ, Other), roles limited to CTA_ROLES, and up to two parties.
   cta?: boolean;
   parties?: number;
   slots2?: SlotDef[];
@@ -50,7 +50,7 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   const problems: string[] = [];
   const cta = c.cta === true;
   const parties: 1 | 2 = cta && (c.parties ?? 1) >= 2 && maxPartiesFor(c.kind ?? "other", true) >= 2 ? 2 : 1;
-  const type: ContentType | null = cta ? "pvx" : c.type;
+  const type: ContentType | null = cta ? "zvz" : c.type;
   if (!type) problems.push("Pick the type of content.");
   const kind = cta ? ({ ok: true, value: "other" } as const) : c.type ? resolveKind(c.type, c.kind) : null;
   if (kind && !kind.ok) problems.push(kind.error);
@@ -82,7 +82,7 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
 
 // A card opened for one forum's type offers that type only (ADR 0037); with none, every type.
 export function typesFor(forumType: ContentType | null): ContentType[] {
-  return forumType ? [forumType] : ["pvp", "pve", "pvx"];
+  return forumType ? [forumType] : ["pvp", "pve", "pvx", "zvz"];
 }
 
 // The forum's tags named like the type ("PvP") or the category ("ZvZ"), ignoring case. Discord allows five per post.
@@ -100,10 +100,10 @@ export function pickEventForum<T extends { forumId: string; type: ContentType }>
 export type BlankInput = { type: ContentType | null; title: string | null; startText: string | null; gearTier: string | null; notes: string | null };
 export type BlankContent = { type: ContentType; title: string; startsAt: Date; tier: string; notes: string | null };
 
-// A blank content (FR-060) has no roster: title, start, gear tier and description. A CTA has no type to pick, so it is PvX.
+// A blank content (FR-060) has no roster: title, start, gear tier and description. A CTA has no type to pick, so it is ZvZ.
 export function validateBlank(c: BlankInput, cta: boolean, now: Date): { ok: true; value: BlankContent } | { ok: false; problems: string[] } {
   const problems: string[] = [];
-  const type: ContentType | null = c.type ?? (cta ? "pvx" : null);
+  const type: ContentType | null = c.type ?? (cta ? "zvz" : null);
   if (!type) problems.push("Pick the type of content (PvP or PvE) first.");
   const title = parseTitle(c.title ?? "");
   if (!title.ok) problems.push(c.title ? title.error : "Add a title.");

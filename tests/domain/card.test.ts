@@ -38,7 +38,7 @@ test("typed slots that do not parse are reported with the parser's reason, and a
 test("a forum's type limits the content types: PvP or PvE with PvX, or all three", () => {
   assert.deepEqual(typesFor("pvp"), ["pvp"]);
   assert.deepEqual(typesFor("pvx"), ["pvx"]);
-  assert.deepEqual(typesFor(null), ["pvp", "pve", "pvx"]);
+  assert.deepEqual(typesFor(null), ["pvp", "pve", "pvx", "zvz"]);
 });
 
 test("forum tags match the type or the category by name, ignoring case; at most five", () => {
@@ -60,7 +60,7 @@ test("normal content goes to the forum set for its type and nowhere else; one fo
   assert.equal(pickEventForum([], "pvp"), null);
 });
 
-test("a blank content needs a type (CTA needs none: it is PvX), a title, a start and a gear tier; the description is optional", () => {
+test("a blank content needs a type (CTA needs none: it is ZvZ), a title, a start and a gear tier; the description is optional", () => {
   const NOW = new Date("2026-10-24T12:00:00Z");
   const ok = validateBlank({ type: "pvp", title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: "bring food" }, false, NOW);
   assert.deepEqual(ok.ok && [ok.value.type, ok.value.title, ok.value.tier, ok.value.notes], ["pvp", "Roam", "T8", "bring food"]);
@@ -68,7 +68,7 @@ test("a blank content needs a type (CTA needs none: it is PvX), a title, a start
   const noType = validateBlank({ type: null, title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: null }, false, NOW);
   assert.deepEqual(noType, { ok: false, problems: ["Pick the type of content (PvP or PvE) first."] });
   const cta = validateBlank({ type: null, title: "Roam", startText: "2026-10-25 18:00", gearTier: "T8", notes: null }, true, NOW);
-  assert.equal(cta.ok && cta.value.type, "pvx");
+  assert.equal(cta.ok && cta.value.type, "zvz");
   const bad = validateBlank({ type: "pvp", title: null, startText: "soon", gearTier: null, notes: null }, false, NOW);
   assert.equal(bad.ok, false);
   assert.equal(!bad.ok && bad.problems.length, 3, "title, start and gear tier");
@@ -78,10 +78,10 @@ test("a blank content needs a type (CTA needs none: it is PvX), a title, a start
 
 const cta: CardInput = { ...good, type: null, kind: "other", cta: true, parties: 1, slots2: [], slots2Text: null };
 
-test("a CTA needs no type or category: it is stored as PvX, Other", () => {
+test("a CTA needs no type or category: it is stored as ZvZ, Other", () => {
   const r = validateCard(cta, NOW);
   assert.ok(r.ok);
-  assert.deepEqual(r.ok && [r.value.type, r.value.kind, r.value.slots2, r.value.parties], ["pvx", "other", [], 1]);
+  assert.deepEqual(r.ok && [r.value.type, r.value.kind, r.value.slots2, r.value.parties], ["zvz", "other", [], 1]);
 });
 
 test("normal content still needs a type and accepts any role", () => {

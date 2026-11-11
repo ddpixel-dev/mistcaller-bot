@@ -12,6 +12,7 @@ import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
 import { parseBombersCap } from "../domain/bombers.ts";
+import { parseMassing } from "../domain/massing.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
@@ -127,6 +128,7 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, value === "1" ? { parties: 1, slots2: [], slots2Text: null } : { parties: 2 });
       return await showCard(deps, await reload(deps, d));
     }
+    case "massing": return massingForm(d);
     case "p1": return d.cta ? party1Form(d) : reply(EXPIRED);
     case "p2": return d.cta && d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
     case "copy": {
@@ -225,6 +227,30 @@ function detailsForm(d: StoredDraft): InteractionResponse {
       ],
     },
   };
+}
+
+// Massing at (FR-074): its own one-field form, for every kind of content (the Details form is full).
+function massingForm(d: StoredDraft): InteractionResponse {
+  return {
+    type: MODAL,
+    data: {
+      custom_id: `ccm:${d.id}`,
+      title: "Massing at",
+      components: [textInput("massing", "Where the party gathers", 100, { required: false, placeholder: "Leave empty for none", ...(d.massing ? { value: d.massing } : {}) })],
+    },
+  };
+}
+
+// ccm:<draft>: the Massing at form. A bad value is a problem on the card and keeps the old one.
+export async function handleCardMassing(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
+  if (prefix !== "ccm" || extra !== undefined) return reply(EXPIRED);
+  const d = await ownedDraft(deps, i, id);
+  if (!d) return reply(EXPIRED);
+  const massing = parseMassing(modalValues(i).massing ?? "");
+  if (massing.ok) await saveCard(deps.sql, d.id, { massing: massing.value });
+  return await showCard(deps, await reload(deps, d), massing.ok ? {} : { problems: [massing.error] });
 }
 
 // Party 1 of a CTA (or its only party): its own form, one box of the same size as the Details slots.
@@ -362,7 +388,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!where.ok) return await showCard(deps, d, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, slots2: c.slots2, bombers: c.bombers, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
+    slots: c.slots, slots2: c.slots2, bombers: c.bombers, massing: d.massing, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
@@ -383,6 +409,7 @@ function blankForm(d: StoredDraft): InteractionResponse {
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: true, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: true, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
         textInput("notes", "Description (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
+        textInput("massing", "Massing at (optional)", 100, { required: false, placeholder: "Where the party gathers", ...(d.massing ? { value: d.massing } : {}) }),
       ],
     },
   };
@@ -396,8 +423,10 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
   const d = await ownedDraft(deps, i, id);
   if (!d) return reply(EXPIRED);
   const v = modalValues(i);
-  await saveCard(deps.sql, d.id, { title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes) });
+  const massing = parseMassing(v.massing ?? "");
+  await saveCard(deps.sql, d.id, { title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes), ...(massing.ok ? { massing: massing.value } : {}) });
   const fresh = await reload(deps, d);
+  if (!massing.ok) return await showCard(deps, fresh, { problems: [massing.error] });
   const checked = validateBlank(fresh, fresh.cta, deps.now());
   if (!checked.ok) return await showCard(deps, fresh, { problems: checked.problems });
   if (!(await ctaAllowed(deps, i, fresh))) return reply(NOT_CTA);
@@ -406,7 +435,7 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
   if (!where.ok) return await showCard(deps, fresh, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: fresh.guildId, creator: fresh.userId, type: c.type, kind: DEFAULT_KIND, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: [], hasLoot: false, cta: fresh.cta, blank: true, buildRef: null, place: where.place,
+    slots: [], hasLoot: false, cta: fresh.cta, blank: true, buildRef: null, massing: fresh.massing, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);

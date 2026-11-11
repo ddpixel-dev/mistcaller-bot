@@ -159,7 +159,7 @@ test("Edit opens a private panel: the category and loot vote apply at once, Edit
   assert.equal(p.data.flags, 64);
   assert.deepEqual(discordProblems({ ...p.data, flags: 0 }), []);
   const ids = flatComponents(p.data).map((c) => c.custom_id).filter(Boolean);
-  assert.deepEqual(ids, [`ed:k:${id}`, `ed:l:${id}`, `ed:s:${id}`, `mg:f:${id}`, `ed:b:${id}`]);
+  assert.deepEqual(ids, [`ed:k:${id}`, `ed:l:${id}`, `ed:s:${id}`, `mg:f:${id}`, `ed:b:${id}`, `ed:m:${id}`]);
   const kinds = flatComponents(p.data).find((c) => c.custom_id === `ed:k:${id}`)!;
   assert.ok(kinds.options.some((o: any) => o.value === "zvz") && !kinds.options.some((o: any) => o.value === "world-boss"), "the type's own categories");
 
@@ -335,4 +335,27 @@ test("a CTA panel action is refused for another guild, a channel the content doe
   assert.ok(text(await d(click(`mg:l:${cta.slice(0, -1)}`, OWNER, undefined, { ...PANEL, ...inCta }))).includes("out of date"), "a malformed id");
   const view = await getRosterView(await testSql(), cta, NOW);
   assert.equal(view?.status, "open");
+});
+
+// FR-074: Massing at, for every kind of content, from the Edit panel.
+test("Edit → Massing at opens a one-field form; text sets it and refreshes the roster, an empty field removes it; only managers", async () => {
+  const { d, id, sql, edits } = await setup();
+  const form: any = await d(click(`ed:m:${id}`, OWNER));
+  assert.equal(form.type, 9);
+  assert.equal(form.data.custom_id, `edm:${id}`);
+  assert.equal(form.data.components[0].components[0].max_length, 100);
+  const submit = (value: string, user = OWNER): Interaction => ({
+    id: "i", type: 5, application_id: "a", token: "t", guild_id: "g1", channel: { id: "t1", type: 11 }, member: who(user),
+    data: { custom_id: `edm:${id}`, components: [{ type: 1, components: [{ type: 4, custom_id: "massing", value }] }] },
+  } as Interaction);
+  assert.ok(text(await d(submit("Caerleon bank", STRANGER))).includes("Only the creator"));
+  assert.equal((await sql`select massing_at from content`)[0]!.massing_at, null);
+  assert.ok(text(await d(submit("Caerleon bank"))).includes("Massing at is set"));
+  assert.equal((await sql`select massing_at from content`)[0]!.massing_at, "Caerleon bank");
+  assert.ok(JSON.stringify(edits.at(-1)).includes("Massing at") && JSON.stringify(edits.at(-1)).includes("Caerleon bank"), "the roster shows it");
+  const again: any = await d(click(`ed:m:${id}`, OWNER));
+  assert.equal(again.data.components[0].components[0].value, "Caerleon bank", "prefilled");
+  assert.ok(text(await d(submit("x".repeat(101)))).includes("at most 100"));
+  assert.ok(text(await d(submit(""))).includes("Massing at is removed"));
+  assert.equal((await sql`select massing_at from content`)[0]!.massing_at, null);
 });

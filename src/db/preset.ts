@@ -1,5 +1,5 @@
 import type { Sql } from "./client.ts";
-import type { ContentType, SlotDef } from "../domain/types.ts";
+import { isContentType, type ContentType, type SlotDef } from "../domain/types.ts";
 
 export const MAX_PRESETS = 25;
 
@@ -19,7 +19,7 @@ export function toSettings(raw: unknown): PresetSettings | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   return {
-    type: r.type === "pvp" || r.type === "pve" || r.type === "pvx" ? r.type : null,
+    type: isContentType(r.type) ? r.type : null,
     kind: text(r.kind, 40), loot: r.loot === true, selection: r.selection === true,
     title: text(r.title, 100), tier: text(r.tier, 80), notes: text(r.notes, 500), buildRef: text(r.buildRef, 100),
     bombers: Number.isInteger(r.bombers) && (r.bombers as number) >= 1 && (r.bombers as number) <= 20 ? (r.bombers as number) : null,

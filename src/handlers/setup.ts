@@ -1,5 +1,6 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
+import { isContentType } from "../domain/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { MAX_ADMIN_ROLES, getAdminRoleIds, setAdminRoles } from "../db/settings.ts";
 import { hasManageServer, isAdmin } from "../domain/permissions.ts";
@@ -194,8 +195,8 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (forum !== undefined && !isForum(forum)) return reply("Pick a forum channel of this server for `event-forum`.");
   if (clearForum !== undefined && !isForum(clearForum)) return reply("Pick a forum channel of this server for `clear-event-forum`.");
   if (forumType !== undefined && forum === undefined && clearForum === undefined) return reply("`forum-type` goes with `event-forum` or `clear-event-forum`.");
-  if (forumType !== undefined && forumType !== "pvp" && forumType !== "pve" && forumType !== "pvx") return reply("Pick PvP, PvE or PvX.");
-  if (forum !== undefined && forumType === undefined) return reply("Pick the `forum-type` this forum is for: PvP, PvE or PvX. Run the command again to use the same forum for more types.");
+  if (forumType !== undefined && !isContentType(forumType)) return reply("Pick PvP, PvE, PvX or ZvZ.");
+  if (forum !== undefined && forumType === undefined) return reply("Pick the `forum-type` this forum is for: PvP, PvE, PvX or ZvZ. Run the command again to use the same forum for more types.");
   if (forum !== undefined && clearForum !== undefined) return reply("Set a forum or clear one, not both.");
   const resolvedRoles = (i.data as { resolved?: { roles?: Record<string, unknown> } } | undefined)?.resolved?.roles ?? {};
   for (const [name, role] of [["cta-role", ctaRole], ["remove-cta-role", removeCtaRole]] as const) {
@@ -237,8 +238,8 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
     lines.push((await clearCtaChannel(deps.sql, i.guild_id)) ? "CTA channel cleared: a CTA cannot be scheduled until you set one." : "No CTA channel was set.");
   }
   if (typeof ctaRole === "string" || typeof removeCtaRole === "string") lines.push(await applyCtaRoles(deps, i.guild_id, ctaRole, removeCtaRole));
-  if (isForum(forum) && (forumType === "pvp" || forumType === "pve" || forumType === "pvx")) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType));
-  if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum, forumType === "pvp" || forumType === "pve" || forumType === "pvx" ? forumType : null));
+  if (isForum(forum) && isContentType(forumType)) lines.push(await applyEventForum(deps, i.guild_id, forum, forumType));
+  if (isForum(clearForum)) lines.push(await clearEventForum(deps, i.guild_id, clearForum, isContentType(forumType) ? forumType : null));
   if (typeof changelog === "string") {
     await setChangelogChannel(deps.sql, i.guild_id, changelog);
     const kind = resolved[changelog]?.type;
