@@ -115,6 +115,13 @@ test("/content list shows upcoming content soonest first with counts and links, 
   assert.deepEqual(r.data.allowed_mentions, { parse: [] });
 });
 
+test("/content list links a CTA to its roster in the CTA channel (ADR 0047)", async () => {
+  const { sql, d } = await setup();
+  await sql`update content set cta = true, roster_channel_id = 'ch9', message_id = 't1' where thread_id = 't1'`;
+  const lines = text(await d(cmd("list"))).split("\n");
+  assert.equal(lines[2], "https://discord.com/channels/g1/ch9/t1");
+});
+
 test("the list keeps started content that is not ended, leaves out ended, cancelled and other-server content, and says so when empty", async () => {
   const { sql, make, d, setNow } = await setup();
   await sql`update content set status = 'cancelled'`;

@@ -10,6 +10,7 @@ export type ManageTarget = {
   guildId: string;
   threadId: string;
   messageId: string | null;
+  rosterChannelId: string | null; // the channel of a CTA's one roster message (ADR 0047); null for other content
   status: ContentStatus;
   createdBy: string | null;
   title: string;
@@ -21,6 +22,7 @@ const target = (r: Record<string, any>): ManageTarget => ({
   guildId: r.guild_id,
   threadId: r.thread_id,
   messageId: r.message_id,
+  rosterChannelId: r.roster_channel_id ?? null,
   status: r.status as ContentStatus,
   createdBy: r.created_by,
   title: r.title,
@@ -29,14 +31,30 @@ const target = (r: Record<string, any>): ManageTarget => ({
 
 export async function getManageTarget(sql: Sql, guildId: string, threadId: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content
     where guild_id = ${guildId} and thread_id = ${threadId} and status <> 'cancelled'`;
+  return r ? target(r) : null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ADR 0047: a click on a CTA roster (or on a panel opened from it) comes from the CTA channel, not the thread, so the
+// content is found by the id its custom id carries. That id comes from the client: it is accepted only for the verified
+// guild and when the channel is one the content owns (its thread or its roster channel). Without an id (a slash
+// command) the content is the post's, found by thread as before.
+export async function getManageTargetFor(sql: Sql, guildId: string, channelId: string, contentId?: string): Promise<ManageTarget | null> {
+  if (contentId === undefined) return await getManageTarget(sql, guildId, channelId);
+  if (!UUID.test(contentId)) return null;
+  const [r] = await sql`
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content
+    where id = ${contentId} and guild_id = ${guildId} and status <> 'cancelled'
+      and (thread_id = ${channelId} or roster_channel_id = ${channelId})`;
   return r ? target(r) : null;
 }
 
 export async function getManageTargetById(sql: Sql, id: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content where id = ${id}`;
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content where id = ${id}`;
   return r ? target(r) : null;
 }
 
@@ -51,17 +69,28 @@ export type EditInput = {
   buildRef?: string | null; // undefined keeps the current value, null removes it
   slots?: SlotDef[]; // party 1; undefined leaves it as it is (the party 2 form uses that)
   slots2?: SlotDef[]; // party 2 of a two-party CTA; undefined leaves it as it is (FR-070)
+  bombers?: number | null; // a CTA's Bombers cap; undefined keeps it, null turns Bombers off (FR-071)
 };
 
 export type EditResult =
   | { result: "ok"; startChanged: boolean; notify: string[]; promoted: Promotion[] }
   | { result: "unavailable" }
-  | { result: "slots_held"; error: string };
+  | { result: "slots_held"; error: string }
+  | { result: "bombers_held"; error: string };
 
 export async function editContent(sql: Sql, id: string, input: EditInput, now: Date): Promise<EditResult> {
   return await sql.begin(async (tx): Promise<EditResult> => {
-    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id, title, notes, gear_tier from content where id = ${id} for update`;
+    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id, title, notes, gear_tier, cta, bombers from content where id = ${id} for update`;
     if (!c || c.status !== "open") return { result: "unavailable" };
+    // Bombers (FR-071): the cap cannot go below the players already in it. The content row is locked, so a join cannot slip in.
+    let bombers: number | null = c.bombers ?? null;
+    if (c.cta && input.bombers !== undefined) {
+      const [{ n }] = await tx`select count(*)::int as n from signup where content_id = ${id} and status = 'bomber'`;
+      if (n > (input.bombers ?? 0)) {
+        return { result: "bombers_held", error: input.bombers === null ? `${n} player(s) are in Bombers. Remove them first (Manage → Remove player), then turn Bombers off.` : `${n} player(s) are in Bombers, more than ${input.bombers}. Remove some first (Manage → Remove player), or keep a cap of at least ${n}.` };
+      }
+      bombers = input.bombers;
+    }
 
     const slotRows = await tx`
       select s.id, s.position, s.party, s.role, s.weapon, s.duty, su.user_id
@@ -110,7 +139,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         title = ${input.title ?? c.title}, notes = ${input.notes === undefined ? c.notes : input.notes}, starts_at = ${startsAt},
         gear_tier = ${input.tier ?? c.gear_tier},
         has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind},
-        build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}
+        build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}, bombers = ${bombers}
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== startsAt.getTime();
@@ -119,7 +148,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       await tx`update content set reminder_sent_at = ${needsReminder(startsAt, now) ? null : now} where id = ${id}`;
     }
     const notify = startChanged
-      ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill') order by joined_at`).map(
+      ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill', 'bomber') order by joined_at`).map(
           (r) => r.user_id as string,
         )
       : [];
@@ -235,14 +264,14 @@ export async function unlockContent(sql: Sql, contentId: string, now: Date): Pro
 }
 
 export type UpcomingItem = {
-  id: string; threadId: string; messageId: string | null; title: string; type: string; kind: string;
+  id: string; threadId: string; messageId: string | null; rosterChannelId: string | null; title: string; type: string; kind: string;
   startsAt: Date; status: string; filled: number; total: number;
 };
 
 // FR-015: live content of the guild (open or locked, started or not, until it ends), soonest first.
 export async function listUpcoming(sql: Sql, guildId: string, limit: number): Promise<UpcomingItem[]> {
   const rows = await sql`
-    select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status,
+    select c.id, c.thread_id, c.message_id, c.roster_channel_id, c.title, c.type, c.kind, c.starts_at, c.status,
       (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed')
         + least((select count(*)::int from signup su where su.content_id = c.id and su.status = 'fill'),
                 (select count(*)::int from slot s where s.content_id = c.id)
@@ -252,7 +281,7 @@ export async function listUpcoming(sql: Sql, guildId: string, limit: number): Pr
     where c.guild_id = ${guildId} and c.status in ('open', 'locked')
     order by c.starts_at, c.id limit ${limit}`;
   return rows.map((r) => ({
-    id: r.id, threadId: r.thread_id, messageId: r.message_id, title: r.title, type: r.type, kind: r.kind,
+    id: r.id, threadId: r.thread_id, messageId: r.message_id, rosterChannelId: r.roster_channel_id ?? null, title: r.title, type: r.type, kind: r.kind,
     startsAt: r.starts_at, status: r.status, filled: r.filled, total: r.total,
   }));
 }

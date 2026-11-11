@@ -2,6 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
+import { renderRosterMessage } from "../../src/render/roster.ts";
 import { handleCancelButton, handleCancel, openEditForm, handleEditModal, handleLock, handleUnlock } from "../../src/handlers/manage.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { withHostActions } from "../helpers/host.ts";
@@ -250,16 +251,26 @@ const p2form = (id: string, slots: string, userId = "boss"): Interaction => {
   return m;
 };
 
-test("Edit details labels party 1 and prefills only its lines; the Edit panel has Edit party 2 slots", async () => {
+const p1form = (id: string, slots: string, userId = "boss"): Interaction => {
+  const m = modal(id, "k", { slots }, userId);
+  (m.data as any).custom_id = `edp1:${id}`;
+  return m;
+};
+
+test("a CTA's Edit details holds no slots but the Bombers cap; the Edit panel has Edit party 1 slots and Edit party 2 slots", async () => {
   const { deps, id } = await setupTwo();
   const r: any = await openEditForm(deps, command("edit"));
-  const slots = r.data.components.map((row: any) => row.components[0]).find((x: any) => x.custom_id === "slots");
-  assert.equal(slots.label, "Party 1 slots");
-  assert.equal(slots.value, "Tank - Mace\nHealer - Holy");
+  assert.deepEqual(r.data.components.map((row: any) => row.components[0].custom_id), ["title", "start", "tier", "notes", "bombers"]);
   const d = createDispatch(deps);
   const panel: any = await d(button(`mg:e:${id}`));
   const ids = panel.data.components.flatMap((row: any) => row.components).map((c: any) => c.custom_id);
-  assert.ok(ids.includes(`ed:p:${id}`));
+  assert.ok(ids.includes(`ed:o:${id}`) && ids.includes(`ed:p:${id}`));
+  const one: any = await d(button(`ed:o:${id}`));
+  assert.equal(one.type, 9);
+  assert.equal(one.data.custom_id, `edp1:${id}`);
+  const box1 = one.data.components[0].components[0];
+  assert.equal(box1.label, "Party 1 slots");
+  assert.equal(box1.value, "Tank - Mace\nHealer - Holy");
   const opened: any = await d(button(`ed:p:${id}`));
   assert.equal(opened.type, 9);
   assert.equal(opened.data.custom_id, `edp:${id}`);
@@ -302,19 +313,35 @@ test("the party 2 form refuses an unsupported role, naming Party 2, and a held s
   assert.match(text(await d(p2form(id, "Tank - Axe", "stranger"))), /Only the creator/);
 });
 
-test("Edit details on a CTA rejects an unsupported role and leaves party 2 alone; normal content accepts any role", async () => {
+test("the Party 1 slots form on a CTA rejects an unsupported role and leaves party 2 alone; normal content accepts any role", async () => {
   const { sql, deps, id } = await setupTwo();
-  const bad: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nScout - Bow" }));
+  const d = createDispatch(deps);
+  const bad: any = await d(p1form(id, "Tank - Mace\nScout - Bow"));
   assert.match(text(bad), /Party 1, line 2: "Scout" is not a supported role/);
-  const ok: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
-  assert.match(text(ok), /Content updated/);
+  const ok: any = await d(p1form(id, "Tank - Mace\nHealer - Holy\nDPS - Bow"));
+  assert.match(text(ok), /Party 1 updated/);
   const v = (await getRosterView(sql, id, NOW))!;
   assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}`), ["1:Tank", "1:Healer", "1:DPS", "2:Tank", "2:DPS"]);
   assert.equal(v.partyCount, 2);
-  // normal content keeps accepting any role (the existing "Scout" case in `good`)
+  // normal content keeps accepting any role (the existing "Scout" case in `good`) through Edit details
   await resetDb(sql);
   const n = await setup();
   assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", good))), /Content updated/);
+  isEphemeral(await d(p1form(id, "Tank")));
+});
+
+test("Edit details on a CTA saves the Bombers cap; a cap below the players in Bombers, or turning it off with players in it, is refused", async () => {
+  const { sql, deps, id } = await setupTwo();
+  const bombers = (n: string) => handleEditModal(deps, modal(id, "k", { title: "Ganking", start: "2026-12-05 20:00", tier: "T8", notes: "", bombers: n }));
+  assert.match(text(await bombers("5")), /Content updated/);
+  assert.equal((await getRosterView(sql, id, NOW))!.bombers, 5);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.map((s) => s.role), ["Tank", "Healer", "Tank", "DPS"], "slots are left as they are");
+  for (const u of ["a", "b", "c"]) await sql`insert into signup (guild_id, content_id, user_id, status, party) values ('g1', ${id}, ${u}, 'bomber', 1)`;
+  assert.match(text(await bombers("2")), /3 player\(s\) are in Bombers, more than 2/);
+  assert.match(text(await bombers("")), /Remove them first/);
+  assert.equal((await getRosterView(sql, id, NOW))!.bombers, 5);
+  assert.match(text(await bombers("3")), /Content updated/);
+  assert.match(text(await bombers("21")), /Bombers must be a number from 1 to 20/);
 });
 
 test("a party 2 slots save does not undo a concurrent change of the title, notes, start or tier", async () => {
@@ -336,12 +363,14 @@ test("an old CTA with a role outside the CTA list can still be edited; a new suc
   await setMessageId(sql, id, "m1");
   const rest: Rest = { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} };
   const deps: Deps = { sql, rest, now: () => NOW };
-  const ok: any = await handleEditModal(deps, modal(id, "k", { ...good, title: "New title", slots: "Tank - Mace\nHeal - Holy" }));
+  const d = createDispatch(deps);
+  const ok: any = await handleEditModal(deps, modal(id, "k", { ...good, title: "New title", slots: undefined as any }));
   assert.match(text(ok), /Content updated/);
   assert.equal((await getRosterView(sql, id, NOW))!.title, "New title");
-  const bad: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHeal - Holy\nHeal - Fallen" }));
+  assert.match(text(await d(p1form(id, "Tank - Mace\nHeal - Holy"))), /updated/);
+  const bad: any = await d(p1form(id, "Tank - Mace\nHeal - Holy\nHeal - Fallen"));
   assert.match(text(bad), /Line 3: "Heal" is not a supported role/);
-  const changed: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHeal - Fallen" }));
+  const changed: any = await d(p1form(id, "Tank - Mace\nHeal - Fallen"));
   assert.match(text(changed), /Line 2: "Heal" is not a supported role/);
 });
 
@@ -371,6 +400,17 @@ test("a title edit of a CTA edits the announcement with the new name and keeps t
   assert.ok(a.body.content.startsWith("📣 **Ganking 2 | 2 Dec | 18:00 UTC** · <t:"));
   assert.equal(a.body.components[0].components[0].url, "https://discord.com/channels/g1/t1/m1");
   assert.deepEqual(a.body.allowed_mentions, { parse: [] });
+});
+
+test("a title edit of a CTA with a roster channel renames the thread and edits the roster, never with an announcement body (ADR 0047)", async () => {
+  const { deps, sql, id, edits, renames } = await setupCta();
+  await sql`update content set roster_channel_id = 'cta-ch', message_id = 't1' where id = ${id}`;
+  const r: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+  assert.equal(text(r), "Content updated.");
+  assert.equal(renames[0].c, "t1");
+  const roster = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(edits.map((e) => [e.channelId, e.messageId]), [["cta-ch", "t1"]], "only the roster, in the CTA channel");
+  assert.deepEqual(edits[0].body, renderRosterMessage(roster));
 });
 
 test("a failing announcement edit is logged without text and the edit still succeeds", async () => {

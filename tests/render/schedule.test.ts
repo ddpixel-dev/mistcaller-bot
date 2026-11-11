@@ -67,6 +67,11 @@ test("events within a day are in time order; events already running sit above th
   assert.ok(t.indexOf("Early") < t.indexOf("Late"));
 });
 
+test("a CTA's Open link goes to its roster in the CTA channel (ADR 0047)", () => {
+  const e = event({ cta: true, rosterChannelId: "ch9" });
+  assert.ok(all(render([e])).includes(`[Open ↗](https://discord.com/channels/g1/ch9/${e.messageId})`));
+});
+
 test("a roster without a message id links to its post, and events beyond the 7 days are not shown", () => {
   const e = event({ messageId: null });
   const far = event({ title: "Far away", startsAt: at(8, 18) });

@@ -3,7 +3,7 @@ import type { Rest } from "./rest.ts";
 import type { Dispatch, Interaction, InteractionResponse } from "./types.ts";
 import { NOT_VALID, reply } from "./response.ts";
 import { handleCreateModal } from "../handlers/create.ts";
-import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardParty2, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
+import { handleBlankForm, handleCardBuild, handleCardComponent, handleCardDetails, handleCardParty1, handleCardParty2, handleCardSavePreset, handleLauncher, handleOldCreate } from "../handlers/card.ts";
 import { handleHub } from "../handlers/hub.ts";
 import { handleMeComponent } from "../handlers/me.ts";
 import { handleSetupComponent } from "../handlers/setup.ts";
@@ -13,7 +13,7 @@ import { handleAttendanceComponent } from "../handlers/attendance.ts";
 import { handlePing } from "../handlers/ping.ts";
 import { handleGuidedComponent, handleGuidedModal } from "../handlers/guided.ts";
 import { handleContentCommand } from "../handlers/content.ts";
-import { handleCancelButton, handleEditModal, handleParty2Modal } from "../handlers/manage.ts";
+import { handleCancelButton, handleEditModal, handleParty1Modal, handleParty2Modal } from "../handlers/manage.ts";
 import { handleFillChoice } from "../handlers/fill-pref.ts";
 import { handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handleTentative, handleWait } from "../handlers/signup.ts";
 import { handleVote } from "../handlers/vote.ts";
@@ -22,21 +22,24 @@ import { handleRemoveComponent } from "../handlers/remove.ts";
 import { handleBuildLinkModal, handleEditPanelComponent, handleManageComponent } from "../handlers/manage-panel.ts";
 import { handleSetWeaponComponent } from "../handlers/set-weapon.ts";
 import { handleDutyComponent } from "../handlers/duty.ts";
-import { splitParty } from "../domain/parties.ts";
+import { handleBombers } from "../handlers/bombers.ts";
+import { BOMBERS_GROUP, splitParty } from "../domain/parties.ts";
 
 export type Deps = { sql: Sql; rest: Rest; now: () => Date };
 export type Handler = (deps: Deps, i: Interaction) => Promise<InteractionResponse>;
 
 // Routing tables. Later tasks add entries here (signup:, leave:, vote: ...).
 const commandHandlers: Record<string, Handler> = { content: handleContentCommand };
-const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccs2: handleCardParty2, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, edp: handleParty2Modal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
+const modalHandlers: Record<string, Handler> = { create: handleCreateModal, cf: handleOldCreate, ccd: handleCardDetails, ccs1: handleCardParty1, ccs2: handleCardParty2, ccb: handleCardBuild, ccp: handleCardSavePreset, ccl: handleBlankForm, edit: handleEditModal, edp: handleParty2Modal, edp1: handleParty1Modal, gsc: handleGuidedModal, edb: handleBuildLinkModal };
 const componentHandlers: Record<string, Handler> = {
   join: handleJoin, wait: handleWait, fp: handleFillChoice, leaveslot: handleLeaveSlot, leave: handleLeave, tent: handleTentative, signup: handleOldRosterControl, pick: handleOldRosterControl, vote: handleVote, cancelyes: handleCancelButton, cancelno: handleCancelButton,
-  cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent,
+  cp: handleOldCreate, cpgo: handleOldCreate, cpx: handleOldCreate, cc: handleCardComponent, lc: handleLauncher, hub: handleHub, gs: handleGuidedComponent, me: handleMeComponent, att: handleAttendanceComponent, ping: handlePing, setup: handleSetupComponent, fa: handleAssignComponent, wp: handleWeaponPick, rt: handleRetryComponent, rm: handleRemoveComponent, mg: handleManageComponent, dt: handleDutyComponent, ed: handleEditPanelComponent, sw: handleSetWeaponComponent, bomb: handleBombers,
 };
 
 // The roster controls and host panels that carry a party suffix (FR-070). Other custom ids are never touched.
 const PARTY_CONTROLS = new Set(["join", "wait", "fp", "leave", "leaveslot", "tent", "me", "fa", "rm", "dt", "sw", "att"]);
+// Only these accept the Bombers group (FR-071); the handlers also check that the content has Bombers.
+const BOMBERS_CONTROLS = new Set(["rm", "att"]);
 
 const NOT_IMPLEMENTED = () => reply("Not implemented yet");
 
@@ -50,7 +53,7 @@ export function createDispatch(deps: Deps): Dispatch {
       const prefix = data.custom_id.split(":")[0]!;
       if (i.type === 3 && PARTY_CONTROLS.has(prefix)) {
         const split = splitParty(data.custom_id);
-        if (!split) return reply(NOT_VALID);
+        if (!split || (split.party === BOMBERS_GROUP && !BOMBERS_CONTROLS.has(prefix))) return reply(NOT_VALID);
         (data as { custom_id: string }).custom_id = split.id;
         i.party = split.party;
       }

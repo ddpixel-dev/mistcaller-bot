@@ -43,9 +43,12 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0041 Assign player and Review applicants](decisions/0041-assign-player-and-review-applicants.md): two panels, Assign for any member and fills, Review for applicants only
 - [0042 Tentative sign-up](decisions/0042-tentative-signup.md): a flag on the sign-up row, a shared ❓ Tentative button, migration 0030
 - [0043 Post name with date and time](decisions/0043-post-name-with-date-and-time.md): `Title | 12 Nov | 20:00 UTC`, renamed with the title and the start
-- [0044 Two parties for a CTA](decisions/0044-cta-two-parties-one-message-each.md): accepted; one roster message per party, fill and waitlist per party, supersedes 0004 in part
+- [0044 Two parties for a CTA](decisions/0044-cta-two-parties-one-message-each.md): superseded in part by 0047; one roster message per party, fill and waitlist per party, supersedes 0004 in part
 - [0045 Pinned CTA message](decisions/0045-cta-pinned-message-copied-at-creation.md): accepted; copied at creation from a message link, pinned below the roster
 - [0046 Message Content intent](decisions/0046-message-content-intent-on.md): accepted; needed to forward a member's message (FR-069), changes NFR-001
+- [0047 One CTA message, Bombers](decisions/0047-cta-one-message-in-channel-bombers.md): accepted; the roster is the message in the CTA channel, all parties in it, optional Bombers, CTA presets, quiet pins
+- [CTA in one message, Bombers design](plan/2026-11-11-cta-one-message-bombers-design.md): accepted 2026-11-11 (FR-070 to FR-073), release 0.31.9
+- [CTA in one message implementation plan](plan/2026-11-11-cta-one-message-implementation.md): tasks on `feature/cta-one-message`, migration 0033
 - [CTA pinned message and two parties design](plan/2026-11-10-cta-pinned-message-and-parties-design.md): accepted 2026-11-10 (FR-069, FR-070)
 - [CTA pinned message implementation plan](plan/2026-11-10-cta-message-implementation.md): six tasks on `feature/cta-message`, migration 0031, built in 0.31.7 (FR-069)
 - [CTA two parties implementation plan](plan/2026-11-10-cta-parties-implementation.md): thirteen tasks on `feature/cta-parties`, migration 0032, built in 0.31.8 (FR-070)

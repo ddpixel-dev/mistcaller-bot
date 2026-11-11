@@ -4,7 +4,7 @@ import { reply } from "../discord/response.ts";
 import { getAttendance } from "../db/attendance.ts";
 import { claimPings, pingTargets, releasePings } from "../db/ping.ts";
 import { getRosterView } from "../db/content.ts";
-import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { escapeText, renderRosterMessage, rosterUrl } from "../render/roster.ts";
 import { refreshRosters } from "./rosters.ts";
 import { OLD_LAYOUT, isOldRoster } from "./signup.ts";
 
@@ -33,7 +33,7 @@ export async function handlePing(deps: Deps, i: Interaction): Promise<Interactio
 
   const view = await getRosterView(deps.sql, id, now);
   const epoch = Math.floor(a.startsAt.getTime() / 1000);
-  const link = view?.messageId ? `https://discord.com/channels/${a.guildId}/${a.threadId}/${view.messageId}` : `https://discord.com/channels/${a.guildId}/${a.threadId}`;
+  const link = rosterUrl({ guildId: a.guildId, threadId: a.threadId, messageId: view?.messageId ?? null, rosterChannelId: view?.rosterChannelId ?? null });
   const message = `⏰ **${escapeText(a.title)}** starts <t:${epoch}:R> (<t:${epoch}:f>).\n${link}\nFrom the owner, <@${userId}>.`;
   const body = { content: message, allowed_mentions: { parse: [] } };
   const copy = { content: `📋 Your copy. This is what your players get:\n\n${message}`, allowed_mentions: { parse: [] } };

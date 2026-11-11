@@ -26,3 +26,6 @@ Saving a preset needed `/content preset save` typed inside a post that already h
 - Migration 0029 adds `settings` to `slot_preset`.
 - A deleted preset can stay in an open card's Preset menu until it is redrawn; picking it says the preset no longer exists.
 - Supersedes "pick one in the first create form" wording in older docs.
+
+## Update 2026-11-11
+Changed by [ADR 0047](0047-cta-one-message-in-channel-bombers.md): presets carry a CTA flag; the CTA card lists only CTA presets and Plan Content only normal ones, each with its own cap of 25.

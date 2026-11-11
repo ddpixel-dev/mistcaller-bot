@@ -341,6 +341,13 @@ test("command in a post that already has content replies privately with a link, 
   assert.match(content(await handleCreateCommand(deps, command(true))), /finished|done/i);
 });
 
+test("a CTA thread that already has content links to its roster in the CTA channel (ADR 0047)", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateModal(deps, modal(good));
+  await sql`update content set cta = true, roster_channel_id = 'ch9', message_id = 'thread-1'`;
+  assert.match(content(await handleCreateCommand(deps, command(true))), /discord\.com\/channels\/g1\/ch9\/thread-1/);
+});
+
 test("modal submit in a taken post replies with the same message and posts nothing", async () => {
   const { deps, sql, posts } = await setup();
   await handleCreateModal(deps, modal(good));
@@ -564,33 +571,38 @@ const ctaInput = (over: Record<string, unknown> = {}) => ({
   ...partyInput("unused"), cta: true, startsAt: new Date("2026-11-12T20:00:00Z"), place: { channelId: "cta-ch" }, ...over,
 });
 
-test("a CTA thread is named with the post name and the announcement reads the post name and the start", async () => {
+test("a CTA thread is named with the post name and starts from the roster message in the channel", async () => {
   const { calls, deps } = await ctaRig();
   const r: any = await publish(deps, ctaInput());
   assert.equal(r.ok, true);
   const first = calls.find((c) => c.op === "createMessage")!;
   assert.equal(first.args[0], "cta-ch");
-  assert.equal(first.args[1].content, `📣 **Raid | 12 Nov | 20:00 UTC** · <t:${Math.floor(Date.parse("2026-11-12T20:00:00Z") / 1000)}:f>`);
   assert.deepEqual(first.args[1].allowed_mentions, { parse: [] });
   assert.deepEqual(calls.find((c) => c.op === "startThread")!.args, ["cta-ch", "m1", "Raid | 12 Nov | 20:00 UTC"]);
 });
 
-test("once the roster is posted the announcement is edited to carry the Roster button for party 1", async () => {
+test("a two-party CTA is one message: the placeholder becomes the whole roster, nothing is pinned, no second message", async () => {
   const { calls, deps } = await ctaRig();
   const r: any = await publish(deps, ctaInput(two));
   assert.equal(r.ok, true);
+  assert.deepEqual(calls.map((c) => c.op).filter((o) => ["createMessage", "startThread", "editMessage", "pinMessage"].includes(o)), ["createMessage", "startThread", "editMessage"]);
   const edit = calls.find((c) => c.op === "editMessage")!;
   assert.deepEqual(edit.args.slice(0, 2), ["cta-ch", "m1"]);
-  assert.ok(edit.args[1] === "m1" && String(edit.args[2].content).startsWith("📣 **Raid | 12 Nov | 20:00 UTC**"));
-  assert.equal(edit.args[2].components[0].components[0].url, "https://discord.com/channels/g1/m1/m2");
-  assert.ok(calls.indexOf(edit) > calls.findIndex((c) => c.op === "createMessage" && c.args[0] === "m1"), "after the roster");
+  const text = JSON.stringify(edit.args[2]);
+  assert.ok(text.includes("Party 1") && text.includes("Party 2"), "both parties are in the one message");
+  assert.equal(r.messageId, "m1");
+  assert.equal(r.rosterChannelId, "cta-ch");
 });
 
-test("a failing announcement button edit does not fail the CTA", async () => {
-  const { deps } = await ctaRig();
+test("a failing roster edit removes the CTA: the content, the thread and the placeholder", async () => {
+  const { calls, deps } = await ctaRig();
   (deps.rest as any).editMessage = async () => { throw new Error("Missing Access"); };
+  (deps.rest as any).deleteChannel = async (c: string) => { calls.push({ op: "deleteChannel", args: [c] }); };
+  (deps.rest as any).deleteMessage = async (c: string, m: string) => { calls.push({ op: "deleteMessage", args: [c, m] }); };
   const r: any = await publish(deps, ctaInput());
-  assert.equal(r.ok, true);
+  assert.equal(r.ok, false);
+  assert.ok(calls.some((c) => c.op === "deleteChannel"), "the thread is deleted");
+  assert.ok(calls.some((c) => c.op === "deleteMessage" && c.args[0] === "cta-ch" && c.args[1] === "m1"), "so is the placeholder");
 });
 
 test("normal content makes no announcement calls", async () => {

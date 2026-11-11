@@ -1,4 +1,5 @@
-import { rosterButton } from "../../src/render/roster.ts";
+import { renderMovedNote, rosterButton, rosterUrl } from "../../src/render/roster.ts";
+import { weaponEmojiTag } from "../../src/render/weaponIcon.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IS_COMPONENTS_V2, escapeText, formatUtc, renderRosterMessage, voteLine } from "../../src/render/roster.ts";
@@ -10,7 +11,7 @@ import { WEAPON_EMOJI } from "../../src/data/weapon-emoji.ts";
 
 function view(over: Partial<RosterView> = {}): RosterView {
   return {
-    id: "c1", guildId: "g1", threadId: "t1", messageId: null, type: "pvp", kind: "other", partyCount: 1,
+    id: "c1", guildId: "g1", threadId: "t1", messageId: null, rosterChannelId: null, bombers: null, bomberIds: [], type: "pvp", kind: "other", partyCount: 1,
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
     tier: "T5.3–T7.0",
@@ -635,94 +636,177 @@ function twoParty(over: Partial<RosterView> = {}): RosterView {
     ...over,
   });
 }
-const p = (v: RosterView, party: number) => renderRosterMessage(v, party);
-const ptxt = (v: RosterView, party: number) => plain(textOf(p(v, party)));
-const pcomps = (v: RosterView, party: number) => flatComponents(p(v, party));
+const p = (v: RosterView, party = 1) => renderRosterMessage(v, party);
+const ptxt = (v: RosterView, party = 1) => plain(textOf(p(v, party)));
+const pcomps = (v: RosterView, party = 1) => flatComponents(p(v, party));
+const ids = (v: RosterView) => pcomps(v).map((c) => String(c.custom_id ?? "")).filter(Boolean);
 
-test("two parties: party 1 lists only its rows, numbered from 1, with a Party 1 line and its own lists", () => {
-  const t = ptxt(twoParty(), 1);
-  assert.ok(t.includes("1. "), "row 1");
-  assert.ok(t.includes("2. ") && t.includes("Healer - "), "row 2");
-  assert.ok(!t.includes("3. "), "no party 2 rows");
-  assert.ok(!t.includes("Bow") && !t.includes("Nature"));
-  assert.ok(t.split("\n").includes("**Party 1**"));
-  assert.ok(t.includes("<@201>") && !t.includes("<@202>"), "waitlist of party 1 only");
-  assert.ok(t.includes("<@301>") && !t.includes("<@302>"), "fills of party 1 only");
-  assert.ok(t.includes("<@401>") && !t.includes("<@402>"), "applicants of party 1 only");
-  assert.ok(t.includes("**Party (1/2)**"), "the party's own count");
-  assert.ok(t.includes("**Total** 2/5"), "the content total sits on party 1");
-});
+// ---- One message for the whole call to arms (ADR 0047, FR-070, FR-071) ----
 
-test("two parties: party 2 has its heading, rows renumbered from 1, and its own lists", () => {
-  const t = ptxt(twoParty(), 2);
-  assert.equal(t.split("\n")[0], "## Party 2");
-  assert.ok(t.includes("1. ") && t.includes("2. ") && t.includes("3. "));
-  assert.ok(t.includes("Bow") && t.includes("Cursed") && t.includes("Nature"));
-  assert.ok(!t.includes("Broadsword") && !t.includes("Mace") && !t.includes("Holy"));
-  assert.ok(t.includes("<@202>") && !t.includes("<@201>"));
-  assert.ok(t.includes("<@302>") && !t.includes("<@301>"));
-  assert.ok(t.includes("<@402>") && !t.includes("<@401>"));
-  assert.ok(t.includes("**Party (1/3)**"));
-  assert.ok(!t.includes("Total"));
-  assert.ok(!t.includes("Gear tier") && !t.includes("Tips for the owner"));
-});
-
-test("party 2 has the accent colour of the content, no Manage, Ping, vote or tips", () => {
+test("a CTA is one message whatever party is asked for: both parties' rows, numbered from 1 in each, under Party n headings", () => {
   const v = twoParty();
-  assert.equal((p(v, 2) as any).components[0].accent_color, (p(v, 1) as any).components[0].accent_color);
-  const ids = pcomps(v, 2).map((c) => String(c.custom_id ?? ""));
-  assert.ok(!ids.some((i) => /^(mg|ping|vote):/.test(i)), ids.join());
-  assert.ok(ids.includes("leave:c1@2") && ids.includes("tent:c1@2"));
-  assert.ok(pcomps(v, 1).some((c) => c.custom_id === "ping:c1") && pcomps(v, 1).some((c) => c.custom_id === "mg:c1"));
+  assert.equal(JSON.stringify(p(v, 2)), JSON.stringify(p(v, 1)), "the party argument is ignored for a CTA");
+  const lines = ptxt(v).split("\n");
+  const h1 = lines.findIndex((l) => l.startsWith("**Party 1 (1/2)**"));
+  const h2 = lines.findIndex((l) => l.startsWith("**Party 2 (1/3)**"));
+  assert.ok(h1 > 0 && h2 > h1, lines.join("\n"));
+  assert.ok(lines[h1 + 1]!.startsWith("1. ") && lines[h1 + 1]!.includes("Mace"));
+  assert.ok(lines[h1 + 2]!.startsWith("2. ") && lines[h1 + 2]!.includes("Holy"));
+  assert.ok(lines[h2 + 1]!.startsWith("1. ") && lines[h2 + 1]!.includes("Bow"));
+  assert.ok(lines[h2 + 3]!.startsWith("3. ") && lines[h2 + 3]!.includes("Nature"));
+  assert.ok(!lines.includes("**Party 1**") && !lines.includes("## Party 2"), "no old per-message party lines");
+  assert.ok(!ptxt(v).includes("Total"), "no total line");
+  assert.equal(lines[h1 - 1], "═══════════════════════", "the rule is followed directly by the party headings");
+  assert.ok(ptxt(v).includes("Gear tier") && ptxt(v).includes("Tips for the owner"));
 });
 
-test("party 2 menu offers only its open positions, numbered from 1; every custom id ends @2; party 1 ids have no suffix", () => {
+test("a two-party CTA prefixes each list line with its party", () => {
+  const lines = ptxt(twoParty()).split("\n");
+  const line = (lead: string, needle: string) => lines.find((l) => l.startsWith(lead) && l.includes(needle));
+  assert.ok(line("Party 1 · 📨 **Applicants (1):**", "<@401>") && !line("Party 1 · 📨", "<@402>"));
+  assert.ok(line("Party 2 · 📨 **Applicants (1):**", "<@402>"));
+  assert.ok(line("Party 1 · 🔁 **Fill (1):**", "<@301>") && line("Party 2 · 🔁 **Fill (1):**", "<@302>"));
+  assert.ok(line("Party 1 · 🕒 **Waitlist (1):**", "1. <@201>") && line("Party 2 · 🕒 **Waitlist (1):**", "1. <@202>"));
+});
+
+test("a one-party CTA with no Bombers looks like today's one-party roster: no Party 1 heading, no party lead, no Total", () => {
+  const v = view({ cta: true, waitlist: [{ userId: "201", role: "Tank" }], fills: ["301"] });
+  const t = ptxt(v);
+  assert.ok(t.includes("**Party (1/2)**"), t);
+  assert.ok(!t.includes("Party 1") && !t.includes("Total") && !t.includes("Bombers"), t);
+  assert.ok(t.split("\n").some((l) => l.startsWith("🕒 **Waitlist (1):**")));
+  assert.ok(!ids(v).some((i) => i.startsWith("bomb:")));
+  assert.equal(byId(v, "join:")[0]!.placeholder, "Pick an open position (1)");
+});
+
+test("a two-party CTA has one join menu per party, with the party in the placeholder and @2 on party 2", () => {
   const v = twoParty();
-  const join = pcomps(v, 2).find((c) => String(c.custom_id).startsWith("join:"))! as any;
-  assert.equal(join.custom_id, "join:c1@2");
-  assert.deepEqual(join.options.filter((o: any) => o.value !== "fill").map((o: any) => [o.value, o.label.split(" - ")[0]]), [["s4", "2. Support"], ["s5", "3. Healer"]]);
-  for (const c of pcomps(v, 2).filter((c) => c.custom_id)) assert.ok(String(c.custom_id).endsWith("@2"), String(c.custom_id));
-  const join1 = pcomps(v, 1).find((c) => String(c.custom_id).startsWith("join:"))! as any;
-  assert.equal(join1.custom_id, "join:c1");
-  assert.deepEqual(join1.options.filter((o: any) => o.value !== "fill").map((o: any) => o.value), ["s2"]);
-  for (const c of pcomps(v, 1).filter((c) => c.custom_id)) assert.ok(!String(c.custom_id).includes("@"), String(c.custom_id));
+  const joins = pcomps(v).filter((c) => String(c.custom_id).startsWith("join:")) as any[];
+  assert.deepEqual(joins.map((j) => j.custom_id), ["join:c1", "join:c1@2"]);
+  assert.equal(joins[0].placeholder, "Party 1: pick an open position (1)");
+  assert.equal(joins[1].placeholder, "Party 2: pick an open position (2)");
+  assert.deepEqual(joins[0].options.filter((o: any) => o.value !== "fill").map((o: any) => o.value), ["s2"]);
+  assert.deepEqual(joins[1].options.filter((o: any) => o.value !== "fill").map((o: any) => [o.value, o.label.split(" - ")[0]]), [["s4", "2. Support"], ["s5", "3. Healer"]]);
+  const sel = pcomps(twoParty({ selection: true })).filter((c) => String(c.custom_id).startsWith("join:")) as any[];
+  assert.equal(sel[1].placeholder, "Party 2: apply for a position (2)");
 });
 
-test("party 2 waitlist menu lists only party 2's full roles", () => {
+test("a two-party CTA has one waitlist menu per party with a full role, each listing only that party's full roles", () => {
   const v = twoParty();
-  const wait = pcomps(v, 2).find((c) => String(c.custom_id).startsWith("wait:"))! as any;
-  assert.equal(wait.custom_id, "wait:c1@2");
-  assert.deepEqual(wait.options.filter((o: any) => o.value !== "~fill").map((o: any) => o.value), ["DPS"]);
-  assert.equal(wait.options.find((o: any) => o.value === "DPS").description, "1 waiting");
+  const waits = pcomps(v).filter((c) => String(c.custom_id).startsWith("wait:")) as any[];
+  assert.deepEqual(waits.map((w) => w.custom_id), ["wait:c1", "wait:c1@2"]);
+  assert.deepEqual(waits[0].options.filter((o: any) => o.value !== "~fill").map((o: any) => o.value), ["Tank"]);
+  assert.deepEqual(waits[1].options.filter((o: any) => o.value !== "~fill").map((o: any) => o.value), ["DPS"]);
+  assert.equal(waits[1].options.find((o: any) => o.value === "DPS").description, "1 waiting");
+  assert.ok(waits[1].placeholder.startsWith("Party 2: "));
+  // Party 1 full, party 2 not: only party 1's menu.
+  const one = twoParty({ slots: twoParty().slots.map((s) => (s.party === 1 ? { ...s, userId: s.userId ?? "999" } : { ...s, userId: null })) });
+  assert.deepEqual(pcomps(one).filter((c) => String(c.custom_id).startsWith("wait:")).map((c) => c.custom_id), ["wait:c1"]);
 });
 
-test("two parties of 20 with fills, waitlist and applicants stay under 4000 characters and pass the Discord limits", () => {
-  const slotsOf = (party: number) => Array.from({ length: 20 }, (_, i) => ({
-    id: `s${(party - 1) * 20 + i + 1}`, position: (party - 1) * 20 + i + 1, party, role: "DPS", weapon: "Bow of Badon with a long name",
-    userId: i < 18 ? `${party}${String(i).padStart(17, "0")}` : null,
-  }));
-  const people = Array.from({ length: 30 }, (_, i) => `9${String(i).padStart(17, "0")}`);
+test("a CTA has one shared Leave and Tentative with no party suffix, then Bombers, the vote, Ping and Manage", () => {
+  const v = twoParty({ bombers: 10, bomberIds: ["501"] });
+  const buttons = pcomps(v).filter((c) => c.type === 2).map((c) => String(c.custom_id));
+  assert.deepEqual(buttons, ["leave:c1", "tent:c1", "bomb:c1", "vote:c1:split", "vote:c1:regear", "ping:c1", "mg:c1"]);
+  const rows = pcomps(v).filter((c) => c.type === 1 && c.components.every((k: any) => k.type === 2));
+  assert.deepEqual(rows.map((r: any) => r.components.length), [5, 2]);
+});
+
+test("Leave and Tentative are enabled when anyone holds a place, a bomber included, and dimmed when nobody does", () => {
+  const empty = twoParty({ slots: twoParty().slots.map((s) => ({ ...s, userId: null })), waitlist: [], fills: [], applicants: [], bombers: 5, bomberIds: [] });
+  const btn = (v: RosterView, pre: string) => pcomps(v).find((c) => String(c.custom_id).startsWith(pre)) as any;
+  assert.equal(btn(empty, "leave:").disabled, true);
+  assert.equal(btn(empty, "tent:").disabled, true);
+  const bomber = { ...empty, bomberIds: ["501"] };
+  assert.equal(btn(bomber, "leave:").disabled, false);
+  assert.equal(btn(bomber, "tent:").disabled, false);
+  const party2Only = { ...empty, waitlist: [{ userId: "202", role: "DPS", party: 2 }] };
+  assert.equal(btn(party2Only, "leave:").disabled, false, "a party 2 place counts");
+});
+
+test("Bombers: a line after the parties with ❓ after tentative bombers, and a 💣 Bombers n/cap button dimmed when full or not open", () => {
+  const v = twoParty({ bombers: 3, bomberIds: ["501", "502"], tentative: ["502"] });
+  const raw1 = textOf(p(v));
+  assert.ok(raw1.includes("**💣 Bombers (2/3):** <@501> · <@502> ❓"), raw1);
+  const lines = plain(raw1).split("\n");
+  const b = lines.findIndex((l) => l.startsWith("**💣 Bombers"));
+  const lastRow = lines.findIndex((l) => l.includes("Nature"));
+  const firstList = lines.findIndex((l) => l.startsWith("Party 1 · "));
+  assert.ok(b > lastRow && b < firstList, lines.join("\n"));
+  const bomb = (x: RosterView) => pcomps(x).find((c) => c.custom_id === "bomb:c1") as any;
+  assert.deepEqual({ ...bomb(v) }, { type: 2, style: 2, label: "Bombers 2/3", emoji: { name: "💣" }, custom_id: "bomb:c1", disabled: false });
+  assert.equal(bomb({ ...v, bomberIds: ["501", "502", "503"] }).disabled, true, "full");
+  assert.equal(bomb({ ...v, status: "locked" }).disabled, true, "locked");
+  assert.equal(bomb({ ...v, status: "done" }).disabled, true, "done");
+  // A one-party CTA with Bombers: the line and button, still no Party 1 heading.
+  const one = view({ cta: true, bombers: 10, bomberIds: [] });
+  assert.ok(textOf(p(one)).includes("💣 Bombers (0/10)"));
+  assert.ok(!ptxt(one).includes("Party 1"));
+  assert.equal(bomb(one).label, "Bombers 0/10");
+  // Bombers is for a CTA only, and no Bombers line or button when it is not set.
+  assert.ok(!textOf(p(twoParty())).includes("Bombers"));
+});
+
+test("the Bombers line is cut at 600 characters", () => {
+  const many = Array.from({ length: 20 }, (_, i) => `5${String(i).padStart(17, "0")}`);
+  const v = twoParty({ bombers: 20, bomberIds: many, tentative: many });
+  const line = textOf(p(v)).split("\n").find((l) => l.startsWith("**💣 Bombers"))!;
+  assert.ok(line.length <= 600, String(line.length));
+});
+
+const LONG_EMOJI_WEAPONS = WEAPONS.filter((w) => weaponEmojiTag(w.name)).sort((a, b) => b.name.length - a.name.length).map((w) => w.name);
+
+test("worst case CTA: 2 x 20 filled rows with long emoji weapons, 20 tentative bombers, waitlist and fills fit 4000 and Discord's limits", () => {
+  const people = (lead: string, n: number) => Array.from({ length: n }, (_, i) => `${lead}${String(i).padStart(17, "0")}`);
+  const seated = [...people("1", 20), ...people("2", 20)];
   const v = twoParty({
-    slots: [...slotsOf(1), ...slotsOf(2)],
-    waitlist: people.slice(0, 10).map((u, i) => ({ userId: u, role: "Healer", party: (i % 2) + 1 })),
-    fills: people.slice(10, 20), fillWants: Object.fromEntries(people.slice(10, 20).map((u) => [u, "Healer, #7"])),
-    applicants: people.slice(20).map((u) => ({ userId: u, wants: "Tank" })),
-    partyOf: Object.fromEntries(people.map((u, i) => [u, (i % 2) + 1])),
-    tentative: people.slice(0, 15), notes: "n".repeat(500),
+    slots: seated.map((u, i) => ({ id: `s${i + 1}`, position: i + 1, party: i < 20 ? 1 : 2, role: "Support", weapon: LONG_EMOJI_WEAPONS[i % 10]!, userId: u, duty: "caller" })),
+    bombers: 20, bomberIds: people("5", 20),
+    waitlist: people("6", 10).map((u, i) => ({ userId: u, role: "Healer", party: (i % 2) + 1 })),
+    fills: people("7", 10), fillWants: Object.fromEntries(people("7", 10).map((u) => [u, "Healer, #7"])),
+    applicants: people("8", 6).map((u) => ({ userId: u, wants: "Tank" })),
+    partyOf: Object.fromEntries([...people("6", 10), ...people("7", 10), ...people("8", 6)].map((u, i) => [u, (i % 2) + 1])),
+    tentative: [...seated, ...people("5", 20), ...people("6", 10)], notes: "n".repeat(500),
   });
-  for (const party of [1, 2]) {
-    const m = p(v, party);
-    assert.deepEqual(discordProblems(m), [], `party ${party}`);
-    assert.ok(textOf(m).length <= 4000, `party ${party}: ${textOf(m).length}`);
+  const m = p(v);
+  assert.deepEqual(discordProblems(m), []);
+  const total = flatComponents(m).filter((c) => c.type === 10).reduce((n, c) => n + String(c.content).length, 0);
+  assert.ok(total <= 4000, String(total));
+  assert.ok(countComponents(m) <= 40, String(countComponents(m)));
+  assert.ok(textOf(m).includes("💣 Bombers (20/20)"));
+  assert.ok(textOf(m).includes("**Party 2 ("), "party 2's heading survives the cuts");
+});
+
+// Every component Discord counts toward its 40: the container, text blocks, rows, menus and buttons.
+const countComponents = (m: { components: unknown[] }) => flatComponents(m).length;
+
+test("component count of the fullest CTA stays well inside 40", () => {
+  const v = twoParty({ bombers: 5, bomberIds: ["501"] });
+  const n = countComponents(p(v));
+  assert.ok(n <= 40, String(n));
+  assert.deepEqual(discordProblems(p(v)), []);
+});
+
+test("a cancelled or done CTA greys every control and has no menus", () => {
+  for (const status of ["cancelled", "done"] as const) {
+    const v = twoParty({ status, bombers: 5, bomberIds: ["501"] });
+    assert.ok(!pcomps(v).some((c) => /^(join|wait):/.test(String(c.custom_id))), "no menu");
+    assert.ok(pcomps(v).every((c: any) => c.type !== 2 || c.disabled || c.custom_id === "mg:c1"), `${status}: buttons disabled`);
+    assert.deepEqual(discordProblems(p(v)), []);
   }
 });
 
-test("a cancelled or done content greys both parties", () => {
-  for (const status of ["cancelled", "done"] as const) {
-    const v = twoParty({ status });
-    assert.equal((p(v, 1) as any).components[0].accent_color, (p(v, 2) as any).components[0].accent_color, status);
-    assert.ok(!pcomps(v, 2).some((c) => String(c.custom_id).startsWith("join:")), "no menu");
-    assert.ok(pcomps(v, 2).every((c: any) => c.type !== 2 || c.disabled), `${status}: party 2 buttons disabled`);
-    assert.deepEqual(discordProblems(p(v, 2)), []);
-  }
+test("renderMovedNote: the 0.31.8 party 2 message becomes a V2 note with no controls", () => {
+  const m = renderMovedNote() as any;
+  assert.equal(m.flags, IS_COMPONENTS_V2);
+  assert.deepEqual(m.allowed_mentions, { parse: [] });
+  assert.equal(textOf(m), "This party is now shown in the roster above.");
+  assert.ok(!flatComponents(m).some((c) => c.type === 1 || c.type === 2 || c.type === 3));
+  assert.deepEqual(discordProblems(m), []);
+});
+
+test("the roster link uses the roster channel when it is set, the thread otherwise", () => {
+  assert.equal(rosterUrl({ guildId: "g1", threadId: "t1", messageId: "m1", rosterChannelId: "ch9" }), "https://discord.com/channels/g1/ch9/m1");
+  assert.equal(rosterUrl({ guildId: "g1", threadId: "t1", messageId: "m1", rosterChannelId: null }), "https://discord.com/channels/g1/t1/m1");
+  assert.equal((rosterButton(view({ rosterChannelId: "ch9", messageId: "m2" }))[0] as any).components[0].url, "https://discord.com/channels/g1/ch9/m2");
 });

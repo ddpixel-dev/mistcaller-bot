@@ -32,6 +32,8 @@ export type Rest = {
   startThread?(channelId: string, messageId: string, name: string): Promise<{ id: string }>;
   // Pin a message in a post or channel (needs Pin Messages).
   pinMessage?(channelId: string, messageId: string): Promise<void>;
+  // The latest messages of a channel, newest first (only the fields the bot needs). Used to find the pin notice (ADR 0047).
+  listMessages?(channelId: string, limit: number): Promise<{ id: string; type: number; message_reference?: { message_id?: string } }[]>;
   // Existence and access check for the source of the CTA forward. The bot never reads the text. Missing and forbidden are answers, not errors.
   getMessage?(channelId: string, messageId: string): Promise<{ ok: true } | { ok: false; reason: "missing" | "forbidden" }>;
   // The server a channel belongs to (null for a direct message channel). Missing and forbidden are answers, not errors.
@@ -114,6 +116,15 @@ export function createRest(
         if (!(err instanceof DiscordApiError) || (err.status !== 404 && err.status !== 405)) throw err;
         await call("PUT", `/channels/${channelId}/pins/${messageId}`, undefined);
       }
+    },
+    async listMessages(channelId, limit) {
+      const out = await call("GET", `/channels/${channelId}/messages?limit=${limit}`, undefined);
+      if (!Array.isArray(out)) return [];
+      return out.map((m: { id: string; type: number; message_reference?: { message_id?: string } }) => ({
+        id: m.id,
+        type: m.type,
+        ...(m.message_reference ? { message_reference: { message_id: m.message_reference.message_id } } : {}),
+      }));
     },
     async getMessage(channelId, messageId) {
       try {

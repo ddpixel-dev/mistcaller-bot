@@ -360,6 +360,39 @@ export async function setTentative(
 
 // FR-070: the party of a member's entry (seat, fill, applicant or waitlist), or null when they have none.
 export async function getEntryParty(sql: Sql, contentId: string, userId: string): Promise<number | null> {
-  const [r] = await sql`select party from signup where content_id = ${contentId} and user_id = ${userId}`;
+  // A bomber has no party (FR-071).
+  const [r] = await sql`select party from signup where content_id = ${contentId} and user_id = ${userId} and status <> 'bomber'`;
   return r ? (r.party as number) : null;
+}
+
+// "full": the cap is reached. "off": the content has no Bombers. "unavailable": not open, not found or another guild.
+// "selected": in a host-selected event a player the host seated does not move themselves (as claimSlot, FR-058).
+export type BomberResult = "joined" | "already" | "full" | "off" | "unavailable" | "selected";
+
+// FR-071: join Bombers, a capped place without a position. The player's current entry (seat, waitlist, fill, applicant)
+// becomes the bomber row, so they are never listed twice; a freed seat goes to the waitlist in the same transaction.
+// The content row is locked for update, so two players cannot both take the last place.
+export async function joinBombers(
+  sql: Sql,
+  a: { contentId: string; guildId: string; userId: string; now: Date },
+): Promise<{ result: BomberResult; promoted: Promotion[] }> {
+  return await sql.begin(async (tx) => {
+    const none = (result: BomberResult) => ({ result, promoted: [] as Promotion[] });
+    const [c] = await tx`select status, guild_id, selection, created_by, bombers from content where id = ${a.contentId} for update`;
+    if (!c || c.guild_id !== a.guildId || c.status !== "open") return none("unavailable");
+    if (c.bombers === null) return none("off");
+    const [prev] = await tx`select status from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
+    if (prev?.status === "bomber") return none("already");
+    if (c.selection && c.created_by !== a.userId && prev?.status === "signed") return none("selected");
+    const [n] = await tx`select count(*)::int as n from signup where content_id = ${a.contentId} and status = 'bomber'`;
+    if ((n!.n as number) >= (c.bombers as number)) return none("full");
+    await tx`
+      insert into signup (guild_id, content_id, user_id, slot_id, status, fill_roles, fill_slots, chosen_weapon, party)
+      values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'bomber', null, null, null, 1)
+      on conflict (content_id, user_id)
+      do update set slot_id = null, status = 'bomber', party = 1, wait_role = null, chosen_weapon = null,
+        fill_roles = null, fill_slots = null, joined_at = now()`;
+    const promoted = prev?.status === "signed" ? await promoteWaitlist(tx, a.contentId, a.now) : [];
+    return { result: "joined" as BomberResult, promoted };
+  });
 }
