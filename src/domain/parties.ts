@@ -31,12 +31,15 @@ export function parseCtaSlots(input: string, party: number, parties: number, exi
   return parsed;
 }
 
-// Party 1 keeps the plain custom id; party 2 ends in "@2".
+// The group number of Bombers in a host panel's party choice (FR-071): Remove player and Attendance only.
+export const BOMBERS_GROUP = 3;
+
+// Party 1 keeps the plain custom id; party 2 ends in "@2"; Bombers (in Remove player and Attendance) end in "@3".
 export function splitParty(customId: string): { id: string; party: number } | null {
   const at = customId.lastIndexOf("@");
   if (at === -1) return { id: customId, party: 1 };
   const suffix = customId.slice(at + 1);
-  if (suffix !== "1" && suffix !== "2") return null;
+  if (suffix !== "1" && suffix !== "2" && suffix !== "3") return null;
   return { id: customId.slice(0, at), party: Number(suffix) };
 }
 

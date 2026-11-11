@@ -12,9 +12,9 @@ import { isOneMessage, refreshRosters } from "./rosters.ts";
 import { displayNumber, partyLead, positionText } from "../domain/parties.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
-const NOT_FOUND = "This content or position no longer exists.";
-const SELECTED = "You already hold a position. In a host-selected event only the host can move you.";
+export const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
+export const NOT_FOUND = "This content or position no longer exists.";
+export const SELECTED = "You already hold a position. In a host-selected event only the host can move you.";
 export const OLD_LAYOUT =
   "This roster was posted with an older layout, which can no longer be updated. Ask its creator to cancel it and create a new one.";
 
@@ -35,17 +35,21 @@ function ids(i: Interaction, prefix: string, parts: number): string[] | null {
 // Everyone sees the same roster, so a change answers by updating the shared message.
 // A call to arms is one message (ADR 0047): the answer is the whole roster and no other message is edited, except the
 // party 2 message of a 0.31.8 call to arms, which refreshRosters turns into the moved note once. A click on that old
-// message is answered with the note itself, and the roster above is edited through the API.
+// message is answered with the note itself, and the roster above is edited through the API. A click on any other
+// message than the CTA's (an old party 2 message whose row is already gone) gets the note too, and the CTA is edited
+// through the API.
 // Other content: the response is the pressed party's message; the other party's message is edited through the API.
-async function refreshed(deps: Deps, i: Interaction, id: string, party: number, promoted: Promotion[] = []): Promise<InteractionResponse> {
+export async function refreshed(deps: Deps, i: Interaction, id: string, party: number, promoted: Promotion[] = []): Promise<InteractionResponse> {
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   if (isOneMessage(view)) {
     const old = view.partyCount > 1 ? (await getPartyMessages(deps.sql, view.id)).filter((m) => m.party > 1) : [];
     const pressed = old.find((m) => m.messageId === i.message?.id)?.party;
-    const response = { type: UPDATE_MESSAGE, data: pressed ? renderMovedNote() : renderRosterMessage(view) };
-    if (old.length > 0) await refreshRosters(deps, view, { except: pressed ?? 1, noRetry: true });
+    const stale = !pressed && !!i.message?.id && !!view.messageId && i.message.id !== view.messageId;
+    const response = { type: UPDATE_MESSAGE, data: pressed || stale ? renderMovedNote() : renderRosterMessage(view) };
+    if (stale) await refreshRosters(deps, view, { noRetry: true });
+    else if (old.length > 0) await refreshRosters(deps, view, { except: pressed ?? 1, noRetry: true });
     return response;
   }
   const response = { type: UPDATE_MESSAGE, data: renderRosterMessage(view, party) };

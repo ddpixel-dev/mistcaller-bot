@@ -156,7 +156,7 @@ test("a rate-limited edit of the other party's message does not delay or fail th
   const log = console.error;
   console.error = (m: string) => { logs.push(String(m)); };
   try {
-    const r: any = await d(menu(`join:${id}@2`, [p2[0]], A));
+    const r: any = await d(on(menu(`join:${id}@2`, [p2[0]], A), "m1"));
     assert.equal(r.type, 7);
     assert.equal((await entry(sql, id, A)).party, 2);
   } finally { rest.editMessage = orig; console.error = log; }

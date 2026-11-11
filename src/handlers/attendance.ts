@@ -13,8 +13,7 @@ import { canManage, isAdmin } from "../domain/permissions.ts";
 import { renderAttendanceForm, renderReport } from "../render/attendance.ts";
 import { escapeText } from "../render/roster.ts";
 import { refreshRosters } from "./rosters.ts";
-import { partyChoice } from "./party-pick.ts";
-import type { RosterView } from "../domain/types.ts";
+import { groupName, groupsOf, partyChoice, partyOfClick } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -43,10 +42,11 @@ async function names(deps: Deps, a: Attendance): Promise<Record<string, string>>
   return out;
 }
 
-// Two parties: the form starts with the party choice; a party shows only its own players (FR-070).
+// Two parties, or Bombers: the form starts with the party choice; a party (or Bombers) shows only its own players
+// (FR-070, FR-071).
 async function formData(deps: Deps, a: Attendance, party?: number) {
-  if (a.partyCount >= 2 && !party) {
-    const row = partyChoice("att:g", a.contentId, { partyCount: a.partyCount } as RosterView);
+  const row = party ? null : partyChoice("att:g", a.contentId, a, { bombers: true });
+  if (row) {
     return { content: `📋 **Attendance: ${escapeText(a.title)}**\nWhich party do you want to mark?`, components: [row], allowed_mentions: { parse: [] as [] } };
   }
   return renderAttendanceForm(a, await names(deps, a), party);
@@ -147,8 +147,9 @@ export async function handleAttendanceComponent(deps: Deps, i: Interaction): Pro
   if (!actor) return reply(NOT_ALLOWED);
   if (a.reportPostedAt) return reply("The attendance was already submitted and the report posted.");
 
-  const party = a.partyCount >= 2 ? i.party ?? 1 : undefined;
-  if ((i.party ?? 1) > a.partyCount) return reply(NOT_VALID);
+  if (partyOfClick(i, a, { bombers: true }) === null) return reply(NOT_VALID);
+  const groups = groupsOf(a, { bombers: true });
+  const party = groups.length >= 2 ? i.party ?? 1 : undefined;
   if (action === "g") {
     return { type: UPDATE_MESSAGE, data: await formData(deps, a, party ?? 1) };
   }
@@ -172,8 +173,10 @@ export async function handleAttendanceComponent(deps: Deps, i: Interaction): Pro
     if (result !== "ok") return reply(INVALID);
     const after = await getAttendance(deps.sql, id);
     if (after && !after.submittedAt) {
-      const todo = Array.from({ length: after.partyCount }, (_, k) => k + 1).filter((n) => !after.partiesSubmitted.includes(n));
-      return { type: UPDATE_MESSAGE, data: { content: `✅ Party ${party} submitted. Still to do: ${todo.map((n) => `Party ${n}`).join(", ")}. The report posts once every party is submitted.`, components: [], allowed_mentions: { parse: [] as [] } } };
+      // Bombers with nobody in them count as submitted, so they are not named.
+      const todo = groupsOf(after, { bombers: true }).filter((n) => !after.partiesSubmitted.includes(n) && (n <= after.partyCount || after.players.some((p) => p.party === n)));
+      const every = after.bombers !== null ? "every party and Bombers are" : "every party is";
+      return { type: UPDATE_MESSAGE, data: { content: `✅ ${groupName(party ?? 1)} submitted. Still to do: ${todo.map(groupName).join(", ")}. The report posts once ${every} submitted.`, components: [], allowed_mentions: { parse: [] as [] } } };
     }
     const posted = await postReport(deps, id);
     return {

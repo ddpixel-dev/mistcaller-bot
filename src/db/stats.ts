@@ -3,7 +3,8 @@ import type { ContentType } from "../domain/types.ts";
 
 // FR-044: the numbers of `/content stats`. Cancelled content does not count as an event; waiting members are not
 // participants; a member who left a roster is gone (leaving deletes the sign-up). Attendance is not used at all, so
-// unknown attendance can never become a no-show (NFR-004).
+// unknown attendance can never become a no-show (NFR-004). A bomber is a participant like a seated player (FR-071); the
+// fill rate counts seats only.
 export type Period = { created: number; finished: number; cancelled: number; participants: number; signups: number };
 export type Stats = {
   all: Period;
@@ -28,7 +29,7 @@ async function period(sql: Sql, guildId: string, since: Date | null): Promise<Pe
   const [p] = await sql`
     select count(*)::int as signups, count(distinct su.user_id)::int as participants
     from signup su join content c on c.id = su.content_id
-    where c.guild_id = ${guildId} and c.status <> 'cancelled' and su.status in ('signed', 'fill') and c.created_at >= ${from}`;
+    where c.guild_id = ${guildId} and c.status <> 'cancelled' and su.status in ('signed', 'fill', 'bomber') and c.created_at >= ${from}`;
   return { created: c!.created, finished: c!.finished, cancelled: c!.cancelled, participants: p!.participants, signups: p!.signups };
 }
 
@@ -58,7 +59,7 @@ export async function getStats(sql: Sql, guildId: string, now: Date): Promise<St
     sql`
       select su.user_id, count(distinct su.content_id)::int as count
       from signup su join content c on c.id = su.content_id
-      where c.guild_id = ${guildId} and c.status <> 'cancelled' and su.status in ('signed', 'fill')
+      where c.guild_id = ${guildId} and c.status <> 'cancelled' and su.status in ('signed', 'fill', 'bomber')
       group by su.user_id order by count desc, su.user_id limit 10`,
   ]);
   const byType: Record<ContentType, number> = { pvp: 0, pve: 0, pvx: 0 };

@@ -23,7 +23,7 @@ export async function castVote(
     if (!isVoteOpen(c.starts_at, a.now)) return "closed";
     const [su] = await tx`
       select 1 as ok from signup
-      where content_id = ${a.contentId} and user_id = ${a.userId} and status in ('signed', 'fill')`;
+      where content_id = ${a.contentId} and user_id = ${a.userId} and status in ('signed', 'fill', 'bomber')`; // a bomber attends too (FR-071)
     if (!su) return "not_signed";
 
     const [prev] = await tx`

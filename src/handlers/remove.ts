@@ -9,8 +9,8 @@ import { announcePromotions } from "./waitlist.ts";
 import { names } from "./fill.ts";
 import { escapeText, rosterButton } from "../render/roster.ts";
 import type { RosterView } from "../domain/types.ts";
-import { displayNumber, withParty } from "../domain/parties.ts";
-import { partyChoice, partyOfClick, slotsOfParty, userInParty } from "./party-pick.ts";
+import { BOMBERS_GROUP, displayNumber, withParty } from "../domain/parties.ts";
+import { groupName, groupsOf, partyChoice, partyOfClick, slotsOfParty, userInParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
@@ -19,8 +19,9 @@ const INVALID = "That panel is out of date. Press **Manage** on the roster, then
 type Entry = { userId: string; where: string };
 
 // Everyone who can be removed, in the order the roster shows them: seated players, applicants, fills, then the waitlist.
-// Removing an applicant declines the application (FR-058).
+// Removing an applicant declines the application (FR-058). Group 3 is Bombers (FR-071), who hold no position.
 function entries(view: RosterView, party: number): Entry[] {
+  if (party === BOMBERS_GROUP) return (view.bomberIds ?? []).map((u) => ({ userId: u, where: "Bomber" }));
   return [
     ...slotsOfParty(view, party).filter((s) => s.userId !== null).map((s) => ({ userId: s.userId!, where: `Position ${displayNumber(s, view.slots)} · ${s.role}` })),
     ...(view.applicants ?? []).filter((a) => userInParty(view, a.userId, party)).map((a) => ({ userId: a.userId, where: `Applicant · ${a.wants}` })),
@@ -29,12 +30,13 @@ function entries(view: RosterView, party: number): Entry[] {
   ];
 }
 
-// The private panel of the Remove player button: a menu of everyone on the roster (the first 25).
+// The private panel of the Remove player button: a menu of everyone on the roster (the first 25, and how many more).
 async function panel(deps: Deps, view: RosterView, list: Entry[], party: number) {
   const shown = list.slice(0, 25);
   const who = await names(deps, view.guildId, shown.map((e) => e.userId));
+  const more = list.length - shown.length;
   return {
-    content: "Pick the player to remove from this roster.",
+    content: `Pick the player to remove from this roster.${more > 0 ? ` The menu shows the first 25; ${more} more are not listed.` : ""}`,
     components: [{
       type: 1,
       components: [{
@@ -65,12 +67,13 @@ export async function handleRemoveComponent(deps: Deps, i: Interaction): Promise
   if (!view) return reply(INVALID);
   if (view.status !== "open" && view.status !== "locked") return reply("This content is finished or cancelled.");
 
-  const party = partyOfClick(i, view);
+  const party = partyOfClick(i, view, { bombers: true });
   if (party === null) return reply(NOT_VALID);
+  const groups = groupsOf(view, { bombers: true });
   if (isButton) {
-    const row = partyChoice("rm:g", id, view);
+    const row = partyChoice("rm:g", id, view, { bombers: true });
     if (row) {
-      if (!entries(view, 1).length && !entries(view, 2).length) return reply("Nobody is signed up.");
+      if (groups.every((g) => !entries(view, g).length)) return reply("Nobody is signed up.");
       return { type: CHANNEL_MESSAGE, data: { content: "Which party do you want to remove a player from?", components: [row], flags: EPHEMERAL, allowed_mentions: { parse: [] } } };
     }
     const list = entries(view, 1);
@@ -78,9 +81,9 @@ export async function handleRemoveComponent(deps: Deps, i: Interaction): Promise
     return { type: CHANNEL_MESSAGE, data: { ...(await panel(deps, view, list, 1)), flags: EPHEMERAL } };
   }
   if (isGo) {
-    if (view.partyCount < 2) return reply(INVALID);
+    if (groups.length < 2) return reply(INVALID);
     const list = entries(view, party);
-    if (list.length === 0) return reply(`Nobody is signed up in Party ${party}.`);
+    if (list.length === 0) return reply(party === BOMBERS_GROUP ? "Nobody is in Bombers." : `Nobody is signed up in ${groupName(party)}.`);
     return { type: UPDATE_MESSAGE, data: await panel(deps, view, list, party) };
   }
   const values = Array.isArray(data?.values) ? data!.values : [];

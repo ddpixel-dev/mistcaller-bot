@@ -44,7 +44,9 @@ test("splitParty reads the @2 suffix", () => {
   assert.deepEqual(splitParty("join:abc@2"), { id: "join:abc", party: 2 });
   assert.deepEqual(splitParty("join:abc@1"), { id: "join:abc", party: 1 });
   assert.deepEqual(splitParty("join:abc"), { id: "join:abc", party: 1 });
-  for (const bad of ["join:abc@3", "join:abc@0", "join:abc@x", "join:abc@-1"]) assert.equal(splitParty(bad), null, bad);
+  // Group 3 is Bombers: only Remove player and Attendance accept it, which the dispatcher and the handlers check.
+  assert.deepEqual(splitParty("rm:g:abc@3"), { id: "rm:g:abc", party: 3 });
+  for (const bad of ["join:abc@4", "join:abc@0", "join:abc@x", "join:abc@-1"]) assert.equal(splitParty(bad), null, bad);
 });
 
 test("withParty adds a suffix only for party 2", () => {
