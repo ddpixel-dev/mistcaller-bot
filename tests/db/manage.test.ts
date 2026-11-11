@@ -2,7 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
-import { cancelContent, editContent, getManageTarget, getManageTargetById, setSlotWeapon, updateContentSettings, type EditInput } from "../../src/db/manage.ts";
+import { cancelContent, editContent, getManageTarget, getManageTargetById, getManageTargetFor, setSlotWeapon, updateContentSettings, type EditInput } from "../../src/db/manage.ts";
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const starts = new Date("2026-12-01T18:00:00Z");
@@ -26,6 +26,24 @@ async function setup() {
 }
 const sign = (sql: any, id: string, user: string, slot: string, status = "signed") =>
   sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, ${user}, ${slot}, ${status})`;
+
+// ADR 0047: a click on a CTA roster comes from the CTA channel, so the content is found by the id its custom id carries,
+// accepted only for the verified guild and a channel the content owns (its thread or its roster channel).
+test("getManageTargetFor accepts a content id only in its guild and in its thread or roster channel", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, threadId: "t9", rosterChannelId: "ch9", cta: true });
+  assert.equal((await getManageTargetFor(sql, "g1", "ch9", id))?.id, id, "the roster channel");
+  assert.equal((await getManageTargetFor(sql, "g1", "t9", id))?.id, id, "the thread");
+  assert.equal((await getManageTargetFor(sql, "g1", "ch9", id))?.rosterChannelId, "ch9");
+  assert.equal(await getManageTargetFor(sql, "g2", "ch9", id), null, "another guild");
+  assert.equal(await getManageTargetFor(sql, "g1", "other", id), null, "a channel that is neither");
+  assert.equal(await getManageTargetFor(sql, "g1", "ch9", "not-a-uuid"), null, "a malformed id");
+  assert.equal(await getManageTargetFor(sql, "g1", "ch9", "00000000-0000-0000-0000-000000000000"), null, "an unknown id");
+  assert.equal(await getManageTargetFor(sql, "g1", "ch9"), null, "no id: the roster channel is not a post");
+  assert.equal((await getManageTargetFor(sql, "g1", "t9"))?.id, id, "no id: found by thread as before");
+  await sql`update content set status = 'cancelled'`;
+  assert.equal(await getManageTargetFor(sql, "g1", "ch9", id), null, "cancelled content is not active");
+});
 
 test("getManageTarget finds the active content by thread and ignores cancelled", async () => {
   const { sql, id } = await setup();

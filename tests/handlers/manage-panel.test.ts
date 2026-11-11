@@ -299,3 +299,40 @@ test("a blank content's Edit panel has the category only, and its form has no sl
   const [row] = await sql`select title, notes from content where id = ${bid}`;
   assert.deepEqual([row!.title, row!.notes], ["Meet later", "New place"]);
 });
+
+// ADR 0047: a CTA's roster lives in the CTA channel, so Manage and its panel are used there, not in the thread. The
+// content id in the custom id is checked against the verified guild and the channels the content owns.
+async function ctaSetup() {
+  const s = await setup();
+  const cta = await createContent(s.sql, {
+    guildId: "g1", threadId: "t9", rosterChannelId: "ch9", cta: true, type: "pvp", title: "Castle", notes: null, startsAt: START,
+    tier: "T8", hasLoot: false, createdBy: OWNER, now: NOW, slots: [{ role: "Tank", weapon: "Mace" }],
+  });
+  await setMessageId(s.sql, cta, "t9");
+  return { ...s, cta };
+}
+const inCta = { channel: { id: "ch9", type: 0 } };
+
+test("a CTA: Manage and its panel actions work from the CTA channel", async () => {
+  const { d, cta, edits } = await ctaSetup();
+  const r: any = await d(click(`mg:${cta}`, OWNER, undefined, { ...ROSTER, message: { id: "t9", flags: V2 }, ...inCta }));
+  assert.equal(r.type, 4);
+  assert.ok(text(r).includes("Manage this content"));
+  const locked: any = await d(click(`mg:l:${cta}`, OWNER, undefined, { ...PANEL, ...inCta }));
+  assert.equal(locked.type, 7, "the panel is updated in place");
+  assert.ok(text(locked).includes("Roster locked"));
+  assert.ok(edits.length > 0, "the roster was refreshed");
+  const form: any = await d(click(`mg:f:${cta}`, OWNER, undefined, { ...PANEL, ...inCta }));
+  assert.ok(text(form).includes("Only open content"), "the edit form found the CTA (and refuses because it is locked)");
+});
+
+test("a CTA panel action is refused for another guild, a channel the content does not own, or a malformed id", async () => {
+  const { d, cta } = await ctaSetup();
+  const other: any = await d(click(`mg:l:${cta}`, OWNER, undefined, { ...PANEL, ...inCta, guild_id: "g2" }));
+  assert.ok(!text(other).includes("Roster locked"), "another guild's content id");
+  assert.ok(text(await d(click(`mg:l:${cta}`, OWNER, undefined, { ...PANEL, channel: { id: "elsewhere", type: 0 } }))).includes("out of date"), "a channel that is neither");
+  assert.ok(text(await d(click(`mg:l:${cta}`, OWNER, undefined, PANEL))).includes("out of date"), "another content's post");
+  assert.ok(text(await d(click(`mg:l:${cta.slice(0, -1)}`, OWNER, undefined, { ...PANEL, ...inCta }))).includes("out of date"), "a malformed id");
+  const view = await getRosterView(await testSql(), cta, NOW);
+  assert.equal(view?.status, "open");
+});

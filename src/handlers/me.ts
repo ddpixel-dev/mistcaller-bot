@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
-import { getManageTarget } from "../db/manage.ts";
+import { getManageTargetFor } from "../db/manage.ts";
 import { claimSlot, leaveContent, type Promotion } from "../db/signup.ts";
 import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
@@ -64,7 +64,8 @@ export function renderMePanel(view: RosterView, userId: string, chosenParty: num
 export async function handleMeCommand(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const userId = i.member?.user?.id;
   if (!i.guild_id || !userId || !i.channel?.id) return reply("Use this command inside a content post.");
-  const target = await getManageTarget(deps.sql, i.guild_id, i.channel.id);
+  // A command carries no content id: it works in the post. In the CTA channel there is no post, so nothing is found.
+  const target = await getManageTargetFor(deps.sql, i.guild_id, i.channel.id);
   const view = target ? await getRosterView(deps.sql, target.id, deps.now()) : null;
   if (!view) return reply("There is no active content in this post.");
   return { type: CHANNEL_MESSAGE, data: { ...renderMePanel(view, userId), flags: EPHEMERAL } };

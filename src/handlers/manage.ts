@@ -11,7 +11,7 @@ import { resolveKind } from "../domain/kinds.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
 import {
-  cancelContent, editContent, getManageTarget, getManageTargetById, listUpcoming, lockContent, unlockContent, type ManageTarget,
+  cancelContent, editContent, getManageTargetById, getManageTargetFor, listUpcoming, lockContent, unlockContent, type ManageTarget,
 } from "../db/manage.ts";
 import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
@@ -48,6 +48,17 @@ export async function authorize(deps: Deps, i: Interaction, target: ManageTarget
   return allowed ? { ok: true, target } : { ok: false, response: reply(NOT_ALLOWED) };
 }
 
+// The content a host action is for. A Manage panel button carries it (`mg:<action>:<content>`), which is how a panel
+// opened from a CTA roster in the CTA channel finds it (ADR 0047); getManageTargetFor accepts it only in the verified
+// guild and in a channel the content owns. Without one (a command in a post) it is the post's content.
+export async function targetOf(deps: Deps, i: Interaction): Promise<ManageTarget | null> {
+  if (!i.guild_id || !i.channel?.id) return null;
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const p = typeof raw === "string" ? raw.split(":") : [];
+  const contentId = p[0] === "mg" && p.length === 3 ? p[2] : undefined;
+  return await getManageTargetFor(deps.sql, i.guild_id, i.channel.id, contentId);
+}
+
 export async function refreshRoster(deps: Deps, id: string): Promise<boolean> {
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
@@ -73,7 +84,7 @@ const mentions = (users: string[]) => users.map((u) => `<@${u}>`).join(" ");
 // Edit details (the Manage panel's Edit, then Edit details): the form with the event's current text. The category,
 // loot vote and build reference are changed in the Edit panel (ADR 0029), so the form id keeps them ("k").
 export async function openEditForm(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const target = await targetOf(deps, i);
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   if (checked.target.status !== "open") return reply("Only open content can be edited. Locked, finished or cancelled content cannot.");
@@ -183,7 +194,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
 }
 
 export async function handleCancel(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const target = await targetOf(deps, i);
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   if (checked.target.status !== "open" && checked.target.status !== "locked") {
@@ -239,7 +250,7 @@ export async function handleCancelButton(deps: Deps, i: Interaction): Promise<In
 
 // "/content lock": close signups now (FR-009). Players can still leave.
 export async function handleLock(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const target = await targetOf(deps, i);
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   const result = await lockContent(deps.sql, checked.target.id);
@@ -252,7 +263,7 @@ export async function handleLock(deps: Deps, i: Interaction): Promise<Interactio
 
 // "/content unlock": reopen a roster that was locked by hand. Works before and after the start.
 export async function handleUnlock(deps: Deps, i: Interaction): Promise<InteractionResponse> {
-  const target = i.guild_id && i.channel?.id ? await getManageTarget(deps.sql, i.guild_id, i.channel.id) : null;
+  const target = await targetOf(deps, i);
   const checked = await authorize(deps, i, target);
   if (!checked.ok) return checked.response;
   const result = await unlockContent(deps.sql, checked.target.id, deps.now());

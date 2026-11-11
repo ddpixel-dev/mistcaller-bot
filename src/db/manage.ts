@@ -10,6 +10,7 @@ export type ManageTarget = {
   guildId: string;
   threadId: string;
   messageId: string | null;
+  rosterChannelId: string | null; // the channel of a CTA's one roster message (ADR 0047); null for other content
   status: ContentStatus;
   createdBy: string | null;
   title: string;
@@ -21,6 +22,7 @@ const target = (r: Record<string, any>): ManageTarget => ({
   guildId: r.guild_id,
   threadId: r.thread_id,
   messageId: r.message_id,
+  rosterChannelId: r.roster_channel_id ?? null,
   status: r.status as ContentStatus,
   createdBy: r.created_by,
   title: r.title,
@@ -29,14 +31,30 @@ const target = (r: Record<string, any>): ManageTarget => ({
 
 export async function getManageTarget(sql: Sql, guildId: string, threadId: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content
     where guild_id = ${guildId} and thread_id = ${threadId} and status <> 'cancelled'`;
+  return r ? target(r) : null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ADR 0047: a click on a CTA roster (or on a panel opened from it) comes from the CTA channel, not the thread, so the
+// content is found by the id its custom id carries. That id comes from the client: it is accepted only for the verified
+// guild and when the channel is one the content owns (its thread or its roster channel). Without an id (a slash
+// command) the content is the post's, found by thread as before.
+export async function getManageTargetFor(sql: Sql, guildId: string, channelId: string, contentId?: string): Promise<ManageTarget | null> {
+  if (contentId === undefined) return await getManageTarget(sql, guildId, channelId);
+  if (!UUID.test(contentId)) return null;
+  const [r] = await sql`
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content
+    where id = ${contentId} and guild_id = ${guildId} and status <> 'cancelled'
+      and (thread_id = ${channelId} or roster_channel_id = ${channelId})`;
   return r ? target(r) : null;
 }
 
 export async function getManageTargetById(sql: Sql, id: string): Promise<ManageTarget | null> {
   const [r] = await sql`
-    select id, guild_id, thread_id, message_id, status, created_by, title, own_post from content where id = ${id}`;
+    select id, guild_id, thread_id, message_id, roster_channel_id, status, created_by, title, own_post from content where id = ${id}`;
   return r ? target(r) : null;
 }
 
