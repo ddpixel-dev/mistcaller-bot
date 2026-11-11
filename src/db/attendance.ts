@@ -1,7 +1,7 @@
 import type { Sql } from "./client.ts";
 
 // A member without a position (a Fill) has no position, role or weapon.
-export type Player = { userId: string; position: number | null; role: string; weapon: string; fill: boolean };
+export type Player = { userId: string; position: number | null; role: string; weapon: string; fill: boolean; party: number; number?: number | null }; // number: the position the roster shows (restarts in party 2)
 export type Attendance = {
   contentId: string;
   guildId: string;
@@ -9,6 +9,8 @@ export type Attendance = {
   title: string;
   createdBy: string | null;
   status: string;
+  partyCount: number;
+  partiesSubmitted: number[];
   startsAt: Date;
   submittedAt: Date | null;
   reportPostedAt: Date | null;
@@ -18,11 +20,12 @@ export type Attendance = {
 
 export async function getAttendance(sql: Sql, contentId: string): Promise<Attendance | null> {
   const [c] = await sql`
-    select id, guild_id, thread_id, title, created_by, status, starts_at, attendance_submitted_at, report_posted_at
+    select id, guild_id, thread_id, title, created_by, status, starts_at, attendance_submitted_at, report_posted_at, party_count, attendance_parties_submitted
     from content where id = ${contentId}`;
   if (!c) return null;
   const [players, marks] = await Promise.all([
-    sql`select su.user_id, su.status, s.position, s.role, s.weapon, su.chosen_weapon
+    sql`select su.user_id, su.status, su.party, s.position, s.role, s.weapon, su.chosen_weapon,
+          s.position - (select count(*)::int from slot l where l.content_id = s.content_id and l.party < s.party) as number
         from signup su left join slot s on s.id = su.slot_id
         where su.content_id = ${contentId} and su.status in ('signed', 'fill')
         order by s.position nulls last, su.joined_at, su.user_id`,
@@ -30,8 +33,8 @@ export async function getAttendance(sql: Sql, contentId: string): Promise<Attend
   ]);
   return {
     contentId: c.id, guildId: c.guild_id, threadId: c.thread_id, title: c.title, createdBy: c.created_by,
-    status: c.status, startsAt: c.starts_at, submittedAt: c.attendance_submitted_at, reportPostedAt: c.report_posted_at,
-    players: players.map((p) => ({ userId: p.user_id, position: p.position ?? null, role: p.role ?? "", weapon: p.weapon ?? p.chosen_weapon ?? "", fill: p.status === "fill" })),
+    status: c.status, partyCount: c.party_count ?? 1, partiesSubmitted: (c.attendance_parties_submitted ?? []).map(Number), startsAt: c.starts_at, submittedAt: c.attendance_submitted_at, reportPostedAt: c.report_posted_at,
+    players: players.map((p) => ({ userId: p.user_id, position: p.position ?? null, role: p.role ?? "", weapon: p.weapon ?? p.chosen_weapon ?? "", fill: p.status === "fill", party: p.party ?? 1, number: p.number ?? null })),
     marks: Object.fromEntries(marks.map((m) => [m.user_id, m.status])) as Attendance["marks"],
   };
 }
@@ -41,15 +44,16 @@ export type MarkResult = "ok" | "closed" | "not_found" | "invalid";
 // "Attended" is exactly the picked players. Deselected ones go back to not recorded (never to no-show here).
 export async function setAttended(
   sql: Sql,
-  a: { contentId: string; userIds: string[]; markedBy: string; now: Date },
+  a: { contentId: string; userIds: string[]; markedBy: string; now: Date; party?: number },
 ): Promise<MarkResult> {
   return await sql.begin(async (tx): Promise<MarkResult> => {
     const [c] = await tx`select guild_id, report_posted_at from content where id = ${a.contentId} for update`;
     if (!c) return "not_found";
     if (c.report_posted_at) return "closed";
-    const signed = (await tx`select user_id from signup where content_id = ${a.contentId} and status in ('signed', 'fill')`).map((r) => r.user_id as string);
-    if (a.userIds.some((u) => !signed.includes(u))) return "invalid";
-    await tx`delete from attendance where content_id = ${a.contentId} and status = 'attended' and not (user_id = any(${a.userIds}::text[]))`;
+    // With a party, only that party's players can be picked and only their marks change.
+    const shown = (await tx`select user_id from signup where content_id = ${a.contentId} and status in ('signed', 'fill') and (${a.party ?? null}::int is null or party = ${a.party ?? null})`).map((r) => r.user_id as string);
+    if (a.userIds.some((u) => !shown.includes(u))) return "invalid";
+    await tx`delete from attendance where content_id = ${a.contentId} and status = 'attended' and user_id = any(${shown}::text[]) and not (user_id = any(${a.userIds}::text[]))`;
     for (const u of a.userIds) {
       await tx`
         insert into attendance (guild_id, content_id, user_id, status, marked_by, marked_at)
@@ -60,18 +64,29 @@ export async function setAttended(
   });
 }
 
-// Submit: everyone signed up who was not picked as attended is recorded as a no-show.
-export async function submitAttendance(sql: Sql, a: { contentId: string; markedBy: string; now: Date }): Promise<MarkResult> {
+// Submit: everyone signed up (in the shown party, when there are two) who was not picked as attended is recorded as a no-show.
+export async function submitAttendance(sql: Sql, a: { contentId: string; markedBy: string; now: Date; party?: number }): Promise<MarkResult> {
   return await sql.begin(async (tx): Promise<MarkResult> => {
-    const [c] = await tx`select guild_id, report_posted_at from content where id = ${a.contentId} for update`;
+    const [c] = await tx`select guild_id, report_posted_at, party_count, attendance_parties_submitted from content where id = ${a.contentId} for update`;
     if (!c) return "not_found";
     if (c.report_posted_at) return "closed";
     await tx`
       insert into attendance (guild_id, content_id, user_id, status, marked_by, marked_at)
       select ${c.guild_id}, ${a.contentId}, su.user_id, 'no_show', ${a.markedBy}, ${a.now}
       from signup su where su.content_id = ${a.contentId} and su.status in ('signed', 'fill')
+        and (${a.party ?? null}::int is null or su.party = ${a.party ?? null})
       on conflict (content_id, user_id) do nothing`;
-    await tx`update content set attendance_submitted_at = ${a.now} where id = ${a.contentId}`;
+    if (a.party === undefined || (c.party_count ?? 1) < 2) {
+      await tx`update content set attendance_submitted_at = ${a.now} where id = ${a.contentId}`;
+      return "ok";
+    }
+    // Two parties: this party is submitted; the content is submitted once every party is (it can be redone until then).
+    const done = [...new Set([...(c.attendance_parties_submitted ?? []).map(Number), a.party])].sort((x, y) => x - y);
+    // A party with nobody signed up has nothing to submit, so it counts as submitted.
+    const populated = new Set((await tx`select distinct party from signup where content_id = ${a.contentId} and status in ('signed', 'fill')`).map((r) => Number(r.party)));
+    const all = Array.from({ length: c.party_count as number }, (_, k) => k + 1).every((n) => done.includes(n) || !populated.has(n));
+    await tx`update content set attendance_parties_submitted = ${done}::smallint[],
+      attendance_submitted_at = ${all ? a.now : null} where id = ${a.contentId}`;
     return "ok";
   });
 }

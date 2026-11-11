@@ -5,7 +5,7 @@ import type { RosterSlot } from "../../src/domain/types.ts";
 
 const slots = (users: (string | null)[] = [null, null, null]): RosterSlot[] =>
   [["Tank", "Axe"], ["Healer", "Holy"], ["DPS", "Bow"]].map(([role, weapon], i) => ({
-    id: `s${i + 1}`, position: i + 1, role: role!, weapon: weapon!, userId: users[i] ?? null,
+    id: `s${i + 1}`, position: i + 1, party: 1, role: role!, weapon: weapon!, userId: users[i] ?? null,
   }));
 const def = (role: string, weapon: string) => ({ role, weapon });
 const same = [def("Tank", "Axe"), def("Healer", "Holy"), def("DPS", "Bow")];
@@ -63,8 +63,8 @@ test("removing a middle empty line removes that slot and leaves the others alone
 
 test("with two identical lines, the empty one is the one removed", () => {
   const twin = [
-    { id: "s1", position: 1, role: "DPS", weapon: "Bow", userId: null },
-    { id: "s2", position: 2, role: "DPS", weapon: "Bow", userId: "b" },
+    { id: "s1", position: 1, party: 1, role: "DPS", weapon: "Bow", userId: null },
+    { id: "s2", position: 2, party: 1, role: "DPS", weapon: "Bow", userId: "b" },
   ];
   assert.deepEqual(planSlotEdit(twin, [def("DPS", "Bow")]), { ok: true, value: { rename: [], add: [], remove: ["s1"] } });
 });

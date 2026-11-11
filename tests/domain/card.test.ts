@@ -73,3 +73,46 @@ test("a blank content needs a type (CTA needs none: it is PvX), a title, a start
   assert.equal(bad.ok, false);
   assert.equal(!bad.ok && bad.problems.length, 3, "title, start and gear tier");
 });
+
+// ---- a CTA card (FR-070): no type or category, a role list, and up to two parties ----
+
+const cta: CardInput = { ...good, type: null, kind: "other", cta: true, parties: 1, slots2: [], slots2Text: null };
+
+test("a CTA needs no type or category: it is stored as PvX, Other", () => {
+  const r = validateCard(cta, NOW);
+  assert.ok(r.ok);
+  assert.deepEqual(r.ok && [r.value.type, r.value.kind, r.value.slots2, r.value.parties], ["pvx", "other", [], 1]);
+});
+
+test("normal content still needs a type and accepts any role", () => {
+  assert.ok(!validateCard({ ...good, type: null }, NOW).ok);
+  assert.ok(validateCard({ ...good, slots: [{ role: "Battlemount", weapon: "" }] }, NOW).ok);
+});
+
+test("a CTA refuses a role outside Tank, DTank, Healer, Support and DPS, in party 1 and party 2", () => {
+  const one = validateCard({ ...cta, slotsText: "Tank\nHeal" }, NOW);
+  assert.ok(!one.ok && one.problems.some((p) => p.includes('Line 2: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.')), JSON.stringify(one));
+  const two = validateCard({ ...cta, parties: 2, slots2Text: "Heal" }, NOW);
+  assert.ok(!two.ok && two.problems.includes('Party 2, line 1: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.'), JSON.stringify(two));
+  const stored = validateCard({ ...cta, slots: [{ role: "Battlemount", weapon: "" }] }, NOW);
+  assert.ok(!stored.ok && stored.problems.some((p) => p.includes('"Battlemount" is not a supported role')));
+});
+
+test("with two parties both must have slots; with one party party 2 is ignored", () => {
+  const empty2 = validateCard({ ...cta, parties: 2 }, NOW);
+  assert.ok(!empty2.ok && empty2.problems.some((p) => /party 2/i.test(p)));
+  const empty1 = validateCard({ ...cta, parties: 2, slots: [], slots2: [{ role: "Tank", weapon: "" }] }, NOW);
+  assert.ok(!empty1.ok && empty1.problems.some((p) => /party 1|add the slots/i.test(p)));
+  const ok = validateCard({ ...cta, parties: 2, slots2: [{ role: "Healer", weapon: "Holy" }] }, NOW);
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.ok && [ok.value.parties, ok.value.slots2.length], [2, 1]);
+  const ignored = validateCard({ ...cta, parties: 1, slots2: [{ role: "Healer", weapon: "Holy" }], slots2Text: "Heal" }, NOW);
+  assert.ok(ignored.ok);
+  assert.deepEqual(ignored.ok && ignored.value.slots2, []);
+});
+
+test("normal content ignores parties", () => {
+  const r = validateCard({ ...good, parties: 2, slots2: [] }, NOW);
+  assert.ok(r.ok);
+  assert.deepEqual(r.ok && [r.value.parties, r.value.slots2], [1, []]);
+});

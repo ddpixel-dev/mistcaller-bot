@@ -4,6 +4,8 @@ import { DEFAULT_KIND, TYPE_LABEL, kindsOf, kindIcon, typeIcon } from "../domain
 import { buildRefText } from "../domain/buildref.ts";
 import { dutyDef } from "../domain/duties.ts";
 import { parseUtcStart } from "../domain/parse.ts";
+import { CTA_ROLES, maxPartiesFor } from "../domain/parties.ts";
+import type { SlotDef } from "../domain/types.ts";
 import type { ContentType } from "../domain/types.ts";
 import { IS_COMPONENTS_V2, escapeText, formatUtc } from "./roster.ts";
 import { roleIcon } from "./theme.ts";
@@ -32,9 +34,13 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
   // says what is still needed. Problems from the last action (a slot line that did not parse) come first.
   const checked = validateCard(d, ctx.now);
   const needed = [...new Set([...(ctx.problems ?? []), ...(checked.ok ? [] : checked.problems)])];
-  const slotLines = d.slotsText !== null
-    ? ["⚠️ The typed slots could not be read; fix them in **Details**."]
-    : d.slots.map((s, n) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`);
+  const ctaParties = d.cta && maxPartiesFor(d.kind, true) > 1; // the Parties menu is offered
+  const two = ctaParties && d.parties >= 2;
+  const lineOf = (s: SlotDef, n: number) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
+  const slotBlock = (title: string, slots: SlotDef[], typed: string | null, where: string) => [
+    `👥 **${title} (${typed !== null ? "?" : slots.length})**`,
+    ...(typed !== null ? [`⚠️ The typed slots could not be read; fix them in **${where}**.`] : slots.length ? slots.map(lineOf) : [NONE]),
+  ];
   const lines = [
     `## ${d.cta ? "📣" : d.type ? kindIcon(d.type, d.kind) : "🛠️"} Create ${d.cta ? "CTA (call to arms)" : "event"}`,
     `📝 **Title** ${d.title ? escapeText(d.title) : NONE}`,
@@ -43,8 +49,11 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `🗒️ **Notes** ${d.notes ? escapeText(d.notes).slice(0, 300) : NONE}`,
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
     `🎯 **Sign-up** ${d.selection ? "Selection: players apply and you pick the party" : "Open: players take their own position"}`,
-    `👥 **Slots (${d.slotsText !== null ? "?" : d.slots.length})**`,
-    ...(slotLines.length ? slotLines : [NONE]),
+    ...(d.cta ? [`-# Roles: ${CTA_ROLES.join(", ")}`] : []),
+    ...(two
+      ? [...slotBlock("Party 1", d.slots, d.slotsText, "Details"), ...slotBlock("Party 2", d.slots2, d.slots2Text, "Party 2 slots"),
+        "-# Roles fills party 1; use Party 2 slots for the second party."]
+      : slotBlock("Slots", d.slots, d.slotsText, "Details")),
     ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
     ...(ctx.note ? ["", ctx.note] : []),
   ];
@@ -64,24 +73,36 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
           options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
         }],
     },
-    {
+    // A CTA has no type or category (it is PvX, Other); it has the Parties choice instead (FR-070).
+    ...(d.cta ? (ctaParties ? [{
       type: 1,
       components: [{
-        type: 3, custom_id: `cc:type:${id}`, placeholder: "Type of content",
-        options: types.map((t: ContentType) => ({ label: TYPE_LABEL[t], value: t, emoji: { name: typeIcon(t) }, default: t === d.type })),
+        type: 3, custom_id: `cc:parties:${id}`, placeholder: "Parties",
+        options: [
+          { label: "1 party", value: "1", default: !two },
+          { label: "2 parties", value: "2", emoji: { name: "👥" }, default: two },
+        ],
       }],
-    },
-    {
-      type: 1,
-      components: [{
-        type: 3, custom_id: `cc:kind:${id}`,
-        placeholder: d.type ? "Category (default Other)" : "Category (pick the type first)",
-        disabled: d.type === null,
-        options: d.type
-          ? kindsOf(d.type).map((k) => ({ label: k.label, value: k.id, emoji: { name: k.id === DEFAULT_KIND ? typeIcon(d.type!) : k.icon }, default: k.id === d.kind }))
-          : [{ label: "Pick the type first", value: "-" }],
-      }],
-    },
+    }] : []) : [
+      {
+        type: 1,
+        components: [{
+          type: 3, custom_id: `cc:type:${id}`, placeholder: "Type of content",
+          options: types.map((t: ContentType) => ({ label: TYPE_LABEL[t], value: t, emoji: { name: typeIcon(t) }, default: t === d.type })),
+        }],
+      },
+      {
+        type: 1,
+        components: [{
+          type: 3, custom_id: `cc:kind:${id}`,
+          placeholder: d.type ? "Category (default Other)" : "Category (pick the type first)",
+          disabled: d.type === null,
+          options: d.type
+            ? kindsOf(d.type).map((k) => ({ label: k.label, value: k.id, emoji: { name: k.id === DEFAULT_KIND ? typeIcon(d.type!) : k.icon }, default: k.id === d.kind }))
+            : [{ label: "Pick the type first", value: "-" }],
+        }],
+      },
+    ]),
     {
       type: 1,
       components: [{
@@ -119,6 +140,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         btn("Cancel", "✖️", `cc:cancel:${id}`),
       ],
     },
+    ...(two ? [{ type: 1, components: [btn("Party 2 slots", "👥", `cc:p2:${id}`), btn("Copy party 1", "📋", `cc:copy:${id}`)] }] : []),
   ];
   return {
     flags: IS_COMPONENTS_V2,

@@ -5,7 +5,7 @@ import { getDraft } from "../../src/db/draft.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
-import { cardIdOf, discordProblems, flatComponents, plain, say, textOf } from "../helpers/discordLimits.ts";
+import { cardIdOf, discordProblems, flatComponents, modalProblems, plain, say, textOf } from "../helpers/discordLimits.ts";
 import { handleEditModal } from "../../src/handlers/manage.ts";
 
 const NOW = new Date("2026-10-24T12:00:00Z");
@@ -300,10 +300,11 @@ test("a CTA is announced in the CTA channel with a thread, the roster is in the 
   const r: any = await d(press(`cc:create:${id}`, undefined, member(["callers"])));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
   const ops = calls.filter((c) => ["createMessage", "startThread", "editMessage", "createForumPost"].includes(c.op));
-  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage"], "an announcement, a thread, then the roster in it");
+  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage", "editMessage"], "an announcement, a thread, the roster in it, then the announcement gets its Roster button");
   assert.equal(ops[0]!.args[0], CTA_CHANNEL);
   assert.ok(String(ops[0]!.args[1].content).includes("Ava roam") && ops[0]!.args[1].allowed_mentions.parse.length === 0);
-  assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam"]);
+  assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam | 25 Oct | 18:00 UTC"]);
+  assert.deepEqual(ops[3]!.args.slice(0, 2), [CTA_CHANNEL, "m1"]);
   assert.equal(ops[2]!.args[0], "m1", "the roster is posted in the thread, whose id is the announcement's");
   const [row] = await sql`select thread_id, message_id, own_post, cta from content`;
   assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta], ["m1", "m2", true, true]);
@@ -624,4 +625,167 @@ test("a blank CTA gets the forward too, and normal content never forwards the CT
   const r: any = await normal.d(press(`cc:create:${nid}`, undefined, member([], "32")));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
   assert.equal(normal.calls.filter((c) => c.op === "forward").length, 0);
+});
+
+// ---- the CTA card: Parties and party 2 slots (FR-070) ----
+
+const adminCta = { member: { user: { id: OWNER }, roles: [], permissions: "32" } };
+async function ctaCard(d: any, sql: any) {
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL}) on conflict do nothing`;
+  return (await open(d, adminCta, "c")).id as string;
+}
+const partiesMenu = (r: any): any => flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:parties:"));
+const btnOf = (r: any, id: string): any => flatComponents(r.data).find((c: any) => c.custom_id === id);
+
+test("the Parties menu is on a CTA card only; the CTA card has no Type or Category menu, normal content keeps them", async () => {
+  const { d, sql } = await setup();
+  const normal: any = await d(press("hub:n"));
+  assert.equal(partiesMenu(normal), undefined);
+  assert.ok(flatComponents(normal.data).some((c: any) => String(c.custom_id).startsWith("cc:type:")));
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
+  const r: any = await d(press("hub:c", undefined, adminCta));
+  const id = idOf(r);
+  const menu = partiesMenu(r);
+  assert.deepEqual(menu.options.map((o: any) => [o.value, !!o.default]), [["1", true], ["2", false]]);
+  assert.ok(!flatComponents(r.data).some((c: any) => /^cc:(type|kind):/.test(String(c.custom_id))));
+  assert.equal(btnOf(r, `cc:p2:${id}`), undefined, "no Party 2 button with one party");
+  assert.deepEqual(discordProblems(r.data), []);
+});
+
+test("choosing 2 parties stores it, relabels Details, shows Party 2 slots and Copy party 1; going back to 1 clears party 2", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  let r: any = await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  assert.equal((await getDraft(sql, id, NOW))!.parties, 2);
+  assert.deepEqual(partiesMenu(r).options.map((o: any) => !!o.default), [false, true]);
+  assert.ok(btnOf(r, `cc:p2:${id}`) && btnOf(r, `cc:copy:${id}`));
+  assert.equal(btnOf(r, `cc:p2:${id}`).label, "Party 2 slots");
+  assert.equal(btnOf(r, `cc:copy:${id}`).label, "Copy party 1");
+  assert.ok(say(r).includes("Roles fills party 1"));
+  assert.deepEqual(discordProblems(r.data), []);
+  const det: any = await d(press(`cc:details:${id}`, undefined, adminCta));
+  const slotsInput = det.data.components.map((row: any) => row.components[0]).find((x: any) => x.custom_id === "slots");
+  assert.equal(slotsInput.label, "Party 1 slots (one per line: Role - Weapon)");
+  assert.equal(slotsInput.placeholder, "Tank - Axe");
+  await d(form(`ccs2:${id}`, { slots2: "Healer - Holy" }, adminCta));
+  await d(press(`cc:parties:${id}`, ["1"], adminCta));
+  const back = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([back.parties, back.slots2, back.slots2Text], [1, [], null]);
+  assert.equal(((await d(press(`cc:parties:${id}`, ["3"], adminCta))) as any).data.flags, 64);
+  const normal = (await open(d, undefined, "n")).id;
+  assert.equal(((await d(press(`cc:parties:${normal}`, ["2"]))) as any).data.flags, 64, "normal content cannot have two parties");
+});
+
+test("the Party 2 button opens a form with one 1500-character box, filled with what is stored; valid lines are stored, bad lines are kept", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  const f: any = await d(press(`cc:p2:${id}`, undefined, adminCta));
+  assert.equal(f.type, 9);
+  assert.equal(f.data.custom_id, `ccs2:${id}`);
+  assert.equal(f.data.components.length, 1);
+  const input = f.data.components[0].components[0];
+  assert.deepEqual([input.custom_id, input.max_length, input.label, input.placeholder], ["slots2", 1500, "Party 2 slots", "Tank - Axe"]);
+  assert.deepEqual(modalProblems(f.data), []);
+  let r: any = await d(form(`ccs2:${id}`, { slots2: "Healer - Holy\nDPS - Bow" }, adminCta));
+  assert.equal(r.type, 7);
+  let s = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([s.slots2.map((x) => x.role), s.slots2Text], [["Healer", "DPS"], null]);
+  assert.ok(say(r).includes("Party 2"));
+  assert.equal((await d(press(`cc:p2:${id}`, undefined, adminCta)) as any).data.components[0].components[0].value, "Healer - Holy\nDPS - Bow");
+  r = await d(form(`ccs2:${id}`, { slots2: "Heal" }, adminCta));
+  s = (await getDraft(sql, id, NOW))!;
+  assert.equal(s.slots2Text, "Heal");
+  assert.ok(say(r).includes('Party 2, line 1: "Heal" is not a supported role.'));
+  assert.equal((await d(press(`cc:p2:${id}`, undefined, adminCta)) as any).data.components[0].components[0].value, "Heal", "the typed text comes back to be fixed");
+  const stranger = { member: { user: { id: OTHER }, roles: [] } };
+  assert.ok(((await d(form(`ccs2:${id}`, { slots2: "Tank" }, stranger))) as any).data.content.includes("expired or is not yours"));
+});
+
+test("Copy party 1 duplicates the party 1 lines into party 2", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  await d(form(`ccd:${id}`, details, adminCta));
+  const r: any = await d(press(`cc:copy:${id}`, undefined, adminCta));
+  const s = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual(s.slots2.map((x) => [x.role, x.weapon]), [["Tank", "Mace"], ["Healer", ""]]);
+  assert.ok(say(r).includes("Party 2"));
+});
+
+test("Create on a CTA lists a bad party 2 role and posts nothing; two valid parties are published with slots and slots2 as PvX, Other", async () => {
+  const { d, sql, calls } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  await d(form(`ccd:${id}`, details, adminCta));
+  let r: any = await d(form(`ccs2:${id}`, { slots2: "Heal" }, adminCta));
+  assert.ok(say(r).includes('Party 2, line 1: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.'));
+  assert.equal(btnOf(r, `cc:create:${id}`).disabled, true);
+  r = await d(press(`cc:create:${id}`, undefined, adminCta));
+  assert.ok(say(r).includes('Party 2, line 1: "Heal" is not a supported role.'));
+  assert.equal(calls.length, 0);
+  assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
+  await d(form(`ccs2:${id}`, { slots2: "Healer - Holy\nDPS - Bow" }, adminCta));
+  r = await d(press(`cc:create:${id}`, undefined, adminCta));
+  assert.ok(say(r).startsWith("✅ Created"), say(r));
+  const [row] = await sql`select type, kind, cta from content`;
+  assert.deepEqual([row!.type, row!.kind, row!.cta], ["pvx", "other", true]);
+  const slots = await sql`select party, role from slot order by position`;
+  assert.deepEqual(slots.map((s: any) => [s.party, s.role]), [[1, "Tank"], [1, "Healer"], [2, "Healer"], [2, "DPS"]]);
+});
+
+test("with two parties an empty party 1 or party 2 is a problem on the card; one party posts one roster", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(form(`ccd:${id}`, { ...details, slots: "" }, adminCta));
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  const r: any = await d(form(`ccs2:${id}`, { slots2: "Tank" }, adminCta));
+  assert.ok(say(r).includes("Add the slots"), say(r));
+  assert.equal(btnOf(r, `cc:create:${id}`).disabled, true);
+  const r2: any = await d(press(`cc:parties:${id}`, ["1"], adminCta));
+  assert.ok(say(r2).includes("Add the slots"));
+});
+
+test("a blank CTA ignores parties", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  const ok: any = await d(form(`ccl:${id}`, { title: "All hands", start: "2026-10-25 18:00", tier: "T8", notes: "" }, adminCta));
+  assert.ok(say(ok).startsWith("✅ Created"), say(ok));
+  assert.equal((await sql`select count(*)::int as n from slot`)[0]!.n, 0);
+});
+
+test("a preset saved from a two-party card loads both parties; an old preset loads as one party", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  await d(form(`ccd:${id}`, details, adminCta));
+  await d(form(`ccs2:${id}`, { slots2: "DPS - Bow" }, adminCta));
+  const saved: any = await d(form(`ccp:${id}`, { name: "Two parties" }, adminCta));
+  assert.ok(say(saved).includes("Saved the preset"), say(saved));
+  const [p] = await sql`select slots from slot_preset`;
+  assert.deepEqual(p!.slots.map((s: any) => s.party ?? 1), [1, 1, 2]);
+  await sql`insert into slot_preset (guild_id, name, slots, created_by) values (${GUILD}, 'Old', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
+  const presets = await sql`select id, name from slot_preset`;
+  const two = presets.find((x: any) => x.name === "Two parties")!.id, old = presets.find((x: any) => x.name === "Old")!.id;
+  const fresh = await ctaCard(d, sql); // starts over
+  const r: any = await d(press(`cc:preset:${fresh}`, [two], adminCta));
+  let s = (await getDraft(sql, fresh, NOW))!;
+  assert.deepEqual([s.parties, s.slots.map((x) => x.role), s.slots2.map((x) => x.role)], [2, ["Tank", "Healer"], ["DPS"]]);
+  assert.ok(s.slots2.every((x) => x.party === undefined || x.party === 2));
+  assert.deepEqual(discordProblems(r.data), []);
+  await d(press(`cc:preset:${fresh}`, [old], adminCta));
+  s = (await getDraft(sql, fresh, NOW))!;
+  assert.deepEqual([s.parties, s.slots.length, s.slots2.length], [1, 1, 0]);
+});
+
+test("the CTA card with two parties and full slot lists stays within Discord's limits", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  const twenty = Array.from({ length: 20 }, (_, n) => `${["Tank", "Healer", "DPS", "Support", "DTank"][n % 5]} - Weapon number ${n}`).join("\n");
+  await d(form(`ccd:${id}`, { ...details, slots: twenty }, adminCta));
+  const r: any = await d(form(`ccs2:${id}`, { slots2: twenty }, adminCta));
+  assert.deepEqual(discordProblems(r.data), []);
+  assert.ok(say(r).includes("Party 1") && say(r).includes("Party 2"));
 });

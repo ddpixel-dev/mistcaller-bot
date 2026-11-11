@@ -242,3 +242,19 @@ test("getChannel maps 404 to missing and 403 to forbidden, and throws on 500", a
   assert.deepEqual(await get(403), { ok: false, reason: "forbidden" });
   await assert.rejects(get(500), (e: unknown) => e instanceof DiscordApiError && e.status === 500);
 });
+
+test("editMessage with retry429 false gives up at once on a rate limit, without sleeping", async () => {
+  const waits: number[] = [];
+  let calls = 0;
+  const fetchFn = (async () => { calls++; return res(429, { retry_after: 2 }); }) as unknown as typeof fetch;
+  const rest = createRest("T", fetchFn, async (ms) => { waits.push(ms); });
+  await assert.rejects(rest.editMessage("c", "m", {}, { retry429: false }), (e: any) => e instanceof DiscordApiError && e.status === 429);
+  assert.equal(calls, 1);
+  assert.deepEqual(waits, []);
+  // the default still retries
+  const queue = [res(429, { retry_after: 1 }), res(200, {})];
+  const waits2: number[] = [];
+  const rest2 = createRest("T", (async () => queue.shift()!) as unknown as typeof fetch, async (ms) => { waits2.push(ms); });
+  await rest2.editMessage("c", "m", {});
+  assert.deepEqual(waits2, [1000]);
+});

@@ -17,7 +17,8 @@ export class DiscordApiError extends Error {
 
 export type Rest = {
   createMessage(channelId: string, body: unknown): Promise<{ id: string }>;
-  editMessage(channelId: string, messageId: string, body: unknown): Promise<void>;
+  // `retry429: false` gives up on a rate limit at once (best-effort edits that must not delay a reply).
+  editMessage(channelId: string, messageId: string, body: unknown, opts?: { retry429?: boolean }): Promise<void>;
   deleteMessage(channelId: string, messageId: string): Promise<void>;
   // Optional so older test doubles keep working; the real client has both.
   createDm?(userId: string): Promise<string>;
@@ -44,14 +45,14 @@ export function createRest(
   fetchFn: typeof fetch = fetch,
   sleep: (ms: number) => Promise<void> = realSleep,
 ): Rest {
-  async function call(method: string, path: string, body: unknown, okStatuses: number[] = []): Promise<unknown> {
+  async function call(method: string, path: string, body: unknown, okStatuses: number[] = [], retry429 = true): Promise<unknown> {
     const init: RequestInit = {
       method,
       headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     };
     let res = await fetchFn(`${API}${path}`, init);
-    if (res.status === 429) {
+    if (res.status === 429 && retry429) {
       const data = (await res.json().catch(() => ({}))) as { retry_after?: number };
       const wait = Math.min(Math.max(Number(data.retry_after) || 0, 0) * 1000, MAX_RETRY_WAIT_MS);
       await sleep(wait);
@@ -78,8 +79,8 @@ export function createRest(
       const out = (await call("POST", `/channels/${channelId}/messages`, body)) as { id: string };
       return { id: out.id };
     },
-    async editMessage(channelId, messageId, body) {
-      await call("PATCH", `/channels/${channelId}/messages/${messageId}`, body);
+    async editMessage(channelId, messageId, body, opts) {
+      await call("PATCH", `/channels/${channelId}/messages/${messageId}`, body, [], opts?.retry429 !== false);
     },
     async deleteMessage(channelId, messageId) {
       await call("DELETE", `/channels/${channelId}/messages/${messageId}`, undefined, [404]);

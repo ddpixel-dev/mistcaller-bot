@@ -479,3 +479,123 @@ test("the roster is pinned in its post when it is created, and a failed pin does
   const other: any = await publish(failing as any, input("thread-pin-2"));
   assert.equal(other.ok, true, "the pin is a nicety");
 });
+
+// One message per party (FR-070).
+async function partyRig(o: { failSecond?: boolean; failPin2?: boolean } = {}) {
+  const { sql, deps } = await setup();
+  const calls: { op: string; args: any[] }[] = [];
+  let n = 0;
+  const rest: any = {
+    async createMessage(c: string, b: unknown) {
+      calls.push({ op: "createMessage", args: [c, b] });
+      n++;
+      if (o.failSecond && n === 2) throw new Error("Bot SECRET-TOKEN exploded");
+      return { id: `m${n}` };
+    },
+    async editMessage() {},
+    async deleteMessage(c: string, m: string) { calls.push({ op: "deleteMessage", args: [c, m] }); },
+    async pinMessage(c: string, m: string) {
+      calls.push({ op: "pinMessage", args: [c, m] });
+      if (o.failPin2 && m === "m2") throw new Error("Missing Permissions");
+    },
+  };
+  return { sql, calls, deps: { ...deps, rest } as Deps };
+}
+const partyInput = (thread: string, over: Record<string, unknown> = {}) => ({
+  guildId: "g1", creator: "o", type: "pvp" as const, kind: "other", title: "Raid", notes: null, startsAt: new Date(NOW.getTime() + 3600000),
+  tier: "T8", slots: [{ role: "Tank", weapon: "Mace" }], hasLoot: false, buildRef: null, place: { threadId: thread }, ...over,
+});
+const two = { slots2: [{ role: "Healer", weapon: "Holy" }] };
+
+test("a two-party CTA posts and pins party 1 then party 2, saves both ids, and leaves the copy after them", async () => {
+  const { sql, calls, deps } = await partyRig();
+  const { setCtaMessage } = await import("../../src/db/cta.ts");
+  await setCtaMessage(sql, "g1", "chan1", "msg1");
+  const r: any = await publish(deps, partyInput("thr-2p", { ...two, cta: true }));
+  assert.equal(r.ok, true);
+  assert.deepEqual(calls.map((c) => (c.op === "pinMessage" ? `pin:${c.args[1]}` : c.op)), [
+    "createMessage", "pin:m1", "createMessage", "pin:m2", "createMessage", "pin:m3",
+  ]);
+  assert.match(JSON.stringify(calls[2]!.args[1]), /Party 2/);
+  assert.ok(calls[4]!.args[1].message_reference, "the copy comes last");
+  const rows = await sql`select party, message_id from content_message order by party`;
+  assert.deepEqual(rows.map((x: any) => [x.party, x.message_id]), [[2, "m2"]]);
+  const [c] = await sql`select message_id from content`;
+  assert.equal(c!.message_id, "m1");
+});
+
+test("a failed party 2 post removes the content, party 1 message and reports failure", async () => {
+  const { sql, calls, deps } = await partyRig({ failSecond: true });
+  const r: any = await publish(deps, partyInput("thr-2f", two));
+  assert.equal(r.ok, false);
+  assert.deepEqual(calls.filter((c) => c.op === "deleteMessage").map((c) => c.args), [["thr-2f", "m1"]]);
+  assert.equal((await sql`select 1 from content`).length, 0);
+});
+
+test("a failed party 2 pin is not fatal", async () => {
+  const { deps } = await partyRig({ failPin2: true });
+  assert.equal(((await publish(deps, partyInput("thr-2p2", two))) as any).ok, true);
+});
+
+test("one-party content and a one-party CTA make no party 2 call", async () => {
+  for (const over of [{}, { cta: true }]) {
+    const { calls, deps } = await partyRig();
+    const r: any = await publish(deps, partyInput(`thr-1p-${Object.keys(over).length}`, over));
+    assert.equal(r.ok, true);
+    assert.deepEqual(calls.map((c) => c.op), ["createMessage", "pinMessage"]);
+  }
+});
+
+// CTA announcement and thread use the post name (ADR 0036 update 2026-11-10, FR-063).
+async function ctaRig() {
+  const { sql, deps } = await setup();
+  const calls: { op: string; args: any[] }[] = [];
+  let n = 0;
+  const rest: any = {
+    async createMessage(c: string, b: unknown) { calls.push({ op: "createMessage", args: [c, b] }); return { id: `m${++n}` }; },
+    async editMessage(c: string, m: string, b: unknown) { calls.push({ op: "editMessage", args: [c, m, b] }); },
+    async deleteMessage() {},
+    async pinMessage() {},
+    async startThread(c: string, m: string, name: string) { calls.push({ op: "startThread", args: [c, m, name] }); return { id: m }; },
+  };
+  return { sql, calls, deps: { ...deps, rest } as Deps };
+}
+const ctaInput = (over: Record<string, unknown> = {}) => ({
+  ...partyInput("unused"), cta: true, startsAt: new Date("2026-11-12T20:00:00Z"), place: { channelId: "cta-ch" }, ...over,
+});
+
+test("a CTA thread is named with the post name and the announcement reads the post name and the start", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, ctaInput());
+  assert.equal(r.ok, true);
+  const first = calls.find((c) => c.op === "createMessage")!;
+  assert.equal(first.args[0], "cta-ch");
+  assert.equal(first.args[1].content, `📣 **Raid | 12 Nov | 20:00 UTC** · <t:${Math.floor(Date.parse("2026-11-12T20:00:00Z") / 1000)}:f>`);
+  assert.deepEqual(first.args[1].allowed_mentions, { parse: [] });
+  assert.deepEqual(calls.find((c) => c.op === "startThread")!.args, ["cta-ch", "m1", "Raid | 12 Nov | 20:00 UTC"]);
+});
+
+test("once the roster is posted the announcement is edited to carry the Roster button for party 1", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, ctaInput(two));
+  assert.equal(r.ok, true);
+  const edit = calls.find((c) => c.op === "editMessage")!;
+  assert.deepEqual(edit.args.slice(0, 2), ["cta-ch", "m1"]);
+  assert.ok(edit.args[1] === "m1" && String(edit.args[2].content).startsWith("📣 **Raid | 12 Nov | 20:00 UTC**"));
+  assert.equal(edit.args[2].components[0].components[0].url, "https://discord.com/channels/g1/m1/m2");
+  assert.ok(calls.indexOf(edit) > calls.findIndex((c) => c.op === "createMessage" && c.args[0] === "m1"), "after the roster");
+});
+
+test("a failing announcement button edit does not fail the CTA", async () => {
+  const { deps } = await ctaRig();
+  (deps.rest as any).editMessage = async () => { throw new Error("Missing Access"); };
+  const r: any = await publish(deps, ctaInput());
+  assert.equal(r.ok, true);
+});
+
+test("normal content makes no announcement calls", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, partyInput("thr-plain"));
+  assert.equal(r.ok, true);
+  assert.deepEqual(calls.map((c) => c.op), ["createMessage"]);
+});

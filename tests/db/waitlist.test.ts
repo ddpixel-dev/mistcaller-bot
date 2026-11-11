@@ -34,7 +34,7 @@ test("a role with open positions cannot be waited for; once all are taken the me
   assert.equal(await wait("w1", "Healer"), "open_slot");
   await claim("h2", slots[2]!);
   assert.equal(await wait("w1", "healer"), "ok");
-  assert.deepEqual((await view()).waitlist, [{ userId: "w1", role: "Healer" }]);
+  assert.deepEqual((await view()).waitlist, [{ userId: "w1", role: "Healer", party: 1 }]);
   assert.equal(await wait("w1", "Healer"), "already");
   assert.equal(await wait("w2", "Mage"), "unknown_role");
 });

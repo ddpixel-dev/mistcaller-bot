@@ -31,3 +31,12 @@ test("a server holds at most 25 presets, but an existing one can still be replac
   assert.equal(await save("P3"), "replaced");
   assert.equal((await listPresets(await testSql(), "g1")).length, MAX_PRESETS);
 });
+
+test("slots keep their party; a preset saved before parties has none and reads as party 1", async () => {
+  const sql = await testSql();
+  await save("Two", { slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy", party: 2 }] as any });
+  await sql`insert into slot_preset (guild_id, name, slots, created_by) values ('g1', 'Old', '[{"role":"Tank","weapon":"Mace"}]'::jsonb, 'o')`;
+  const all = await listPresets(sql, "g1");
+  assert.deepEqual(all.find((p) => p.name === "Two")!.slots.map((s) => s.party ?? 1), [1, 2]);
+  assert.deepEqual(all.find((p) => p.name === "Old")!.slots.map((s) => s.party ?? 1), [1]);
+});

@@ -226,3 +226,86 @@ test("an edit renumbers the positions by role, and seats, duties and weapons mov
   const dps = v.slots.find((s) => s.role === "DPS")!;
   assert.deepEqual([dps.id, dps.userId, dps.duty], [slotIds[2], "alice", "caller"], "the seat and duty follow the slot");
 });
+
+// Two-party CTA (FR-070): one plan per party.
+const two: NewContent = {
+  ...base, cta: true,
+  slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
+  slots2: [{ role: "Tank", weapon: "Mace" }, { role: "DPS", weapon: "Bow" }],
+};
+async function setupTwo() {
+  const sql = await testSql();
+  const id = await createContent(sql, two);
+  const v = (await getRosterView(sql, id, NOW))!;
+  return { sql, id, v };
+}
+const shape = async (sql: any, id: string) =>
+  (await getRosterView(sql, id, NOW))!.slots.map((s) => `${s.party}:${s.position}:${s.role}-${s.weapon}:${s.userId ?? ""}`);
+
+test("two parties: adding a line to party 1 keeps party 2's holders and positions stay unique", async () => {
+  const { sql, id, v } = await setupTwo();
+  const p2dps = v.slots.find((s) => s.party === 2 && s.role === "DPS")!;
+  await sign(sql, id, "bob", p2dps.id);
+  const r = await editContent(sql, id, edit({ slots: [...two.slots, { role: "DPS", weapon: "Bow" }], slots2: two.slots2 }), NOW);
+  assert.equal(r.result, "ok");
+  const after = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(after.slots.map((s) => [s.party, s.position]), [[1, 1], [1, 2], [1, 3], [2, 4], [2, 5]]);
+  assert.equal(after.slots.find((s) => s.id === p2dps.id)!.userId, "bob");
+  assert.equal(after.partyCount, 2);
+});
+
+test("two parties: party 1 only (slots2 undefined) leaves party 2 untouched", async () => {
+  const { sql, id } = await setupTwo();
+  await editContent(sql, id, edit({ slots: [{ role: "Tank", weapon: "Axe" }] }), NOW);
+  const after = await shape(sql, id);
+  assert.deepEqual(after, ["1:1:Tank-Axe:", "2:2:Tank-Mace:", "2:3:DPS-Bow:"]);
+});
+
+test("two parties: renaming a party 2 line keeps its holder and party 1's identical line", async () => {
+  const { sql, id, v } = await setupTwo();
+  const p1tank = v.slots.find((s) => s.party === 1 && s.role === "Tank")!;
+  const p2tank = v.slots.find((s) => s.party === 2 && s.role === "Tank")!;
+  await sign(sql, id, "amy", p1tank.id);
+  await sign(sql, id, "bob", p2tank.id);
+  const r = await editContent(sql, id, edit({ slots: two.slots, slots2: [{ role: "Tank", weapon: "Axe" }, { role: "DPS", weapon: "Bow" }] }), NOW);
+  assert.equal(r.result, "ok");
+  const after = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(
+    after.slots.map((s) => `${s.party}:${s.role}-${s.weapon}:${s.userId ?? ""}`),
+    ["1:Tank-Mace:amy", "1:Healer-Holy:", "2:Tank-Axe:bob", "2:DPS-Bow:"],
+  );
+});
+
+test("two parties: removing a held party 2 slot is refused and the message names Party 2", async () => {
+  const { sql, id, v } = await setupTwo();
+  await sign(sql, id, "bob", v.slots.find((s) => s.party === 2 && s.role === "DPS")!.id);
+  const r = await editContent(sql, id, edit({ slots: two.slots, slots2: [{ role: "Tank", weapon: "Mace" }] }), NOW);
+  assert.equal(r.result, "slots_held");
+  assert.match((r as { error: string }).error, /^Party 2:/);
+  assert.equal((await shape(sql, id)).length, 4);
+});
+
+test("one party: a held slot error keeps its old text, and new slots are party 1", async () => {
+  const { sql, id, slotIds } = await setup();
+  await sign(sql, id, "amy", slotIds[2]!);
+  const r = await editContent(sql, id, edit({ slots: [{ role: "Tank", weapon: "Mace" }] }), NOW);
+  assert.equal(r.result, "slots_held");
+  assert.doesNotMatch((r as { error: string }).error, /^Party/);
+  await editContent(sql, id, edit({ slots: [...base.slots, { role: "Support", weapon: "Locus" }] }), NOW);
+  assert.ok((await getRosterView(sql, id, NOW))!.slots.every((s) => s.party === 1));
+});
+
+test("an edit that leaves out title, notes, start and tier keeps the values stored at the time of the edit", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, cta: true, notes: "old", slots: [{ role: "Tank", weapon: "Mace" }], slots2: [{ role: "DPS", weapon: "Bow" }] });
+  await sql`update content set title = 'Renamed', notes = null, gear_tier = 'T7.0', starts_at = '2026-12-05T20:00:00Z' where id = ${id}`;
+  const r = await editContent(sql, id, { hasLoot: null, kind: null, slots2: [{ role: "DPS", weapon: "Bow" }, { role: "Tank", weapon: "Axe" }] }, new Date("2026-10-06T12:00:00Z"));
+  assert.equal(r.result, "ok");
+  if (r.result === "ok") assert.equal(r.startChanged, false);
+  const v = (await getRosterView(sql, id, new Date("2026-10-06T12:00:00Z")))!;
+  assert.equal(v.title, "Renamed");
+  assert.equal(v.notes, null);
+  assert.equal(v.tier, "T7.0");
+  assert.equal(v.startsAt.toISOString(), "2026-12-05T20:00:00.000Z");
+  assert.equal(v.slots.filter((s) => s.party === 2).length, 2);
+});

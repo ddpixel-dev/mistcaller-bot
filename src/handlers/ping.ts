@@ -5,6 +5,7 @@ import { getAttendance } from "../db/attendance.ts";
 import { claimPings, pingTargets, releasePings } from "../db/ping.ts";
 import { getRosterView } from "../db/content.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 import { OLD_LAYOUT, isOldRoster } from "./signup.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,7 +55,7 @@ export async function handlePing(deps: Deps, i: Interaction): Promise<Interactio
   // Dim the button when nobody is left to ping.
   try {
     const fresh = await getRosterView(deps.sql, id, deps.now());
-    if (fresh?.messageId) await deps.rest.editMessage(fresh.threadId, fresh.messageId, renderRosterMessage(fresh));
+    if (fresh?.messageId) await refreshRosters(deps, fresh);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }

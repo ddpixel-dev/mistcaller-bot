@@ -78,7 +78,7 @@ A CTA may have two parties, each up to 20 players (40 in all). The owner is tryi
 - `content.party_count smallint not null default 1 check (party_count in (1, 2))`. Existing content stays at 1.
 - `slot`, the waitlist rows and the fill and applicant rows get `party smallint not null default 1`. A member holds one entry per content, and the entry records its party.
 - Position numbering by role (ADR 0030) restarts inside each party. The unique key on `slot` becomes (content, party, position).
-- **Plan refinement (2026-11-10, awaiting owner confirmation):** the code audit found about 200 lookups by (content, position) in 20 files. To avoid touching them, `slot.position` stays unique per content (party 1's positions first, then party 2's, each sorted by role) and `slot.party` is added beside it. The **displayed** number restarts at 1 in each party, so nothing the owner sees changes. If the owner prefers the key above, the plan's Task B2 and the lookups listed in its audit table grow.
+- **Plan refinement (2026-11-10, confirmed by the owner on 2026-11-10 by approving the plan):** the code audit found about 200 lookups by (content, position) in 20 files. To avoid touching them, `slot.position` stays unique per content (party 1's positions first, then party 2's, each sorted by role) and `slot.party` is added beside it. The **displayed** number restarts at 1 in each party, so nothing the owner sees changes. If the owner prefers the key above, the plan's Task B2 and the lookups listed in its audit table grow.
 - `content_message (content_id, party, message_id, primary key (content_id, party))`, row level security on. Party 1 keeps the message ID the content already has, so no old roster changes. A second row exists only when `party_count` is 2.
 - Never edit a migration after it ran on production.
 - Risk to audit in the plan: code that identifies a position only by its number must also take the party. The plan lists every such place before any code is written.
@@ -94,6 +94,7 @@ A CTA may have two parties, each up to 20 players (40 in all). The owner is tryi
 - Each message has its own 4000-character text budget and 40-component budget; a party of 20 fits Discord's 25-option menus.
 
 ### Creation (CTA)
+- (Owner decision 2026-11-10, ADR 0036 update) The CTA card hides the Type and Category menus; a CTA is stored as PvX, category Other.
 - The creation card gets a **Parties** choice (1 or 2).
 - With 2 parties the Details box is labelled **Party 1 slots**. A **Party 2 slots** button opens a box of the same kind, and **Copy party 1** fills party 2 with party 1's lines.
 - Each box takes up to 20 lines through the existing parser. Errors name the party and the line: `Party 2, line 3: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.` Fix and retry keeps the typed text.

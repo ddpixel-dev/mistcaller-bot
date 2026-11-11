@@ -48,7 +48,7 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0046 Message Content intent](decisions/0046-message-content-intent-on.md): accepted; needed to forward a member's message (FR-069), changes NFR-001
 - [CTA pinned message and two parties design](plan/2026-11-10-cta-pinned-message-and-parties-design.md): accepted 2026-11-10 (FR-069, FR-070)
 - [CTA pinned message implementation plan](plan/2026-11-10-cta-message-implementation.md): six tasks on `feature/cta-message`, migration 0031, built in 0.31.7 (FR-069)
-- [CTA two parties implementation plan](plan/2026-11-10-cta-parties-implementation.md): thirteen tasks on `feature/cta-parties`, migration 0032, awaiting owner review (FR-070)
+- [CTA two parties implementation plan](plan/2026-11-10-cta-parties-implementation.md): thirteen tasks on `feature/cta-parties`, migration 0032, built in 0.31.8 (FR-070)
 - [0026 Fill seats, dashboards, permission levels](decisions/0026-fill-seats-dashboards-permission-levels.md): the 0.21.0 decisions
 - [Tentative sign-up design](plan/2026-11-08-tentative-signup-design.md): ❓ toggle button, flag on the sign-up row, migration 0030 (FR-067, accepted)
 - [Release 0.32.0 brief: ZvZ](plan/2026-11-06-zvz-brief.md): the owner's request, limits, open questions and the release checklist, for a new session
