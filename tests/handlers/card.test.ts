@@ -287,7 +287,7 @@ test("Schedule CTA is for admins and CTA roles, and needs a CTA channel", async 
   assert.equal(byAdmin.type, 4);
 });
 
-test("a CTA is announced in the CTA channel with a thread, the roster is in the thread, and the roles are checked again at Create", async () => {
+test("a CTA's roster is the message in the CTA channel, the thread starts from it, and the roles are checked again at Create", async () => {
   const { d, sql, calls } = await setup();
   await sql`insert into guild_cta_role (guild_id, role_id) values (${GUILD}, 'callers')`;
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
@@ -299,22 +299,23 @@ test("a CTA is announced in the CTA channel with a thread, the roster is in the 
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   const r: any = await d(press(`cc:create:${id}`, undefined, member(["callers"])));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
-  const ops = calls.filter((c) => ["createMessage", "startThread", "editMessage", "createForumPost"].includes(c.op));
-  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage", "editMessage"], "an announcement, a thread, the roster in it, then the announcement gets its Roster button");
+  const ops = calls.filter((c) => ["createMessage", "startThread", "editMessage", "createForumPost", "pinMessage"].includes(c.op));
+  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "editMessage"], "a placeholder in the channel, the thread from it, then the placeholder becomes the roster; nothing is pinned");
   assert.equal(ops[0]!.args[0], CTA_CHANNEL);
-  assert.ok(String(ops[0]!.args[1].content).includes("Ava roam") && ops[0]!.args[1].allowed_mentions.parse.length === 0);
+  assert.ok(ops[0]!.args[1].allowed_mentions.parse.length === 0);
   assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam | 25 Oct | 18:00 UTC"]);
-  assert.deepEqual(ops[3]!.args.slice(0, 2), [CTA_CHANNEL, "m1"]);
-  assert.equal(ops[2]!.args[0], "m1", "the roster is posted in the thread, whose id is the announcement's");
+  assert.deepEqual(ops[2]!.args.slice(0, 2), [CTA_CHANNEL, "m1"], "the roster is edited in the channel");
+  assert.ok(JSON.stringify(ops[2]!.args[2]).includes("Ava roam"));
   const [row] = await sql`select thread_id, message_id, own_post, cta from content`;
-  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta], ["m1", "m2", true, true]);
-  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/m1/m2`);
+  assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta], ["m1", "m1", true, true]);
+  assert.equal((await sql`select roster_channel_id from content`)[0]!.roster_channel_id, CTA_CHANNEL);
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/${CTA_CHANNEL}/m1`);
 });
 
-test("if the roster cannot be posted in a CTA thread, the thread, the announcement and the content are removed", async () => {
+test("if the roster cannot be posted in the CTA channel, the thread, the placeholder and the content are removed", async () => {
   const { d, sql, calls, deps } = await setup();
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
-  const failing = { ...deps, rest: { ...deps.rest, async createMessage(channel: string, body: any) { calls.push({ op: "createMessage", args: [channel, body] }); if (channel !== CTA_CHANNEL) throw new Error("403"); return { id: "ann1" }; } } };
+  const failing = { ...deps, rest: { ...deps.rest, async createMessage(channel: string, body: any) { calls.push({ op: "createMessage", args: [channel, body] }); return { id: "ann1" }; }, async editMessage() { throw new Error("403"); } } };
   const { createDispatch } = await import("../../src/discord/dispatch.ts");
   const dd = createDispatch(failing as any);
   const { id } = await open(dd, member([], "32"), "c");
@@ -323,7 +324,7 @@ test("if the roster cannot be posted in a CTA thread, the thread, the announceme
   const r: any = await dd(press(`cc:create:${id}`, undefined, member([], "32")));
   assert.equal(r.data.flags, 64);
   assert.ok(calls.some((c) => c.op === "deleteChannel" && c.args[0] === "ann1"), "the thread is deleted");
-  assert.ok(calls.some((c) => c.op === "deleteMessage" && c.args[0] === CTA_CHANNEL && c.args[1] === "ann1"), "so is the announcement");
+  assert.ok(calls.some((c) => c.op === "deleteMessage" && c.args[0] === CTA_CHANNEL && c.args[1] === "ann1"), "so is the placeholder");
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.ok(await getDraft(sql, id, NOW));
 });
@@ -593,9 +594,9 @@ test("a CTA made with Create gets a pinned forward of the CTA message after the 
   await d(press(`cc:type:${id}`, ["pvp"], member([], "32")));
   await d(form(`ccd:${id}`, details, member([], "32")));
   const r: any = await d(press(`cc:create:${id}`, undefined, member([], "32")));
-  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/m1/m2`);
-  assert.deepEqual(calls.filter((c) => c.op === "pinMessage").map((c) => c.args), [["m1", "m2"], ["m1", "m3"]], "the roster, then the forward");
-  assert.ok(calls.findIndex((c) => c.op === "forward") > calls.findIndex((c) => c.op === "pinMessage"));
+  assert.equal(say(r), `✅ Created: https://discord.com/channels/${GUILD}/${CTA_CHANNEL}/m1`);
+  assert.deepEqual(calls.filter((c) => c.op === "pinMessage").map((c) => c.args), [["m1", "m3"]], "only the forward is pinned; the roster heads the thread");
+  assert.ok(calls.findIndex((c) => c.op === "forward") < calls.findIndex((c) => c.op === "pinMessage"), "the forward is posted, then pinned");
   assert.equal(calls.filter((c) => c.op === "getMessage").length, 0, "the bot never reads the source");
   assert.deepEqual(calls.find((c) => c.op === "forward")!.args[1].message_reference, { type: 1, guild_id: GUILD, channel_id: "src-chan", message_id: "src-msg", fail_if_not_exists: true });
 });

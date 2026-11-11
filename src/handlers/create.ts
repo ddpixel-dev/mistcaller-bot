@@ -14,7 +14,6 @@ import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType, SlotDef } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
 import { openCard } from "./card.ts";
-import { announcementBody } from "./ctaannounce.ts";
 import { postCtaMessage } from "./ctamsg.ts";
 import { pinQuietly } from "./pins.ts";
 import { forumOfLauncher } from "../db/eventForum.ts";
@@ -136,7 +135,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
 
 export type PublishInput = {
   guildId: string; creator: string; type: ContentType; kind: string; title: string; notes: string | null; startsAt: Date;
-  tier: string; slots: SlotDef[]; slots2?: SlotDef[]; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
+  tier: string; slots: SlotDef[]; slots2?: SlotDef[]; bombers?: number | null; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
   // Where the roster goes: an existing channel or post, a new post the bot creates in an event forum (ADR 0032), or a new
   // thread under an announcement in a text channel (the CTA channel, ADR 0036).
   place: { threadId: string } | { forumId: string } | { channelId: string };
@@ -166,11 +165,12 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
       return { ok: false, response: reply(NO_POST) };
     }
   } else if ("channelId" in a.place) {
-    // A CTA (ADR 0036): an announcement in the channel, a thread started from it, and the roster in that thread.
+    // A CTA (ADR 0047): the roster is the message in the channel, and the thread is started from it. A placeholder is posted
+    // first (the thread needs a message to start from) and becomes the roster once the content is saved.
     if (!deps.rest.startThread) return { ok: false, response: reply(FAILED) };
     const channelId = a.place.channelId;
     try {
-      announcement = await deps.rest.createMessage(channelId, announcementBody(a.title, a.startsAt));
+      announcement = await deps.rest.createMessage(channelId, PLACEHOLDER);
       announcementChannel = channelId;
       // postName keeps within Discord's 100 characters for a thread name.
       threadId = (await deps.rest.startThread(channelId, announcement.id, postName(a.title, a.startsAt))).id;
@@ -184,6 +184,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     threadId = a.place.threadId;
   }
   const starterIsRoster = "forumId" in a.place; // a forum post's first message becomes the roster
+  const inChannel = "channelId" in a.place; // a CTA's roster is the message in the CTA channel (ADR 0047)
   const dropPost = async () => {
     if (ownPost) await deps.rest.deleteChannel?.(threadId).catch((e) => console.error(JSON.stringify({ evt: "orphan_post_delete_failed", name: errName(e) })));
     if (announcement && announcementChannel) await deps.rest.deleteMessage(announcementChannel, announcement.id).catch(() => {});
@@ -193,7 +194,8 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   try {
     id = await createContent(deps.sql, {
       guildId: a.guildId, threadId, type: a.type, kind: a.kind, title: a.title, notes: a.notes, startsAt: a.startsAt, tier: a.tier,
-      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, slots2: a.slots2, ownPost, now: deps.now(),
+      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, slots2: a.slots2, bombers: a.bombers ?? null,
+      rosterChannelId: "channelId" in a.place ? a.place.channelId : null, ownPost, now: deps.now(),
     });
   } catch (err) {
     await dropPost();
@@ -211,14 +213,20 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
       // A forum post's first message has the post's id.
       await deps.rest.editMessage(threadId, threadId, renderRosterMessage(view));
       postedId = threadId;
+    } else if (inChannel) {
+      // The placeholder the thread was started from becomes the roster. It is not pinned: it already heads the thread.
+      await deps.rest.editMessage(announcementChannel!, announcement!.id, renderRosterMessage(view));
+      postedId = announcement!.id;
     } else {
       postedId = (await deps.rest.createMessage(threadId, renderRosterMessage(view))).id;
     }
     await setMessageId(deps.sql, id, postedId);
-    // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
-    await pinQuietly(deps, threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
-    // A second party has its own message, right after the first (FR-070).
-    if (view.partyCount === 2) {
+    if (!inChannel) {
+      // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
+      await pinQuietly(deps, threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
+    }
+    // A second party has its own message, right after the first (FR-070). A CTA has one message for every party.
+    if (view.partyCount === 2 && !inChannel) {
       party2Id = (await deps.rest.createMessage(threadId, renderRosterMessage(view, 2))).id;
       await setPartyMessageId(deps.sql, { guildId: a.guildId, contentId: id, party: 2, messageId: party2Id });
       await pinQuietly(deps, threadId, party2Id).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
@@ -245,11 +253,6 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   const [, notes] = await Promise.all([
     refreshDashboardSoon(deps, a.guildId, "schedule"),
     a.cta ? postCtaMessage(deps, { guildId: a.guildId, threadId }) : Promise.resolve([] as string[]),
-    // Only a CTA whose roster is in its thread has an announcement to give the Roster button (ADR 0047).
-    announcement && announcementChannel && rosterChannelId === null
-      ? deps.rest.editMessage(announcementChannel, announcement.id, announcementBody(a.title, a.startsAt, { guildId: a.guildId, threadId, messageId: postedId }))
-        .catch((e) => console.error(JSON.stringify({ evt: "announcement_edit_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })))
-      : Promise.resolve(),
   ]);
   console.error(JSON.stringify({ evt: "publish_ms", ms: Date.now() - startedAt }));
   return { ok: true, threadId, messageId: postedId, rosterChannelId, notes };
