@@ -1,7 +1,7 @@
 ---
 title: CTA in one message, Bombers, CTA presets, quiet pins: implementation plan
 type: plan
-status: accepted (owner approved 2026-11-11: "proceed, record decisions, plans, implement and release")
+status: built in 0.31.9 (owner approved 2026-11-11: "proceed, record decisions, plans, implement and release")
 date: 2026-11-11
 satisfies: [FR-070, FR-071, FR-072, FR-073]
 ---
