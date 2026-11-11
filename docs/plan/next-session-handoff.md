@@ -9,9 +9,11 @@ date: 2026-11-06
 
 Read `PRODUCT.md` (its Current state) and [INDEX.md](../INDEX.md) first. Then this note. History of earlier handoffs is in git.
 
-## Where things stand (2026-11-10)
-- **Released: v0.31.7** on `main`, migrations through **0031**. `develop` equals it. The bot has the Message Content intent (ADR 0046).
-- **Next: release 0.31.8, two parties in a CTA (FR-070).** Plan: [2026-11-10-cta-parties-implementation.md](2026-11-10-cta-parties-implementation.md), 13 tasks on `feature/cta-parties`, migration 0032, run subagent-driven. Design: [2026-11-10-cta-pinned-message-and-parties-design.md](2026-11-10-cta-pinned-message-and-parties-design.md) Part 2 (positions stay unique per content, party 1 first; the displayed number restarts per party). `/content help` is at its 2000-character limit; Task 13 must make room.
+## Where things stand (2026-11-11)
+- **Released: v0.31.8** on `main`, migrations through **0032**. `develop` equals it. FR-070 two parties in a CTA is built (ADR 0044). Rollback note: redeploying 0.31.7 after two-party content exists renders all slots on party 1's message and leaves party 2's message stale; migration 0032 is additive, so 0.31.7 still runs on it.
+- Parked follow-ups (from the final review): a duplicate of an existing legacy CTA line passes the role check; three rare replies (held-slot error, duty no_slot, fill unchanged) show content-wide positions on two-party content; a deleted roster message is not reposted (open question Q25); measure the two-party CTA create time from the `publish_ms` log.
+- Earlier note (2026-11-10): v0.31.7 shipped FR-069 (forwarded CTA message).
+- **Done: release 0.31.8, two parties in a CTA (FR-070).** Plan: [2026-11-10-cta-parties-implementation.md](2026-11-10-cta-parties-implementation.md), 13 tasks on `feature/cta-parties`, migration 0032, run subagent-driven. Design: [2026-11-10-cta-pinned-message-and-parties-design.md](2026-11-10-cta-pinned-message-and-parties-design.md) Part 2 (positions stay unique per content, party 1 first; the displayed number restarts per party). `/content help` is at its 2000-character limit; Task 13 must make room.
 - Earlier note (2026-11-06): v0.31.1 was released with migrations through 0027. Live at `https://mistcaller-bot.vercel.app/api/discord`, Vercel production branch `main`, functions in `dub1`, Supabase eu-west-1, repo `ddpixel-dev/mistcaller-bot`. Everything runs in Docker (`docker compose run --rm node ...`); never install tools on the host.
 - Git flow (ADR 0014): `main` is releases (tagged), `develop` integrates, `feature/*`, `release/*` and `hotfix/*` branches. Merge with `--no-ff`. Commits end with the attribution line from the session reminder.
 - Tests: `docker compose run --rm node npm test` (662 tests, all green) and `docker compose run --rm node npx tsc --noEmit`. Database tests use the local `db` container (`TEST_DATABASE_URL`), never production.
