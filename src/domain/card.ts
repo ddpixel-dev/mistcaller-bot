@@ -20,9 +20,10 @@ export type CardInput = {
   parties?: number;
   slots2?: SlotDef[];
   slots2Text?: string | null;
+  bombers?: number | null; // a CTA's Bombers cap (FR-071)
 };
 
-export type CardContent = { type: ContentType; kind: string; title: string; startsAt: Date; tier: string; notes: string | null; slots: SlotDef[]; slots2: SlotDef[]; parties: 1 | 2 };
+export type CardContent = { type: ContentType; kind: string; title: string; startsAt: Date; tier: string; notes: string | null; slots: SlotDef[]; slots2: SlotDef[]; parties: 1 | 2; bombers: number | null };
 
 // One party of a CTA: typed lines win over stored slots; every role must be a CTA role; an empty party is a problem.
 function ctaParty(text: string | null, stored: SlotDef[], party: number, parties: number, problems: string[]): SlotDef[] {
@@ -76,7 +77,7 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   const notes = parseNotes(c.notes ?? "");
   if (!notes.ok) problems.push(notes.error);
   if (problems.length > 0 || !type || !kind?.ok || !title.ok || !start.ok || !tier.ok || !notes.ok) return { ok: false, problems };
-  return { ok: true, value: { type, kind: kind.value, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value, slots, slots2, parties } };
+  return { ok: true, value: { type, kind: kind.value, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value, slots, slots2, parties, bombers: cta ? c.bombers ?? null : null } };
 }
 
 // A card opened for one forum's type offers that type only (ADR 0037); with none, every type.
