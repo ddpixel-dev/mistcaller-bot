@@ -9,7 +9,7 @@ import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId, setPartyMessageId,
 } from "../db/content.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
-import { IS_COMPONENTS_V2, renderRosterMessage } from "../render/roster.ts";
+import { IS_COMPONENTS_V2, renderRosterMessage, rosterUrl } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType, SlotDef } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
@@ -66,7 +66,7 @@ export function placeProblem(i: Interaction): string | null {
 export async function postTakenReply(deps: Deps, guildId: string, threadId: string): Promise<InteractionResponse | null> {
   const existing = await findContentInThread(deps.sql, guildId, threadId);
   if (!existing) return null;
-  const link = existing.messageId ? ` https://discord.com/channels/${guildId}/${threadId}/${existing.messageId}` : "";
+  const link = existing.messageId ? ` ${rosterUrl({ guildId, threadId, messageId: existing.messageId, rosterChannelId: existing.rosterChannelId })}` : "";
   return reply(takenMessage(existing.status, link));
 }
 
@@ -148,7 +148,7 @@ const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 
 // Save the content and post its roster. Whatever fails, nothing is left behind: the row, the message and a post the
 // bot created are removed again.
-export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string; notes: string[] } | { ok: false; response: InteractionResponse }> {
+export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; threadId: string; messageId: string; rosterChannelId: string | null; notes: string[] } | { ok: false; response: InteractionResponse }> {
   const startedAt = Date.now();
   let threadId: string;
   let ownPost = false;
@@ -202,9 +202,11 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   }
   let postedId: string | null = null;
   let party2Id: string | null = null;
+  let rosterChannelId: string | null = null; // ADR 0047: a CTA's roster channel, when its roster is not in the thread
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
     if (!view) throw new Error("content row missing");
+    rosterChannelId = view.rosterChannelId;
     if (starterIsRoster) {
       // A forum post's first message has the post's id.
       await deps.rest.editMessage(threadId, threadId, renderRosterMessage(view));
@@ -243,13 +245,14 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   const [, notes] = await Promise.all([
     refreshDashboardSoon(deps, a.guildId, "schedule"),
     a.cta ? postCtaMessage(deps, { guildId: a.guildId, threadId }) : Promise.resolve([] as string[]),
-    announcement && announcementChannel
+    // Only a CTA whose roster is in its thread has an announcement to give the Roster button (ADR 0047).
+    announcement && announcementChannel && rosterChannelId === null
       ? deps.rest.editMessage(announcementChannel, announcement.id, announcementBody(a.title, a.startsAt, { guildId: a.guildId, threadId, messageId: postedId }))
         .catch((e) => console.error(JSON.stringify({ evt: "announcement_edit_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })))
       : Promise.resolve(),
   ]);
   console.error(JSON.stringify({ evt: "publish_ms", ms: Date.now() - startedAt }));
-  return { ok: true, threadId, messageId: postedId, notes };
+  return { ok: true, threadId, messageId: postedId, rosterChannelId, notes };
 }
 
 function logFailure(err: unknown): void {

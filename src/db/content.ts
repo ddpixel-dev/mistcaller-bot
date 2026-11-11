@@ -54,11 +54,11 @@ export async function findContentInThread(
   sql: Sql,
   guildId: string,
   threadId: string,
-): Promise<{ id: string; status: ContentStatus; messageId: string | null } | null> {
+): Promise<{ id: string; status: ContentStatus; messageId: string | null; rosterChannelId: string | null } | null> {
   const [row] = await sql`
-    select id, status, message_id from content
+    select id, status, message_id, roster_channel_id from content
     where guild_id = ${guildId} and thread_id = ${threadId} and status <> 'cancelled'`;
-  return row ? { id: row.id, status: row.status as ContentStatus, messageId: row.message_id } : null;
+  return row ? { id: row.id, status: row.status as ContentStatus, messageId: row.message_id, rosterChannelId: row.roster_channel_id ?? null } : null;
 }
 
 async function insertContent(sql: Sql, input: NewContent): Promise<string> {

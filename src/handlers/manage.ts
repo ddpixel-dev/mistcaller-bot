@@ -17,7 +17,7 @@ import { canManage } from "../domain/permissions.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import { parseCtaSlots } from "../domain/parties.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
-import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { escapeText, renderRosterMessage, rosterUrl } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import { announcementBody } from "./ctaannounce.ts";
 import { getCtaChannel } from "../db/cta.ts";
@@ -169,8 +169,9 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
       renameNote = " The post keeps its old name for now: Discord allows two renames every 10 minutes. Edit again later to rename it.";
     }
   }
-  // A CTA's one-line announcement is the message the thread was started from, so it has the thread's id.
-  if (current?.cta && (title.value !== checked.target.title || result.startChanged)) {
+  // A 0.31.8 CTA's one-line announcement is the message the thread was started from, so it has the thread's id. A newer
+  // CTA has no announcement: its roster is that message (roster_channel_id set), and refreshRoster already edited it.
+  if (current?.cta && current.rosterChannelId === null && (title.value !== checked.target.title || result.startChanged)) {
     try {
       const channel = await getCtaChannel(deps.sql, checked.target.guildId);
       if (channel) {
@@ -285,7 +286,7 @@ export async function handleListCommand(deps: Deps, i: Interaction): Promise<Int
     const epoch = Math.floor(c.startsAt.getTime() / 1000);
     const def = kindDef(c.type as ContentType, c.kind);
     const kind = `${TYPE_LABEL[c.type as ContentType]}${def && def.id !== "other" ? ` · ${def.label}` : ""}`;
-    const link = c.messageId ? `https://discord.com/channels/${i.guild_id}/${c.threadId}/${c.messageId}` : `https://discord.com/channels/${i.guild_id}/${c.threadId}`;
+    const link = rosterUrl({ guildId: i.guild_id!, threadId: c.threadId, messageId: c.messageId, rosterChannelId: c.rosterChannelId });
     const title = escapeText(Array.from(c.title).slice(0, 60).join(""));
     return `<t:${epoch}:R> · **${title}** · ${kind} · ${c.filled}/${c.total}${c.status === "locked" ? " 🔒" : ""}\n${link}`;
   });

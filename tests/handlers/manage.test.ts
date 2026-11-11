@@ -2,6 +2,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
+import { renderRosterMessage } from "../../src/render/roster.ts";
 import { handleCancelButton, handleCancel, openEditForm, handleEditModal, handleLock, handleUnlock } from "../../src/handlers/manage.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { withHostActions } from "../helpers/host.ts";
@@ -371,6 +372,17 @@ test("a title edit of a CTA edits the announcement with the new name and keeps t
   assert.ok(a.body.content.startsWith("📣 **Ganking 2 | 2 Dec | 18:00 UTC** · <t:"));
   assert.equal(a.body.components[0].components[0].url, "https://discord.com/channels/g1/t1/m1");
   assert.deepEqual(a.body.allowed_mentions, { parse: [] });
+});
+
+test("a title edit of a CTA with a roster channel renames the thread and edits the roster, never with an announcement body (ADR 0047)", async () => {
+  const { deps, sql, id, edits, renames } = await setupCta();
+  await sql`update content set roster_channel_id = 'cta-ch', message_id = 't1' where id = ${id}`;
+  const r: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+  assert.equal(text(r), "Content updated.");
+  assert.equal(renames[0].c, "t1");
+  const roster = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(edits.map((e) => [e.channelId, e.messageId]), [["cta-ch", "t1"]], "only the roster, in the CTA channel");
+  assert.deepEqual(edits[0].body, renderRosterMessage(roster));
 });
 
 test("a failing announcement edit is logged without text and the edit still succeeds", async () => {

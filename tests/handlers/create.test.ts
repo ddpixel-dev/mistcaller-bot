@@ -341,6 +341,13 @@ test("command in a post that already has content replies privately with a link, 
   assert.match(content(await handleCreateCommand(deps, command(true))), /finished|done/i);
 });
 
+test("a CTA thread that already has content links to its roster in the CTA channel (ADR 0047)", async () => {
+  const { deps, sql } = await setup();
+  await handleCreateModal(deps, modal(good));
+  await sql`update content set cta = true, roster_channel_id = 'ch9', message_id = 'thread-1'`;
+  assert.match(content(await handleCreateCommand(deps, command(true))), /discord\.com\/channels\/g1\/ch9\/thread-1/);
+});
+
 test("modal submit in a taken post replies with the same message and posts nothing", async () => {
   const { deps, sql, posts } = await setup();
   await handleCreateModal(deps, modal(good));

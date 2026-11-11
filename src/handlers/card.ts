@@ -21,7 +21,7 @@ import { getAdminRoleIds } from "../db/settings.ts";
 import { getCtaRoleIds } from "../db/cta.ts";
 import { canCreateCta, canManagePresets } from "../domain/permissions.ts";
 import { parsePresetName } from "../domain/presets.ts";
-import { escapeText } from "../render/roster.ts";
+import { escapeText, rosterUrl } from "../render/roster.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXPIRED = "This card expired or is not yours. Press **Plan Content** or **Schedule CTA** in the content-management channel again.";
@@ -309,7 +309,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
-  const link = `https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`;
+  const link = rosterUrl({ guildId: d.guildId, threadId: done.threadId, messageId: done.messageId, rosterChannelId: done.rosterChannelId });
   return { type: UPDATE_MESSAGE, data: v2Text([`✅ Created: ${link}`, ...done.notes].join("\n")) };
 }
 
@@ -353,7 +353,7 @@ export async function handleBlankForm(deps: Deps, i: Interaction): Promise<Inter
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
-  return { type: UPDATE_MESSAGE, data: v2Text([`✅ Created: https://discord.com/channels/${d.guildId}/${done.threadId}/${done.messageId}`, ...done.notes].join("\n")) };
+  return { type: UPDATE_MESSAGE, data: v2Text([`✅ Created: ${rosterUrl({ guildId: d.guildId, threadId: done.threadId, messageId: done.messageId, rosterChannelId: done.rosterChannelId })}`, ...done.notes].join("\n")) };
 }
 
 // A form or panel of an earlier version (the first form, the create panel): it no longer exists.

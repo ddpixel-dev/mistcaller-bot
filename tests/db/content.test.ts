@@ -178,7 +178,7 @@ test("findContentInThread returns the blocking content, ignoring cancelled", asy
   assert.equal(await findContentInThread(sql, "g1", "t1"), null);
   const id = await createContent(sql, base);
   await setMessageId(sql, id, "m1");
-  assert.deepEqual(await findContentInThread(sql, "g1", "t1"), { id, status: "open", messageId: "m1" });
+  assert.deepEqual(await findContentInThread(sql, "g1", "t1"), { id, status: "open", messageId: "m1", rosterChannelId: null });
   assert.equal(await findContentInThread(sql, "g2", "t1"), null);
   await sql`update content set status = 'cancelled' where id = ${id}`;
   assert.equal(await findContentInThread(sql, "g1", "t1"), null);

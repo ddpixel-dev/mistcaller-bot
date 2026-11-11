@@ -1,6 +1,6 @@
 import type { ContentType } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef } from "../domain/kinds.ts";
-import { escapeText, IS_COMPONENTS_V2 } from "./roster.ts";
+import { escapeText, IS_COMPONENTS_V2, rosterUrl } from "./roster.ts";
 
 // FR-043, FR-062: the calendar channel's message(s): the next 7 days, one section per day that has events, with the events
 // already running on top. Each event shows its UTC time as a column, its party, the viewer's own time and a link to
@@ -9,6 +9,7 @@ export type ScheduleEvent = {
   id: string; threadId: string; messageId: string | null; title: string; type: ContentType; kind: string;
   startsAt: Date; status: "open" | "locked"; party: number; total: number;
   cta?: boolean; // a call to arms: listed first under its day (FR-059)
+  rosterChannelId?: string | null; // a CTA's roster sits in the CTA channel (ADR 0047)
   blank?: boolean; // no roster, so no party count (FR-060)
   ownerId?: string | null; // the creator, shown as a mention (FR-064)
 };
@@ -27,7 +28,7 @@ function eventText(e: ScheduleEvent, guildId: string): string {
   const epoch = Math.floor(e.startsAt.getTime() / 1000);
   const def = kindDef(e.type, e.kind);
   const kind = def && def.id !== DEFAULT_KIND ? `${TYPE_LABEL[e.type]} · ${def.label}` : TYPE_LABEL[e.type];
-  const link = e.messageId ? `https://discord.com/channels/${guildId}/${e.threadId}/${e.messageId}` : `https://discord.com/channels/${guildId}/${e.threadId}`;
+  const link = rosterUrl({ guildId, threadId: e.threadId, messageId: e.messageId, rosterChannelId: e.rosterChannelId ?? null });
   const title = Array.from(e.title).slice(0, 100).join("");
   return [
     `### \`${pad(e.startsAt.getUTCHours())}:${pad(e.startsAt.getUTCMinutes())}\` ${escapeText(title)} [Open ↗](${link})`,

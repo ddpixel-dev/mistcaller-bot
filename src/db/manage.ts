@@ -253,14 +253,14 @@ export async function unlockContent(sql: Sql, contentId: string, now: Date): Pro
 }
 
 export type UpcomingItem = {
-  id: string; threadId: string; messageId: string | null; title: string; type: string; kind: string;
+  id: string; threadId: string; messageId: string | null; rosterChannelId: string | null; title: string; type: string; kind: string;
   startsAt: Date; status: string; filled: number; total: number;
 };
 
 // FR-015: live content of the guild (open or locked, started or not, until it ends), soonest first.
 export async function listUpcoming(sql: Sql, guildId: string, limit: number): Promise<UpcomingItem[]> {
   const rows = await sql`
-    select c.id, c.thread_id, c.message_id, c.title, c.type, c.kind, c.starts_at, c.status,
+    select c.id, c.thread_id, c.message_id, c.roster_channel_id, c.title, c.type, c.kind, c.starts_at, c.status,
       (select count(*)::int from signup su where su.content_id = c.id and su.status = 'signed')
         + least((select count(*)::int from signup su where su.content_id = c.id and su.status = 'fill'),
                 (select count(*)::int from slot s where s.content_id = c.id)
@@ -270,7 +270,7 @@ export async function listUpcoming(sql: Sql, guildId: string, limit: number): Pr
     where c.guild_id = ${guildId} and c.status in ('open', 'locked')
     order by c.starts_at, c.id limit ${limit}`;
   return rows.map((r) => ({
-    id: r.id, threadId: r.thread_id, messageId: r.message_id, title: r.title, type: r.type, kind: r.kind,
+    id: r.id, threadId: r.thread_id, messageId: r.message_id, rosterChannelId: r.roster_channel_id ?? null, title: r.title, type: r.type, kind: r.kind,
     startsAt: r.starts_at, status: r.status, filled: r.filled, total: r.total,
   }));
 }

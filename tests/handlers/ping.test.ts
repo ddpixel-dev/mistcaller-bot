@@ -161,3 +161,11 @@ test("a double press cannot message a player twice", async () => {
   assert.equal(sent.filter((s) => s.channel === `dm-${A}`).length, 1);
   assert.equal(sent.filter((s) => s.channel === `dm-${B}`).length, 1);
 });
+
+test("the ping links to a CTA's roster in the CTA channel (ADR 0047)", async () => {
+  const { sql, id, d, sent } = await setup();
+  await sql`update content set cta = true, roster_channel_id = 'ch9', message_id = 't1' where id = ${id}`;
+  await d(press(id, OWNER, { message: { id: "t1", flags: 1 << 15 }, channel: { id: "ch9", type: 0 } }));
+  const body = sent.find((s) => s.channel === `dm-${A}`)!.body;
+  assert.ok(body.content.includes("https://discord.com/channels/g1/ch9/t1"), body.content);
+});
