@@ -8,7 +8,7 @@ import { handlePing } from "../../src/handlers/ping.ts";
 import { handleCancelButton, handleLock, handleUnlock, handleListCommand } from "../../src/handlers/manage.ts";
 import { handleEnd, handleReopen } from "../../src/handlers/attendance.ts";
 import { endStale, postVoteResults, sendReminders, AUTO_END_MS } from "../../src/jobs/cron.ts";
-import { renderRosterMessage } from "../../src/render/roster.ts";
+import { renderMovedNote, renderRosterMessage } from "../../src/render/roster.ts";
 import type { Deps } from "../../src/discord/dispatch.ts";
 import type { Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
@@ -55,6 +55,10 @@ const button = (customId: string, userId = OWNER): Interaction => ({
   data: { custom_id: customId, component_type: 2 },
 });
 const bothEdited = (edits: { message: string }[]) => assert.deepEqual([...new Set(edits.map((e) => e.message))].sort(), ["m1", "m2"]);
+// This setup is a CTA posted with 0.31.8 (two messages). ADR 0047: its first refresh gives m1 the whole CTA and turns
+// m2 into the moved note once; later refreshes edit m1 only.
+const movedOnce = (edits: { message: string; body: any }[]) => assert.deepEqual(edits.filter((e) => e.message === "m2").map((e) => e.body), [renderMovedNote()]);
+const onlyM1 = (edits: { message: string }[]) => assert.deepEqual([...new Set(edits.map((e) => e.message))], ["m1"]);
 
 test("Ping reaches a party 2 player once and a fill once, and the link goes to party 1's message", async () => {
   const { deps, sql, id, seat, posts } = await setup();
@@ -83,15 +87,14 @@ test("Ping: a player cannot be seated and a fill at once (one signup row per pla
   assert.equal(posts.filter((p) => p.channel === "dm-p2").length, 1);
 });
 
-test("Ping dims the button on party 1's message once nobody is left, re-renders party 2, and pings nobody twice", async () => {
+test("Ping dims the button on party 1's message once nobody is left, turns party 2's into the note, and pings nobody twice", async () => {
   const { deps, id, seat, edits, posts } = await setup();
   await seat(0, "p1"); await seat(3, "p2");
   const press = () => handlePing(deps, { ...button(`ping:${id}`), message: { id: "m1", flags: 1 << 15 } } as Interaction);
   await press();
-  const m1 = edits.find((e) => e.message === "m1")!.body, m2 = edits.find((e) => e.message === "m2")!.body;
+  const m1 = edits.find((e) => e.message === "m1")!.body;
   assert.equal(pingBtn(m1).disabled, true, "nobody left to ping");
-  // ADR 0047: a CTA renders as one message whatever party is asked for (Task 6 turns m2 into the moved note).
-  assert.deepEqual(m2, m1, "m2 gets the one-message render");
+  movedOnce(edits);
   assert.ok(ctl(m1, "leave:").length === 1 && (ctl(m1, "leave:")[0] as any).disabled === false, "the shared Leave is live: p2 sits in party 2");
   const before = posts.length;
   const again: any = await press();
@@ -102,60 +105,55 @@ test("Ping dims the button on party 1's message once nobody is left, re-renders 
 // Every interactive control of a body: buttons and select menus.
 const interactive = (body: any) => flatComponents(body).filter((c: any) => c.custom_id !== undefined);
 
-test("Cancel renders both messages cancelled: no menu, every button disabled, party 1 tagged cancelled", async () => {
+test("Cancel renders the CTA cancelled (no menu, every button disabled) and party 2's message becomes the note", async () => {
   const { deps, sql, id, edits, seat } = await setup();
   await seat(0, "p1"); await seat(2, "p2");
   await handleCancelButton(deps, button(`cancelyes:${id}`));
   assert.equal((await getRosterView(sql, id, NOW))!.status, "cancelled");
   assert.deepEqual(edits.map((e) => e.message).sort(), ["m1", "m2"]);
   const view = (await getRosterView(sql, id, NOW))!;
-  for (const [n, e] of [["m1", 1], ["m2", 2]] as const) {
-    const body = edits.find((x) => x.message === n)!.body;
-    assert.deepEqual(body, renderRosterMessage(view, e), `${n} is the cancelled render of party ${e}`);
-    const controls = interactive(body);
-    assert.ok(controls.length > 0);
-    assert.ok(controls.every((c: any) => c.type === 2 && c.disabled === true), `${n}: every control is a disabled button`);
-  }
-  assert.ok(JSON.stringify(edits.find((x) => x.message === "m1")!.body).includes("Cancelled"));
-  assert.equal(ctl(edits.find((x) => x.message === "m2")!.body, "leave:", "Leave").length, 1);
+  const body = edits.find((x) => x.message === "m1")!.body;
+  assert.deepEqual(body, renderRosterMessage(view), "m1 is the cancelled render of the whole CTA");
+  const controls = interactive(body);
+  assert.ok(controls.length > 0);
+  assert.ok(controls.every((c: any) => c.type === 2 && c.disabled === true), "every control is a disabled button");
+  assert.ok(JSON.stringify(body).includes("Cancelled"));
+  assert.equal(ctl(body, "leave:", "Leave").length, 1);
+  movedOnce(edits);
 });
 
-test("Lock closes party 2's join menu on its message; unlock brings it back", async () => {
+test("Lock closes both parties' join menus on the one message; unlock brings them back", async () => {
   const { deps, edits } = await setup();
   const joinMenu = (n: string) => ctl(edits.find((e) => e.message === n)!.body, "join:");
   await handleLock(deps, command("lock"));
   bothEdited(edits);
-  assert.equal(joinMenu("m2").length, 0, "no join menu while locked");
-  assert.equal(joinMenu("m1").length, 0);
+  movedOnce(edits);
+  assert.equal(joinMenu("m1").length, 0, "no join menu while locked");
   edits.length = 0;
   await handleUnlock(deps, command("unlock"));
-  bothEdited(edits);
+  onlyM1(edits);
   // ADR 0047: one join menu per party in the one message.
-  assert.equal(joinMenu("m2").length, 2, "party 2 can be joined again");
-  assert.ok(joinMenu("m2").some((c: any) => c.custom_id.endsWith("@2")), "with party 2's menu");
-  assert.equal(joinMenu("m1").length, 2);
+  assert.equal(joinMenu("m1").length, 2, "both parties can be joined again");
+  assert.ok(joinMenu("m1").some((c: any) => c.custom_id.endsWith("@2")), "with party 2's menu");
 });
 
-test("End greys both messages (done, no join menu, Leave disabled); reopen makes both live again", async () => {
+test("End greys the CTA (done, no join menu, Leave disabled); reopen makes it live again", async () => {
   const { deps, edits, seat, setNow } = await setup();
   await seat(0, "p1"); await seat(2, "p2");
   setNow(new Date(START.getTime() + 10 * 60000));
   await handleEnd(deps, command("end"));
   bothEdited(edits);
-  for (const n of ["m1", "m2"]) {
-    const body = edits.find((e) => e.message === n)!.body;
-    assert.equal(ctl(body, "join:").length, 0, `${n}: no join menu when done`);
-    assert.equal((ctl(body, "leave:")[0] as any).disabled, true, `${n}: Leave disabled when done`);
-  }
-  assert.ok(JSON.stringify(edits.find((e) => e.message === "m1")!.body).includes("Concluded"));
+  movedOnce(edits);
+  const done = edits.find((e) => e.message === "m1")!.body;
+  assert.equal(ctl(done, "join:").length, 0, "no join menu when done");
+  assert.equal((ctl(done, "leave:")[0] as any).disabled, true, "Leave disabled when done");
+  assert.ok(JSON.stringify(done).includes("Concluded"));
   edits.length = 0;
   await handleReopen(deps, command("reopen"));
-  bothEdited(edits);
-  for (const n of ["m1", "m2"]) {
-    const body = edits.find((e) => e.message === n)!.body;
-    assert.equal(ctl(body, "join:").length, 2, `${n}: both parties' join menus are back after reopen`);
-    assert.equal((ctl(body, "leave:")[0] as any).disabled, false, `${n}: Leave live after reopen`);
-  }
+  onlyM1(edits);
+  const live = edits.find((e) => e.message === "m1")!.body;
+  assert.equal(ctl(live, "join:").length, 2, "both parties' join menus are back after reopen");
+  assert.equal((ctl(live, "leave:")[0] as any).disabled, false, "Leave live after reopen");
   assert.ok(!JSON.stringify(edits.find((e) => e.message === "m1")!.body).includes("Concluded"));
 });
 

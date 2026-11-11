@@ -109,6 +109,11 @@ export async function getPartyMessages(sql: Sql, contentId: string): Promise<{ p
   return out;
 }
 
+// A 0.31.8 call to arms' party 2 message, once it is turned into the moved note (ADR 0047): it is never edited again.
+export async function deleteContentMessage(sql: Sql, contentId: string, party: number): Promise<void> {
+  await sql`delete from content_message where content_id = ${contentId} and party = ${party}`;
+}
+
 export async function setPartyMessageId(
   sql: Sql,
   a: { guildId: string; contentId: string; party: number; messageId: string },
