@@ -103,8 +103,8 @@ function headerText(view: RosterView, filled: number, notes: boolean, count = { 
   if (banner) lines.push(banner);
   if (notes && view.notes) lines.push(`📝 **${view.blank ? "Description" : "Notes"}:** ${escapeText(view.notes)}`);
   // A blank content has no roster, so no party line (FR-060).
-  // A two-party call to arms shows the content total here; each party's count heads its own rows (ADR 0047).
-  if (!view.blank) lines.push(RULE, view.partyCount > 1 ? `**Total** ${filled}/${view.slots.length}` : partyCountLine(count.filled, count.of));
+  // With two parties the rule is followed by the party headings, each with its own count (ADR 0047).
+  if (!view.blank) lines.push(RULE, ...(view.partyCount > 1 ? [] : [partyCountLine(count.filled, count.of)]));
   return lines.join("\n");
 }
 

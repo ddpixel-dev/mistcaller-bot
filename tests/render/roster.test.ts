@@ -655,7 +655,8 @@ test("a CTA is one message whatever party is asked for: both parties' rows, numb
   assert.ok(lines[h2 + 1]!.startsWith("1. ") && lines[h2 + 1]!.includes("Bow"));
   assert.ok(lines[h2 + 3]!.startsWith("3. ") && lines[h2 + 3]!.includes("Nature"));
   assert.ok(!lines.includes("**Party 1**") && !lines.includes("## Party 2"), "no old per-message party lines");
-  assert.ok(ptxt(v).includes("**Total** 2/5"), "the content total");
+  assert.ok(!ptxt(v).includes("Total"), "no total line");
+  assert.equal(lines[h1 - 1], "═══════════════════════", "the rule is followed directly by the party headings");
   assert.ok(ptxt(v).includes("Gear tier") && ptxt(v).includes("Tips for the owner"));
 });
 
