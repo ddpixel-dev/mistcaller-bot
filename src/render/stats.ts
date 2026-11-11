@@ -32,7 +32,7 @@ export function renderStats(s: Stats, stamp: Date): unknown {
   const parts = [
     head,
     `### 🗓️ Events\n${events("All time", s.all)}\n${events("Last 30 days", s.month)}`,
-    `### ⚔️ By type\n${[line("PvP", String(s.byType.pvp)), line("PvE", String(s.byType.pve)), line("PvX", String(s.byType.pvx))].join("\n")}`,
+    `### ⚔️ By type\n${[line("PvP", String(s.byType.pvp)), line("PvE", String(s.byType.pve)), line("PvX", String(s.byType.pvx)), line("ZvZ", String(s.byType.zvz))].join("\n")}`,
     `### 🏷️ By category\n${kinds.join("\n")}`,
     `### 👥 Players\n${players("All time", s.all)}\n${players("Last 30 days", s.month)}${
       s.fillRate !== null ? `\n**Fill rate**\n${line("Average of finished events", `${s.fillRate}%`)}` : ""}`,

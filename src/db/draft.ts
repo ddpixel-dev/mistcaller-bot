@@ -1,6 +1,6 @@
 import type { Sql } from "./client.ts";
 import { type GuidedDraft } from "../domain/guided.ts";
-import type { ContentType, SlotDef } from "../domain/types.ts";
+import { isContentType, type ContentType, type SlotDef } from "../domain/types.ts";
 
 export const DRAFT_TTL_MS = 60 * 60 * 1000;
 
@@ -19,6 +19,7 @@ export type CardFields = {
   parties: number; // a CTA has one or two parties (FR-070)
   slots2Text: string | null;
   bombers: number | null; // a CTA's Bombers cap, 1 to 20, or none (FR-071)
+  massing: string | null; // where the party gathers (FR-074)
 };
 
 export type StoredDraft = GuidedDraft & {
@@ -43,6 +44,7 @@ export type StoredDraft = GuidedDraft & {
   slots2: SlotDef[]; // party 2 of a CTA
   slots2Text: string | null; // typed party 2 lines that did not parse
   bombers: number | null;
+  massing: string | null;
 };
 
 const toDraft = (r: Record<string, any>): StoredDraft => ({
@@ -50,7 +52,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   guildId: r.guild_id,
   userId: r.user_id,
   threadId: r.thread_id,
-  type: r.type === "pvp" || r.type === "pve" || r.type === "pvx" ? r.type : null,
+  type: isContentType(r.type) ? r.type : null,
   buildRef: r.build_channel_id ?? null,
   loot: r.loot,
   selection: r.selection === true,
@@ -73,6 +75,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   slots2: (r.slots2 ?? []) as SlotDef[],
   slots2Text: r.slots2_text ?? null,
   bombers: r.bombers ?? null,
+  massing: r.massing ?? null,
 });
 
 // One draft per member per place: opening the creation card again starts over.
@@ -86,7 +89,7 @@ export async function startCard(
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = false, selection = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
       step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, gear_tier = null, title = excluded.title,
-      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, created_at = now()
+      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, massing = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -102,7 +105,7 @@ export async function saveCard(sql: Sql, id: string, f: Partial<CardFields> & { 
       type = ${pick(f.type, c.type)}, kind = ${pick(f.kind, c.kind)}, loot = ${pick(f.loot, c.loot)}, selection = ${pick(f.selection, c.selection)}, title = ${pick(f.title, c.title)},
       start_text = ${pick(f.startText, c.start_text)}, gear_tier = ${pick(f.gearTier, c.gear_tier)}, notes = ${pick(f.notes, c.notes)},
       slots_text = ${pick(f.slotsText, c.slots_text)}, build_channel_id = ${pick(f.buildRef, c.build_channel_id)},
-      parties = ${pick(f.parties, c.parties)}, slots2 = ${f.slots2 ? sql.json(f.slots2 as never) : c.slots2}, slots2_text = ${pick(f.slots2Text, c.slots2_text)}, bombers = ${pick(f.bombers, c.bombers)},
+      parties = ${pick(f.parties, c.parties)}, slots2 = ${f.slots2 ? sql.json(f.slots2 as never) : c.slots2}, slots2_text = ${pick(f.slots2Text, c.slots2_text)}, bombers = ${pick(f.bombers, c.bombers)}, massing = ${pick(f.massing, c.massing)},
       slots = ${slots ? sql.json(slots as never) : c.slots}, count = ${slots ? slots.length || null : c.count}, step = ${slots ? slots.length : c.step},
       role = ${slots ? null : c.role}, weapon = ${slots ? null : c.weapon}, duty = ${slots ? null : c.duty}, weapon_class = ${slots ? null : c.weapon_class}
     where id = ${id}`;

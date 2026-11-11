@@ -7,7 +7,7 @@ import { parseUtcStart } from "../domain/parse.ts";
 import { CTA_ROLES, ONE_PARTY_EMOJI, ONE_PARTY_LABEL, PARTIES_PLACEHOLDER, TWO_PARTIES_EMOJI, TWO_PARTIES_LABEL, maxPartiesFor } from "../domain/parties.ts";
 import type { SlotDef } from "../domain/types.ts";
 import type { ContentType } from "../domain/types.ts";
-import { IS_COMPONENTS_V2, escapeText, formatUtc } from "./roster.ts";
+import { IS_COMPONENTS_V2, escapeText, formatUtc, massingText } from "./roster.ts";
 import { roleIcon } from "./theme.ts";
 
 export type CardContext = {
@@ -46,6 +46,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `📝 **Title** ${d.title ? escapeText(d.title) : NONE}`,
     `🕰️ **Start** ${start?.ok ? `${formatUtc(start.value)} · <t:${Math.floor(start.value.getTime() / 1000)}:f> your time` : d.startText ? escapeText(d.startText) : NONE}`,
     `⚙️ **Gear tier** ${d.gearTier ? escapeText(d.gearTier) : NONE}`,
+    `📍 **Massing at** ${d.massing ? massingText(d.massing) : NONE}`,
     `🗒️ **Notes** ${d.notes ? escapeText(d.notes).slice(0, 300) : NONE}`,
     `🧰 **Build** ${d.buildRef ? buildRefText(d.buildRef, d.guildId) : NONE}`,
     `🎯 **Sign-up** ${d.selection ? "Selection: players apply and you pick the party" : "Open: players take their own position"}`,
@@ -73,7 +74,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
           options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
         }],
     },
-    // A CTA has no type or category (it is PvX, Other); it has the Parties choice instead (FR-070).
+    // A CTA has no type or category (it is ZvZ, Other); it has the Parties choice instead (FR-070).
     ...(d.cta ? (ctaParties ? [{
       type: 1,
       components: [{
@@ -128,6 +129,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
       components: [
         btn("Blank template", "📄", `cc:blank:${id}`), // FR-060: skip the roster, go to the final form
         btn("Manage presets", "💾", `cc:presets:${id}`), // ADR 0039: admins save the card as a preset or delete one
+        btn("Massing at", "📍", `cc:massing:${id}`), // FR-074: where the party gathers
       ],
     },
     // A CTA keeps the card's text in Details (title, start, tier, notes, Bombers) and each party's slots in its own button

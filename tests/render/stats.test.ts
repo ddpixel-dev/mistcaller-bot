@@ -7,11 +7,11 @@ import { discordProblems, plain, textOf } from "../helpers/discordLimits.ts";
 const NOW = new Date("2026-10-15T12:00:00Z");
 const empty: Stats = {
   all: { created: 0, finished: 0, cancelled: 0, participants: 0, signups: 0 }, month: { created: 0, finished: 0, cancelled: 0, participants: 0, signups: 0 },
-  byType: { pvp: 0, pve: 0, pvx: 0 }, byKind: [], fillRate: null, busiestDay: null, busiestHour: null, topHosts: [], topPlayers: [],
+  byType: { pvp: 0, pve: 0, pvx: 0, zvz: 0 }, byKind: [], fillRate: null, busiestDay: null, busiestHour: null, topHosts: [], topPlayers: [],
 };
 const full: Stats = {
   all: { created: 42, finished: 30, cancelled: 5, participants: 85, signups: 420 }, month: { created: 12, finished: 9, cancelled: 1, participants: 40, signups: 130 },
-  byType: { pvp: 20, pve: 15, pvx: 2 },
+  byType: { pvp: 20, pve: 15, pvx: 2, zvz: 0 },
   byKind: [{ type: "pvp", kind: "zvz", count: 8 }, { type: "pve", kind: "group-dungeon", count: 5 }, { type: "pvp", kind: "other", count: 3 }, { type: "pve", kind: "gold-chest", count: 2 }],
   fillRate: 87, busiestDay: { day: 5, count: 12 }, busiestHour: { hour: 18, count: 9 },
   topHosts: [{ userId: "100000000000000001", count: 12 }, { userId: "100000000000000002", count: 7 }],

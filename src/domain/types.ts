@@ -2,7 +2,10 @@ import type { FillPref } from "./fillmatch.ts";
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 // An empty weapon means the slot is a role alone: the player brings the weapon (FR-030).
 export type SlotDef = { role: string; weapon: string; duty?: string | null; party?: number };
-export type ContentType = "pvp" | "pve" | "pvx";
+// ZvZ is a content type of its own (owner decision 2026-11-11, ADR 0048), next to PvP, PvE and PvX.
+export const CONTENT_TYPES = ["pvp", "pve", "pvx", "zvz"] as const;
+export type ContentType = (typeof CONTENT_TYPES)[number];
+export const isContentType = (v: unknown): v is ContentType => (CONTENT_TYPES as readonly unknown[]).includes(v);
 export type ContentStatus = "open" | "locked" | "cancelled" | "done";
 export type RosterSlot = {
   id: string;
@@ -35,6 +38,7 @@ export type RosterView = {
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string; party?: number }[];
   selection?: boolean; // the host picks the party: signing up is an application (FR-058)
+  massing?: string | null; // where the party gathers, typed by the host (FR-074)
   cta?: boolean; // a call to arms (FR-059)
   blank?: boolean; // no roster (FR-060)
   applicants?: { userId: string; wants: string; pref?: FillPref }[]; // oldest first; they hold no seat

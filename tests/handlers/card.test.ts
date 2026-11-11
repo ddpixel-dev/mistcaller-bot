@@ -129,7 +129,7 @@ test("Plan Content opens a private card in the hub channel; it needs an event fo
   assert.equal(r.type, 4);
   assert.equal(r.data.flags & 64, 64, "private");
   assert.ok(say(r).includes("Create event"));
-  assert.deepEqual(menus(r)[0].options.map((o: any) => o.value), ["pvp", "pve", "pvx"]);
+  assert.deepEqual(menus(r)[0].options.map((o: any) => o.value), ["pvp", "pve", "pvx", "zvz"]);
   const [draft] = await sql`select thread_id, cta from slot_draft`;
   assert.deepEqual([draft!.thread_id, draft!.cta], ["c1", false]);
   await sql`delete from event_forum`;
@@ -237,7 +237,11 @@ test("setup event-forum registers the forum for one type, the same forum can tak
   const more: any = await setupForum(d, "pvx");
   assert.ok(more.data.content.includes("PvP, PvX"), more.data.content);
   assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pvp", "pvx"], "one forum serves PvP and PvX");
-  assert.ok(((await setupForum(d, "any")) as any).data.content.includes("Pick PvP, PvE or PvX"));
+  assert.ok(((await setupForum(d, "any")) as any).data.content.includes("Pick PvP, PvE, PvX or ZvZ"));
+  const zvz: any = await setupForum(d, "zvz");
+  assert.ok(zvz.data.content.includes("ZvZ"), zvz.data.content);
+  assert.ok((await sql`select type from event_forum`).some((x) => x.type === "zvz"), "ZvZ is a forum type");
+  await sql`delete from event_forum where type = 'zvz'`;
   const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pvx" }], {}, resolvedForum));
   assert.ok(one.data.content.includes("still serves other types"), one.data.content);
   assert.deepEqual((await sql`select type from event_forum`).map((x) => x.type), ["pvp"]);
@@ -346,7 +350,7 @@ test("Blank template: needs the type for normal content; opens a form with title
   const formResp: any = await d(press(`cc:blank:${id}`));
   assert.equal(formResp.type, 9);
   assert.equal(formResp.data.custom_id, `ccl:${id}`);
-  assert.deepEqual(formResp.data.components.map((r: any) => r.components[0].custom_id), ["title", "start", "tier", "notes"]);
+  assert.deepEqual(formResp.data.components.map((r: any) => r.components[0].custom_id), ["title", "start", "tier", "notes", "massing"]);
   const bad: any = await d(form(`ccl:${id}`, { title: "", start: "soon", tier: "", notes: "" }));
   assert.equal(bad.type, 7);
   assert.ok(say(bad).includes("Add a title"));
@@ -360,14 +364,14 @@ test("Blank template: needs the type for normal content; opens a form with title
   assert.deepEqual(buttons, ["Manage"]);
 });
 
-test("a blank CTA needs no type: it is PvX and is announced in the CTA channel", async () => {
+test("a blank CTA needs no type: it is ZvZ and is announced in the CTA channel", async () => {
   const { d, sql, calls } = await setup();
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const { id } = await open(d, member([], "32"), "c");
   const ok: any = await d(form(`ccl:${id}`, { title: "All hands", start: "2026-10-25 18:00", tier: "T8", notes: "" }, member([], "32")));
   assert.ok(say(ok).startsWith("✅ Created"), say(ok));
   const [row] = await sql`select blank, cta, type from content`;
-  assert.deepEqual([row!.blank, row!.cta, row!.type], [true, true, "pvx"]);
+  assert.deepEqual([row!.blank, row!.cta, row!.type], [true, true, "zvz"]);
   assert.ok(calls.some((c) => c.op === "startThread" && c.args[0] === CTA_CHANNEL));
 });
 
@@ -725,7 +729,7 @@ test("Copy party 1 duplicates the party 1 lines into party 2", async () => {
   assert.ok(say(r).includes("Party 2"));
 });
 
-test("Create on a CTA lists a bad party 2 role and posts nothing; two valid parties are published with slots and slots2 as PvX, Other", async () => {
+test("Create on a CTA lists a bad party 2 role and posts nothing; two valid parties are published with slots and slots2 as ZvZ, Other", async () => {
   const { d, sql, calls } = await setup();
   const id = await ctaCard(d, sql);
   await d(press(`cc:parties:${id}`, ["2"], adminCta));
@@ -741,7 +745,7 @@ test("Create on a CTA lists a bad party 2 role and posts nothing; two valid part
   r = await d(press(`cc:create:${id}`, undefined, adminCta));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
   const [row] = await sql`select type, kind, cta from content`;
-  assert.deepEqual([row!.type, row!.kind, row!.cta], ["pvx", "other", true]);
+  assert.deepEqual([row!.type, row!.kind, row!.cta], ["zvz", "other", true]);
   const slots = await sql`select party, role from slot order by position`;
   assert.deepEqual(slots.map((s: any) => [s.party, s.role]), [[1, "Tank"], [1, "Healer"], [2, "Healer"], [2, "DPS"]]);
 });
@@ -882,4 +886,56 @@ test("presets are kept apart: a CTA preset is not offered or loaded on Plan Cont
   for (let n = 0; n < MAX_PRESETS; n++) await savePreset(sql, { guildId: GUILD, name: `N${n}`, slots: [{ role: "Tank", weapon: "" }], createdBy: OWNER });
   assert.equal(await savePreset(sql, { guildId: GUILD, name: "One more", slots: [{ role: "Tank", weapon: "" }], createdBy: OWNER }), "full");
   assert.equal(await savePreset(sql, { guildId: GUILD, name: "Cta two", slots: [{ role: "Tank", weapon: "" }], createdBy: OWNER, cta: true }), "ok");
+});
+
+test("Massing at: a button on the card of every kind of content opens a one-field form; it is kept, shown on the card, and a bad value is a problem", async () => {
+  const { d, sql } = await setup();
+  for (const kind of ["n", "c"] as const) {
+    const id = kind === "n" ? (await open(d, undefined, "n")).id : await ctaCard(d, sql);
+    const who = kind === "n" ? undefined : adminCta;
+    const f: any = await d(press(`cc:massing:${id}`, undefined, who));
+    assert.equal(f.type, 9);
+    assert.equal(f.data.custom_id, `ccm:${id}`);
+    assert.equal(f.data.components[0].components[0].max_length, 100);
+    const r: any = await d(form(`ccm:${id}`, { massing: "Caerleon bank" }, who));
+    assert.equal((await getDraft(sql, id, NOW))!.massing, "Caerleon bank");
+    assert.ok(say(r).includes("📍 **Massing at** Caerleon bank"));
+    assert.equal(btnOf(r, `cc:massing:${id}`).label, "Massing at");
+    assert.deepEqual(discordProblems(r.data), []);
+    const bad: any = await d(form(`ccm:${id}`, { massing: "x".repeat(101) }, who));
+    assert.ok(say(bad).includes("Massing at can be at most 100 characters."));
+    assert.equal((await getDraft(sql, id, NOW))!.massing, "Caerleon bank", "a bad value keeps the old one");
+    await d(form(`ccm:${id}`, { massing: "" }, who));
+    assert.equal((await getDraft(sql, id, NOW))!.massing, null);
+  }
+});
+
+test("Create and the Blank form pass Massing at to the content, and a CTA is posted as ZvZ", async () => {
+  const { d, sql } = await setup();
+  const id = await ctaCard(d, sql);
+  await d(press(`cc:parties:${id}`, ["1"], adminCta));
+  await ctaDetails(d, id, details, adminCta);
+  await d(form(`ccm:${id}`, { massing: "Fort Sterling" }, adminCta));
+  assert.ok(say((await d(press(`cc:create:${id}`, undefined, adminCta))) as any).startsWith("✅ Created"));
+  const [row] = await sql`select massing_at, type from content`;
+  assert.deepEqual([row!.massing_at, row!.type], ["Fort Sterling", "zvz"]);
+  await sql`delete from content`;
+  const blank = (await open(d, undefined, "n")).id;
+  await d(press(`cc:type:${blank}`, ["pve"]));
+  const ok: any = await d(form(`ccl:${blank}`, { title: "Meet", start: "2026-10-25 18:00", tier: "T8", notes: "", massing: "The portal" }));
+  assert.ok(say(ok).startsWith("✅ Created"), say(ok));
+  assert.equal((await sql`select massing_at from content`)[0]!.massing_at, "The portal");
+});
+
+test("ZvZ is a type on Plan Content: its own categories, and it needs its own event forum", async () => {
+  const { d, sql } = await setup();
+  const { id } = await open(d, undefined, "n");
+  const r: any = await d(press(`cc:type:${id}`, ["zvz"]));
+  const kind = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:kind:"))!;
+  assert.deepEqual(kind.options.map((o: any) => o.label), ["Castle", "Faction Warfare", "Outpost", "Siege", "Territory Defense", "Other"]);
+  await d(form(`ccd:${id}`, details));
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for ZvZ content"));
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'zf', 'zvz')`;
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"));
+  assert.equal((await sql`select type from content`)[0]!.type, "zvz");
 });

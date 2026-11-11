@@ -9,6 +9,7 @@ import { handleAttendance, handleEnd, handleReopen } from "./attendance.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { kindsOf, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
+import { parseMassing } from "../domain/massing.ts";
 import { formatSlotLines } from "../domain/slots.ts";
 import type { RosterView } from "../domain/types.ts";
 
@@ -113,6 +114,7 @@ function editPanel(view: RosterView, note: string | null) {
           ...(view.cta && !view.blank ? [button(view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots", "📝", `ed:o:${id}`, 1)] : []),
           ...(view.partyCount === 2 && !view.blank ? [button("Edit party 2 slots", "📝", `ed:p:${id}`, 1)] : []),
           button("Build link", "🧰", `ed:b:${id}`),
+          button("Massing at", "📍", `ed:m:${id}`), // FR-074: where the party gathers
         ],
       },
     ],
@@ -204,6 +206,16 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
       },
     };
   }
+  if (parts[1] === "m") {
+    return {
+      type: MODAL,
+      data: {
+        custom_id: `edm:${id}`,
+        title: "Massing at",
+        components: [textInput("massing", "Where the party gathers", 100, { required: false, placeholder: "Leave empty to remove it", ...(view.massing ? { value: view.massing } : {}) })],
+      },
+    };
+  }
   if (parts[1] === "b") {
     return {
       type: MODAL,
@@ -238,6 +250,21 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
   await applied(deps, view);
   const fresh = await getRosterView(deps.sql, id, deps.now());
   return { type: UPDATE_MESSAGE, data: editPanel(fresh ?? view, note) };
+}
+
+// edm:<content>: the Massing at form (FR-074). Text sets it, an empty field removes it.
+export async function handleMassingModal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const parts = typeof raw === "string" ? raw.split(":") : [];
+  if (parts.length !== 2 || parts[0] !== "edm" || !UUID.test(parts[1]!) || !i.guild_id) return reply(INVALID);
+  const checked = await authorize(deps, i, await getManageTargetById(deps.sql, parts[1]!));
+  if (!checked.ok) return checked.response;
+  const massing = parseMassing(modalValues(i).massing ?? "");
+  if (!massing.ok) return reply(massing.error);
+  if ((await updateContentSettings(deps.sql, checked.target.id, { massing: massing.value })) !== "ok") return reply(NOT_OPEN);
+  const view = await getRosterView(deps.sql, checked.target.id, deps.now());
+  if (view) await applied(deps, view);
+  return reply(massing.value ? "✅ Massing at is set." : "✅ Massing at is removed.");
 }
 
 // edb:<content>: the Build link form. A link sets the reference, an empty field removes it (FR-031).
