@@ -67,53 +67,95 @@ test("Ping reaches a party 2 player once and a fill once, and the link goes to p
   assert.ok(to("p2")[0]!.body.content.includes("/t1/m1"));
 });
 
-test("Ping: a player in both parties' lists (seat in party 2 plus a fill) is pinged once", async () => {
+const ctl = (body: any, prefix: string, label?: string) =>
+  flatComponents(body).filter((c: any) => String(c.custom_id ?? "").startsWith(prefix) && (label === undefined || c.label === label));
+const pingBtn = (body: any) => ctl(body, "ping:")[0] as any;
+
+test("Ping: a player cannot be seated and a fill at once (one signup row per player), so each is pinged once", async () => {
   const { deps, sql, id, seat, posts } = await setup();
   await seat(2, "p2");
-  await sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'p2', null, 'fill') on conflict do nothing`;
+  await assert.rejects(
+    sql`insert into signup (guild_id, content_id, user_id, slot_id, status) values ('g1', ${id}, 'p2', null, 'fill')`,
+    /duplicate key|signup_pkey/,
+  );
+  assert.equal((await sql`select 1 from signup where content_id = ${id} and user_id = 'p2'`).length, 1);
   await handlePing(deps, { ...button(`ping:${id}`), message: { id: "m1", flags: 1 << 15 } } as Interaction);
   assert.equal(posts.filter((p) => p.channel === "dm-p2").length, 1);
 });
 
-test("Ping dims the button on both messages and pings nobody twice", async () => {
+test("Ping dims the button on party 1's message once nobody is left, re-renders party 2, and pings nobody twice", async () => {
   const { deps, id, seat, edits, posts } = await setup();
   await seat(0, "p1"); await seat(3, "p2");
   const press = () => handlePing(deps, { ...button(`ping:${id}`), message: { id: "m1", flags: 1 << 15 } } as Interaction);
   await press();
-  bothEdited(edits);
+  const m1 = edits.find((e) => e.message === "m1")!.body, m2 = edits.find((e) => e.message === "m2")!.body;
+  assert.equal(pingBtn(m1).disabled, true, "nobody left to ping");
+  assert.equal(pingBtn(m2), undefined, "party 2 has no Ping button");
+  assert.ok(JSON.stringify(m2).includes("Party 2"), "m2 is party 2's render");
+  assert.ok(ctl(m2, "leave:").length === 1 && (ctl(m2, "leave:")[0] as any).disabled === false, "party 2 Leave is live: p2 sits there");
   const before = posts.length;
   const again: any = await press();
   assert.ok(again.data.content.includes("Nobody is left to ping"));
   assert.equal(posts.length, before);
 });
 
-test("Cancel greys both party messages, with no live control left", async () => {
-  const { deps, sql, id, edits } = await setup();
+// Every interactive control of a body: buttons and select menus.
+const interactive = (body: any) => flatComponents(body).filter((c: any) => c.custom_id !== undefined);
+
+test("Cancel renders both messages cancelled: no menu, every button disabled, party 1 tagged cancelled", async () => {
+  const { deps, sql, id, edits, seat } = await setup();
+  await seat(0, "p1"); await seat(2, "p2");
   await handleCancelButton(deps, button(`cancelyes:${id}`));
   assert.equal((await getRosterView(sql, id, NOW))!.status, "cancelled");
   assert.deepEqual(edits.map((e) => e.message).sort(), ["m1", "m2"]);
-  for (const e of edits) for (const c of flatComponents(e.body)) {
-    if (c.custom_id?.startsWith("vote:") || c.custom_id?.startsWith("ping:") || c.custom_id?.startsWith("mg:")) assert.ok(c.disabled, c.custom_id);
+  const view = (await getRosterView(sql, id, NOW))!;
+  for (const [n, e] of [["m1", 1], ["m2", 2]] as const) {
+    const body = edits.find((x) => x.message === n)!.body;
+    assert.deepEqual(body, renderRosterMessage(view, e), `${n} is the cancelled render of party ${e}`);
+    const controls = interactive(body);
+    assert.ok(controls.length > 0);
+    assert.ok(controls.every((c: any) => c.type === 2 && c.disabled === true), `${n}: every control is a disabled button`);
   }
+  assert.ok(JSON.stringify(edits.find((x) => x.message === "m1")!.body).includes("Cancelled"));
+  assert.equal(ctl(edits.find((x) => x.message === "m2")!.body, "leave:", "Leave").length, 1);
 });
 
-test("Lock and unlock refresh both messages", async () => {
+test("Lock closes party 2's join menu on its message; unlock brings it back", async () => {
   const { deps, edits } = await setup();
+  const joinMenu = (n: string) => ctl(edits.find((e) => e.message === n)!.body, "join:");
   await handleLock(deps, command("lock"));
   bothEdited(edits);
+  assert.equal(joinMenu("m2").length, 0, "no join menu while locked");
+  assert.equal(joinMenu("m1").length, 0);
   edits.length = 0;
   await handleUnlock(deps, command("unlock"));
   bothEdited(edits);
+  assert.equal(joinMenu("m2").length, 1, "party 2 can be joined again");
+  assert.ok((joinMenu("m2")[0] as any).custom_id.endsWith("@2"), "and its menu is party 2's");
+  assert.equal(joinMenu("m1").length, 1);
 });
 
-test("End and reopen refresh both messages", async () => {
-  const { deps, edits, setNow } = await setup();
+test("End greys both messages (done, no join menu, Leave disabled); reopen makes both live again", async () => {
+  const { deps, edits, seat, setNow } = await setup();
+  await seat(0, "p1"); await seat(2, "p2");
   setNow(new Date(START.getTime() + 10 * 60000));
   await handleEnd(deps, command("end"));
   bothEdited(edits);
+  for (const n of ["m1", "m2"]) {
+    const body = edits.find((e) => e.message === n)!.body;
+    assert.equal(ctl(body, "join:").length, 0, `${n}: no join menu when done`);
+    assert.equal((ctl(body, "leave:")[0] as any).disabled, true, `${n}: Leave disabled when done`);
+  }
+  assert.ok(JSON.stringify(edits.find((e) => e.message === "m1")!.body).includes("Concluded"));
   edits.length = 0;
   await handleReopen(deps, command("reopen"));
   bothEdited(edits);
+  for (const n of ["m1", "m2"]) {
+    const body = edits.find((e) => e.message === n)!.body;
+    assert.equal(ctl(body, "join:").length, 1, `${n}: join menu is back after reopen`);
+    assert.equal((ctl(body, "leave:")[0] as any).disabled, false, `${n}: Leave live after reopen`);
+  }
+  assert.ok(!JSON.stringify(edits.find((e) => e.message === "m1")!.body).includes("Concluded"));
 });
 
 test("party 2's message has no vote, Ping or Manage button, even with a loot vote", async () => {
@@ -132,8 +174,11 @@ test("the reminder pings both parties' players and the vote result job refreshes
   assert.ok(posts[0]!.body.content.includes("<@alice>") && posts[0]!.body.content.includes("<@bob>"));
   assert.deepEqual(posts[0]!.body.allowed_mentions, { users: ["alice", "bob"] });
   setNow(new Date(START.getTime() - 4 * 60000));
+  edits.length = 0; posts.length = 0;
   assert.equal(await postVoteResults(deps), 1);
   bothEdited(edits);
+  assert.equal(posts.length, 1);
+  assert.ok(posts[0]!.body.content.includes("Loot vote result: no votes"), posts[0]!.body.content);
 });
 
 test("auto-end ends a two-party content and refreshes both messages", async () => {
