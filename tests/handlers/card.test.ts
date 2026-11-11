@@ -300,10 +300,11 @@ test("a CTA is announced in the CTA channel with a thread, the roster is in the 
   const r: any = await d(press(`cc:create:${id}`, undefined, member(["callers"])));
   assert.ok(say(r).startsWith("✅ Created"), say(r));
   const ops = calls.filter((c) => ["createMessage", "startThread", "editMessage", "createForumPost"].includes(c.op));
-  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage"], "an announcement, a thread, then the roster in it");
+  assert.deepEqual(ops.map((c) => c.op), ["createMessage", "startThread", "createMessage", "editMessage"], "an announcement, a thread, the roster in it, then the announcement gets its Roster button");
   assert.equal(ops[0]!.args[0], CTA_CHANNEL);
   assert.ok(String(ops[0]!.args[1].content).includes("Ava roam") && ops[0]!.args[1].allowed_mentions.parse.length === 0);
-  assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam"]);
+  assert.deepEqual(ops[1]!.args, [CTA_CHANNEL, "m1", "Ava roam | 25 Oct | 18:00 UTC"]);
+  assert.deepEqual(ops[3]!.args.slice(0, 2), [CTA_CHANNEL, "m1"]);
   assert.equal(ops[2]!.args[0], "m1", "the roster is posted in the thread, whose id is the announcement's");
   const [row] = await sql`select thread_id, message_id, own_post, cta from content`;
   assert.deepEqual([row!.thread_id, row!.message_id, row!.own_post, row!.cta], ["m1", "m2", true, true]);

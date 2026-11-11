@@ -316,3 +316,50 @@ test("Edit details on a CTA rejects an unsupported role and leaves party 2 alone
   const n = await setup();
   assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", good))), /Content updated/);
 });
+
+// A CTA's announcement follows the title and the start (ADR 0036 update 2026-11-10).
+async function setupCta(failEdit = false) {
+  const sql = await testSql();
+  await sql`insert into cta_channel (guild_id, channel_id) values ('g1', 'cta-ch')`;
+  const id = await createContent(sql, { ...base, cta: true, ownPost: true });
+  await setMessageId(sql, id, "m1");
+  const edits: any[] = [], renames: any[] = [];
+  const rest: Rest = {
+    async createMessage() { return { id: "p" }; },
+    async editMessage(channelId, messageId, body) { edits.push({ channelId, messageId, body }); if (failEdit && channelId === "cta-ch") throw new Error("Missing Access SECRET"); },
+    async deleteMessage() {},
+    async editChannel(c: string, b: unknown) { renames.push({ c, b }); },
+  };
+  return { sql, id, edits, renames, deps: { sql, rest, now: () => NOW } as Deps };
+}
+
+test("a title edit of a CTA edits the announcement with the new name and keeps the Roster button", async () => {
+  const { deps, id, edits, renames } = await setupCta();
+  const r: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+  assert.equal(text(r), "Content updated.");
+  assert.equal(renames[0].b.name, "Ganking 2 | 2 Dec | 18:00 UTC");
+  const a = edits.find((e) => e.channelId === "cta-ch");
+  assert.equal(a.messageId, "t1");
+  assert.ok(a.body.content.startsWith("📣 **Ganking 2 | 2 Dec | 18:00 UTC** · <t:"));
+  assert.equal(a.body.components[0].components[0].url, "https://discord.com/channels/g1/t1/m1");
+  assert.deepEqual(a.body.allowed_mentions, { parse: [] });
+});
+
+test("a failing announcement edit is logged without text and the edit still succeeds", async () => {
+  const { deps, id } = await setupCta(true);
+  const logs: string[] = [];
+  const orig = console.error;
+  console.error = (m: unknown) => { logs.push(String(m)); };
+  try {
+    const r: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+    assert.equal(text(r), "Content updated.");
+  } finally { console.error = orig; }
+  assert.ok(logs.some((l) => l.includes("announcement_edit_failed")));
+  assert.ok(!logs.join("").includes("SECRET"));
+});
+
+test("a title edit of normal content edits no announcement", async () => {
+  const { deps, id, edits } = await setup();
+  await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
+  assert.ok(!edits.some((e: any) => e.channelId === "cta-ch"));
+});

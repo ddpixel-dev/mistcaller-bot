@@ -545,3 +545,57 @@ test("one-party content and a one-party CTA make no party 2 call", async () => {
     assert.deepEqual(calls.map((c) => c.op), ["createMessage", "pinMessage"]);
   }
 });
+
+// CTA announcement and thread use the post name (ADR 0036 update 2026-11-10, FR-063).
+async function ctaRig() {
+  const { sql, deps } = await setup();
+  const calls: { op: string; args: any[] }[] = [];
+  let n = 0;
+  const rest: any = {
+    async createMessage(c: string, b: unknown) { calls.push({ op: "createMessage", args: [c, b] }); return { id: `m${++n}` }; },
+    async editMessage(c: string, m: string, b: unknown) { calls.push({ op: "editMessage", args: [c, m, b] }); },
+    async deleteMessage() {},
+    async pinMessage() {},
+    async startThread(c: string, m: string, name: string) { calls.push({ op: "startThread", args: [c, m, name] }); return { id: m }; },
+  };
+  return { sql, calls, deps: { ...deps, rest } as Deps };
+}
+const ctaInput = (over: Record<string, unknown> = {}) => ({
+  ...partyInput("unused"), cta: true, startsAt: new Date("2026-11-12T20:00:00Z"), place: { channelId: "cta-ch" }, ...over,
+});
+
+test("a CTA thread is named with the post name and the announcement reads the post name and the start", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, ctaInput());
+  assert.equal(r.ok, true);
+  const first = calls.find((c) => c.op === "createMessage")!;
+  assert.equal(first.args[0], "cta-ch");
+  assert.equal(first.args[1].content, `📣 **Raid | 12 Nov | 20:00 UTC** · <t:${Math.floor(Date.parse("2026-11-12T20:00:00Z") / 1000)}:f>`);
+  assert.deepEqual(first.args[1].allowed_mentions, { parse: [] });
+  assert.deepEqual(calls.find((c) => c.op === "startThread")!.args, ["cta-ch", "m1", "Raid | 12 Nov | 20:00 UTC"]);
+});
+
+test("once the roster is posted the announcement is edited to carry the Roster button for party 1", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, ctaInput(two));
+  assert.equal(r.ok, true);
+  const edit = calls.find((c) => c.op === "editMessage")!;
+  assert.deepEqual(edit.args.slice(0, 2), ["cta-ch", "m1"]);
+  assert.ok(edit.args[1] === "m1" && String(edit.args[2].content).startsWith("📣 **Raid | 12 Nov | 20:00 UTC**"));
+  assert.equal(edit.args[2].components[0].components[0].url, "https://discord.com/channels/g1/m1/m2");
+  assert.ok(calls.indexOf(edit) > calls.findIndex((c) => c.op === "createMessage" && c.args[0] === "m1"), "after the roster");
+});
+
+test("a failing announcement button edit does not fail the CTA", async () => {
+  const { deps } = await ctaRig();
+  (deps.rest as any).editMessage = async () => { throw new Error("Missing Access"); };
+  const r: any = await publish(deps, ctaInput());
+  assert.equal(r.ok, true);
+});
+
+test("normal content makes no announcement calls", async () => {
+  const { calls, deps } = await ctaRig();
+  const r: any = await publish(deps, partyInput("thr-plain"));
+  assert.equal(r.ok, true);
+  assert.deepEqual(calls.map((c) => c.op), ["createMessage"]);
+});

@@ -9,11 +9,12 @@ import {
   PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId, setPartyMessageId,
 } from "../db/content.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
-import { IS_COMPONENTS_V2, escapeText, renderRosterMessage } from "../render/roster.ts";
+import { IS_COMPONENTS_V2, renderRosterMessage } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
 import type { ContentType, SlotDef } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
 import { openCard } from "./card.ts";
+import { announcementBody } from "./ctaannounce.ts";
 import { postCtaMessage } from "./ctamsg.ts";
 import { forumOfLauncher } from "../db/eventForum.ts";
 import { formProblems } from "./retry.ts";
@@ -168,13 +169,10 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     if (!deps.rest.startThread) return { ok: false, response: reply(FAILED) };
     const channelId = a.place.channelId;
     try {
-      const epoch = Math.floor(a.startsAt.getTime() / 1000);
-      announcement = await deps.rest.createMessage(channelId, {
-        content: `📣 **${escapeText(Array.from(a.title).slice(0, 100).join(""))}** · <t:${epoch}:f> (<t:${epoch}:R>)`,
-        allowed_mentions: { parse: [] },
-      });
+      announcement = await deps.rest.createMessage(channelId, announcementBody(a.title, a.startsAt));
       announcementChannel = channelId;
-      threadId = (await deps.rest.startThread(channelId, announcement.id, Array.from(a.title).slice(0, 100).join(""))).id;
+      // postName keeps within Discord's 100 characters for a thread name.
+      threadId = (await deps.rest.startThread(channelId, announcement.id, postName(a.title, a.startsAt))).id;
       ownPost = true;
     } catch (err) {
       logFailure(err);
@@ -244,6 +242,10 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   const [, notes] = await Promise.all([
     refreshDashboardSoon(deps, a.guildId, "schedule"),
     a.cta ? postCtaMessage(deps, { guildId: a.guildId, threadId }) : Promise.resolve([] as string[]),
+    announcement && announcementChannel
+      ? deps.rest.editMessage(announcementChannel, announcement.id, announcementBody(a.title, a.startsAt, { guildId: a.guildId, threadId, messageId: postedId }))
+        .catch((e) => console.error(JSON.stringify({ evt: "announcement_edit_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })))
+      : Promise.resolve(),
   ]);
   console.error(JSON.stringify({ evt: "publish_ms", ms: Date.now() - startedAt }));
   return { ok: true, threadId, messageId: postedId, notes };

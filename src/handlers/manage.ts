@@ -18,6 +18,9 @@ import { formatSlotLines } from "../domain/slots.ts";
 import { parseCtaSlots } from "../domain/parties.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { DiscordApiError } from "../discord/rest.ts";
+import { announcementBody } from "./ctaannounce.ts";
+import { getCtaChannel } from "../db/cta.ts";
 import { refreshRosters } from "./rosters.ts";
 import { announcePromotions } from "./waitlist.ts";
 import type { Promotion } from "../db/signup.ts";
@@ -153,6 +156,17 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
       await deps.rest.editChannel(checked.target.threadId, { name: postName(title.value, start.value) });
     } catch {
       renameNote = " The post keeps its old name for now: Discord allows two renames every 10 minutes. Edit again later to rename it.";
+    }
+  }
+  // A CTA's one-line announcement is the message the thread was started from, so it has the thread's id.
+  if (current?.cta && (title.value !== checked.target.title || result.startChanged)) {
+    try {
+      const channel = await getCtaChannel(deps.sql, checked.target.guildId);
+      if (channel) {
+        await deps.rest.editMessage(channel, checked.target.threadId, announcementBody(title.value, start.value, { guildId: checked.target.guildId, threadId: checked.target.threadId, messageId: current.messageId }));
+      }
+    } catch (e) {
+      console.error(JSON.stringify({ evt: "announcement_edit_failed", name: e instanceof Error ? e.name : "unknown", ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) }));
     }
   }
   if (result.startChanged && result.notify.length > 0) {
