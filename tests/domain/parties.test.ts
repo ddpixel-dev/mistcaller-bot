@@ -59,3 +59,9 @@ test("displayNumber restarts at 1 in each party", () => {
   assert.equal(displayNumber(all[3]!, all), 1);
   assert.equal(displayNumber(all[4]!, all), 2);
 });
+
+test("the party picker text", async () => {
+  const p = await import("../../src/domain/parties.ts");
+  assert.equal(p.PARTIES_PLACEHOLDER, "How many parties?");
+  assert.deepEqual([p.ONE_PARTY_LABEL, p.ONE_PARTY_EMOJI, p.TWO_PARTIES_LABEL, p.TWO_PARTIES_EMOJI], ["One Party", "👤", "Two Parties", "👥"]);
+});

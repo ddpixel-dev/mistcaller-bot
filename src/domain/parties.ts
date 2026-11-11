@@ -53,3 +53,10 @@ export const positionText = (partyCount: number, party: number, shown: number): 
 export function displayNumber(slot: { party: number; position: number }, all: { party: number; position: number }[]): number {
   return slot.position - all.filter((s) => s.party < slot.party).length;
 }
+
+// The CTA party picker text (ADR 0047).
+export const PARTIES_PLACEHOLDER = "How many parties?";
+export const ONE_PARTY_LABEL = "One Party";
+export const ONE_PARTY_EMOJI = "👤";
+export const TWO_PARTIES_LABEL = "Two Parties";
+export const TWO_PARTIES_EMOJI = "👥";
