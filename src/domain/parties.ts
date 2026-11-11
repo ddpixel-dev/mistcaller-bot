@@ -12,14 +12,18 @@ export function maxPartiesFor(_kind: string, isCta: boolean): 1 | 2 {
   return isCta ? 2 : 1;
 }
 
-export function parseCtaSlots(input: string, party: number, parties: number): Result<SlotDef[]> {
+// `existing` are the party's current slots: a line equal to one of them (role, weapon, duty) is kept as it is, so a CTA
+// created before the role list was fixed can still be edited. New or changed lines must use a supported role.
+export function parseCtaSlots(input: string, party: number, parties: number, existing: { role: string; weapon?: string | null; duty?: string | null }[] = []): Result<SlotDef[]> {
   const parsed = parseSlots(input);
   if (!parsed.ok) return parsed;
   // parseSlots drops blank lines and keeps the order, so the nth slot is the nth non-blank line.
   const lineNumbers = input.split(/\r?\n/).map((l, i) => ({ text: l.trim(), n: i + 1 })).filter((l) => l.text !== "").map((l) => l.n);
   for (let i = 0; i < parsed.value.length; i++) {
-    const role = parsed.value[i]!.role;
-    if (!(ROLE_ORDER as readonly string[]).includes(role.trim().toLowerCase())) {
+    const slot = parsed.value[i]!;
+    const role = slot.role;
+    const unchanged = existing.some((e) => e.role === slot.role && (e.weapon ?? "") === (slot.weapon ?? "") && (e.duty ?? null) === (slot.duty ?? null));
+    if (!unchanged && !(ROLE_ORDER as readonly string[]).includes(role.trim().toLowerCase())) {
       const where = parties > 1 ? `Party ${party}, line ${lineNumbers[i]}` : `Line ${lineNumbers[i]}`;
       return { ok: false, error: `${where}: "${role}" is not a supported role. Use Tank, DTank, Healer, Support or DPS.` };
     }
@@ -39,6 +43,12 @@ export function splitParty(customId: string): { id: string; party: number } | nu
 export function withParty(customId: string, party: number): string {
   return party === 1 ? customId : `${customId}@${party}`;
 }
+
+// Two-party content names the party in front of a shown position ("Party 2 · 1. Tank"); one party adds nothing.
+export const partyLead = (partyCount: number, party: number): string => (partyCount > 1 ? `Party ${party} · ` : "");
+// "position 3" for one party, "Party 2, position 1" for two.
+export const positionText = (partyCount: number, party: number, shown: number): string =>
+  partyCount > 1 ? `Party ${party}, position ${shown}` : `position ${shown}`;
 
 export function displayNumber(slot: { party: number; position: number }, all: { party: number; position: number }[]): number {
   return slot.position - all.filter((s) => s.party < slot.party).length;

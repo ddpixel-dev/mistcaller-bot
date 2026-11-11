@@ -9,6 +9,7 @@ import { announcePromotions } from "./waitlist.ts";
 import { refreshRoster } from "./manage.ts";
 import { FILL_VALUE, IS_COMPONENTS_V2, WAIT_FILL_VALUE, escapeText, renderRosterMessage, rosterButton } from "../render/roster.ts";
 import { refreshRosters } from "./rosters.ts";
+import { displayNumber, partyLead, positionText } from "../domain/parties.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That action is not valid. Please use the controls on the latest roster message.";
@@ -38,7 +39,7 @@ async function refreshed(deps: Deps, id: string, party: number, promoted: Promot
   if (!view) return reply(NOT_FOUND);
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
   const response = { type: UPDATE_MESSAGE, data: renderRosterMessage(view, party) };
-  if (view.partyCount > 1) await refreshRosters(deps, view, { except: party });
+  if (view.partyCount > 1) await refreshRosters(deps, view, { except: party, noRetry: true });
   return response;
 }
 
@@ -72,18 +73,19 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
   if (result === "applied") {
     // FR-058: an application holds no seat. The roster lists it; the applicant gets a private confirmation.
     await refreshRoster(deps, got[0]!);
-    const slot = (await getRosterView(deps.sql, got[0]!, deps.now()))?.slots.find((s) => s.id === slotId);
-    return reply(`📨 You applied for ${slot ? `position ${slot.position} (${escapeText(slot.role)})` : "that position"}. The host picks the party; you are mentioned in the post when you are accepted.`);
+    const view = await getRosterView(deps.sql, got[0]!, deps.now());
+    const slot = view?.slots.find((s) => s.id === slotId);
+    return reply(`📨 You applied for ${slot && view ? `${positionText(view.partyCount, slot.party, displayNumber(slot, view.slots))} (${escapeText(slot.role)})` : "that position"}. The host picks the party; you are mentioned in the post when you are accepted.`);
   }
   // A slot without a weapon (FR-030): update the roster through the API, and give the player a private weapon picker.
-  const [slot] = await deps.sql`select role, position, weapon from slot where id = ${slotId}`;
+  const [slot] = await deps.sql`select role, position, party, weapon from slot where id = ${slotId}`;
   if (slot && slot.weapon === null) {
     const view = await getRosterView(deps.sql, got[0]!, deps.now());
     if (view?.messageId) {
       try {
         await refreshRosters(deps, view, { strict: true });
         await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
-        return pickerResponse(got[0]!, `You are in **${slot.position}. ${escapeText(slot.role)}**. Which weapon will you bring? This is optional.`);
+        return pickerResponse(got[0]!, `You are in **${partyLead(view.partyCount, slot.party)}${displayNumber(slot as { party: number; position: number }, view.slots)}. ${escapeText(slot.role)}**. Which weapon will you bring? This is optional.`);
       } catch (err) {
         console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
       }

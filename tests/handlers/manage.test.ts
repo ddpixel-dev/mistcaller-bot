@@ -317,6 +317,34 @@ test("Edit details on a CTA rejects an unsupported role and leaves party 2 alone
   assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", good))), /Content updated/);
 });
 
+test("a party 2 slots save does not undo a concurrent change of the title, notes, start or tier", async () => {
+  const { sql, deps, id } = await setupTwo();
+  await sql`update content set title = 'Renamed', notes = 'new notes', gear_tier = 'T7.0', starts_at = '2026-12-05T20:00:00Z' where id = ${id}`;
+  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Locus"));
+  assert.match(text(r), /Party 2 updated/);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.equal(v.title, "Renamed");
+  assert.equal(v.notes, "new notes");
+  assert.equal(v.tier, "T7.0");
+  assert.equal(v.startsAt.toISOString(), "2026-12-05T20:00:00.000Z");
+  assert.deepEqual(v.slots.filter((s) => s.party === 2).map((s) => s.role), ["Tank", "Support"]);
+});
+
+test("an old CTA with a role outside the CTA list can still be edited; a new such line is refused", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, cta: true, slots: [{ role: "Tank", weapon: "Mace" }, { role: "Heal", weapon: "Holy" }] });
+  await setMessageId(sql, id, "m1");
+  const rest: Rest = { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} };
+  const deps: Deps = { sql, rest, now: () => NOW };
+  const ok: any = await handleEditModal(deps, modal(id, "k", { ...good, title: "New title", slots: "Tank - Mace\nHeal - Holy" }));
+  assert.match(text(ok), /Content updated/);
+  assert.equal((await getRosterView(sql, id, NOW))!.title, "New title");
+  const bad: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHeal - Holy\nHeal - Fallen" }));
+  assert.match(text(bad), /Line 3: "Heal" is not a supported role/);
+  const changed: any = await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHeal - Fallen" }));
+  assert.match(text(changed), /Line 2: "Heal" is not a supported role/);
+});
+
 // A CTA's announcement follows the title and the start (ADR 0036 update 2026-11-10).
 async function setupCta(failEdit = false) {
   const sql = await testSql();

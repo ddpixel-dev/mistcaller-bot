@@ -106,7 +106,7 @@ export async function handleMeComponent(deps: Deps, i: Interaction): Promise<Int
     return { type: UPDATE_MESSAGE, data: renderMePanel(view, userId, party) };
   }
   if (action === "pick") {
-    if (i.party !== undefined && i.party > 2) return reply(NOT_VALID);
+    if (i.party !== undefined && i.party > 1 && i.party > ((await getRosterView(deps.sql, id, deps.now()))?.partyCount ?? 1)) return reply(NOT_VALID);
     const values = data?.values;
     const slotId = Array.isArray(values) && values.length === 1 ? values[0] : undefined;
     if (typeof slotId !== "string" || !UUID.test(slotId)) return reply(INVALID);

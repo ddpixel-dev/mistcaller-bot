@@ -128,3 +128,12 @@ test("the /content me panel and the roster it refreshes stay inside Discord's li
   const problems = seen.flatMap((data, n) => discordProblems(data).map((p) => `message ${n}: ${p}`));
   assert.deepEqual(problems, []);
 });
+
+test("me:pick refuses a party the content does not have and seats nobody", async () => {
+  const { sql, deps, id, slots } = await setup();
+  const { handleMeComponent } = await import("../../src/handlers/me.ts");
+  const r: any = await handleMeComponent(deps, press(`me:pick:${id}`, [slots[0]], "u1", { party: 2 }));
+  assert.equal(r.type, 4);
+  assert.equal(r.data.content, "This control is not valid");
+  assert.deepEqual(await holders(sql, id), [null, null]);
+});

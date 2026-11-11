@@ -76,7 +76,7 @@ test("Assign player asks for the party, then lists that party's fills and only i
   assert.deepEqual(positions.map((o: any) => o.label.split(".")[0]), ["1", "2", "3"], "numbered from 1 in party 2");
   assert.equal(r3.data.components[2].components[0].custom_id, `fa:s:${id}:${C}@2`);
   const r4: any = await d(menu(`fa:s:${id}:${C}@2`, [p2[1]!.id]));
-  assert.equal(r4.type, 7);
+  assert.equal(r4.type, 7, JSON.stringify(r4.data));
   const [row] = await sql`select party, slot_id from signup where content_id = ${id} and user_id = ${C}`;
   assert.equal(row!.party, 2);
   assert.equal(row!.slot_id, p2[1]!.id);
@@ -144,7 +144,7 @@ test("Remove player with one party skips the choice", async () => {
 });
 
 test("Set duty asks for the party and lists that party's positions", async () => {
-  const { d, id, p2, sql } = await setup();
+  const { d, id, p1, p2, sql } = await setup();
   const r1: any = await d(button(`dt:${id}`));
   assert.deepEqual(choice(r1), [["Party 1", `dt:g:${id}`], ["Party 2", `dt:g:${id}@2`]]);
   const r2: any = await d(button(`dt:g:${id}@2`));
@@ -157,9 +157,16 @@ test("Set duty asks for the party and lists that party's positions", async () =>
   // a party 1 position through the party 2 menu is refused
   const bad: any = await d(menu(`dt:p:${id}@2`, ["1"]));
   assert.ok(String(bad.data.content).includes("out of date"));
-  const r4: any = await d(menu(`dt:d:${id}:${p2[1]!.position}@2`, ["flag"]));
-  void r4;
-  void sql;
+  const duty = async (position: number) => (await sql`select duty from slot where content_id = ${id} and position = ${position}`)[0]!.duty;
+  const r4: any = await d(menu(`dt:d:${id}:${p2[1]!.position}@2`, ["caller"]));
+  assert.equal(r4.type, 7, JSON.stringify(r4.data));
+  assert.ok(String(r4.data.content).startsWith("✅"), String(r4.data.content));
+  assert.ok(String(r4.data.content).includes("for position 2."), "the displayed number, not the content-wide one");
+  assert.equal(await duty(p2[1]!.position), "caller");
+  // a party 1 position through the party 2 duty menu is refused and nothing changes
+  const cross: any = await d(menu(`dt:d:${id}:${p1[0]!.position}@2`, ["caller"]));
+  assert.ok(String(cross.data.content).includes("in this party"), String(cross.data.content));
+  assert.equal(await duty(p1[0]!.position), null);
 });
 
 test("Set weapon asks for the party and lists that party's positions without a weapon", async () => {

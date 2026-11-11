@@ -105,3 +105,25 @@ test("strict rethrows a non-404 failure after trying every party, but not a 404"
     await refreshRosters(gone, await view(), { strict: true });
   } finally { console.error = orig; }
 });
+
+test("noRetry passes retry429 false to the edit; the default does not", async () => {
+  const sql = await testSql();
+  const { id, deps, view } = await setup();
+  void sql;
+  await setMessageId(await testSql(), id, "m1");
+  const seen: unknown[] = [];
+  const rest = { ...deps.rest, async editMessage(_c: string, _m: string, _b: unknown, o?: unknown) { seen.push(o); } } as Rest;
+  await refreshRosters({ ...deps, rest }, await view(), { noRetry: true });
+  await refreshRosters({ ...deps, rest }, await view());
+  assert.deepEqual(seen, [{ retry429: false }, undefined]);
+});
+
+test("the failure log carries the content id and no text", async () => {
+  const { sql, id, deps, view } = await setup(["m1"]);
+  await setMessageId(sql, id, "m1");
+  const logs: string[] = [];
+  const orig = console.error;
+  console.error = (m: string) => { logs.push(String(m)); };
+  try { await refreshRosters(deps, await view()); } finally { console.error = orig; }
+  assert.equal(JSON.parse(logs[0]!).contentId, id);
+});

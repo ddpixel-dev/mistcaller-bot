@@ -41,10 +41,11 @@ export async function getManageTargetById(sql: Sql, id: string): Promise<ManageT
 }
 
 export type EditInput = {
-  title: string;
-  notes: string | null;
-  startsAt: Date;
-  tier: string;
+  // An undefined field keeps the current value (the party 2 form passes only slots2, so it cannot undo a concurrent edit).
+  title?: string;
+  notes?: string | null;
+  startsAt?: Date;
+  tier?: string;
   hasLoot: boolean | null; // null keeps the current value
   kind: string | null; // null keeps the current value
   buildRef?: string | null; // undefined keeps the current value, null removes it
@@ -59,7 +60,7 @@ export type EditResult =
 
 export async function editContent(sql: Sql, id: string, input: EditInput, now: Date): Promise<EditResult> {
   return await sql.begin(async (tx): Promise<EditResult> => {
-    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id from content where id = ${id} for update`;
+    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id, title, notes, gear_tier from content where id = ${id} for update`;
     if (!c || c.status !== "open") return { result: "unavailable" };
 
     const slotRows = await tx`
@@ -103,18 +104,19 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       await tx`insert into slot ${tx(rows, "guild_id", "content_id", "position", "party", "role", "weapon", "duty")}`;
     }
 
+    const startsAt: Date = input.startsAt ?? c.starts_at;
     await tx`
       update content set
-        title = ${input.title}, notes = ${input.notes}, starts_at = ${input.startsAt},
-        gear_tier = ${input.tier},
+        title = ${input.title ?? c.title}, notes = ${input.notes === undefined ? c.notes : input.notes}, starts_at = ${startsAt},
+        gear_tier = ${input.tier ?? c.gear_tier},
         has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind},
         build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}
       where id = ${id}`;
 
-    const startChanged = c.starts_at.getTime() !== input.startsAt.getTime();
+    const startChanged = c.starts_at.getTime() !== startsAt.getTime();
     if (startChanged) {
       // A new start time resets the reminder (FR-009), unless the new start is already inside the lead time.
-      await tx`update content set reminder_sent_at = ${needsReminder(input.startsAt, now) ? null : now} where id = ${id}`;
+      await tx`update content set reminder_sent_at = ${needsReminder(startsAt, now) ? null : now} where id = ${id}`;
     }
     const notify = startChanged
       ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill') order by joined_at`).map(

@@ -36,7 +36,7 @@ function ctaParty(text: string | null, stored: SlotDef[], party: number, parties
   if (stored.length === 0) {
     problems.push(party === 1 ? "Add the slots: press Roles, type them in Details, or pick a preset." : "Add the slots of party 2: press Party 2 slots.");
   } else if (stored.length > MAX_SLOTS) {
-    problems.push(`${parties > 1 ? `Party ${party} can` : "There can be"} have at most ${MAX_SLOTS} slots.`);
+    problems.push(parties > 1 ? `Party ${party} can have at most ${MAX_SLOTS} slots.` : `There can be at most ${MAX_SLOTS} slots.`);
   } else {
     const checked = parseCtaSlots(formatSlotLines(stored), party, parties);
     if (!checked.ok) problems.push(`${label}${checked.error}`);
@@ -48,7 +48,7 @@ function ctaParty(text: string | null, stored: SlotDef[], party: number, parties
 export function validateCard(c: CardInput, now: Date): { ok: true; value: CardContent } | { ok: false; problems: string[] } {
   const problems: string[] = [];
   const cta = c.cta === true;
-  const parties: 1 | 2 = cta && (c.parties ?? 1) >= 2 && maxPartiesFor("other", true) >= 2 ? 2 : 1;
+  const parties: 1 | 2 = cta && (c.parties ?? 1) >= 2 && maxPartiesFor(c.kind ?? "other", true) >= 2 ? 2 : 1;
   const type: ContentType | null = cta ? "pvx" : c.type;
   if (!type) problems.push("Pick the type of content.");
   const kind = cta ? ({ ok: true, value: "other" } as const) : c.type ? resolveKind(c.type, c.kind) : null;

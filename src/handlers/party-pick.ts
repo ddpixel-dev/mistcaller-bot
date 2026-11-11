@@ -22,6 +22,10 @@ export function partyOfClick(i: Interaction, view: RosterView): number | null {
 export const slotsOfParty = (view: RosterView, party: number) => view.slots.filter((s) => s.party === party);
 export const userInParty = (view: RosterView, userId: string, party: number) => (view.partyOf?.[userId] ?? 1) === party;
 // The number the roster shows for a position (it restarts at 1 in party 2).
+export const shownNumberOfSlot = (view: RosterView, slotId: string): number | undefined => {
+  const s = view.slots.find((x) => x.id === slotId);
+  return s ? displayNumber(s, view.slots) : undefined;
+};
 export const shownNumber = (view: RosterView, position: number): number => {
   const s = view.slots.find((x) => x.position === position);
   return s ? displayNumber(s, view.slots) : position;

@@ -15,7 +15,7 @@ export function renderAttendanceForm(a: Attendance, names: Record<string, string
   const attended = players.filter((p) => a.marks[p.userId] === "attended").length;
   const options = players.slice(0, 25).map((p) => ({
     // A fill has no position, role or weapon; a slot without a weapon shows its role alone.
-    label: Array.from(p.position === null ? `🔁 ${names[p.userId] ?? `Fill ${p.userId.slice(-4)}`}` : `${p.position}. ${names[p.userId] ?? `Player ${p.position}`}`).slice(0, 100).join(""),
+    label: Array.from(p.position === null ? `🔁 ${names[p.userId] ?? `Fill ${p.userId.slice(-4)}`}` : `${p.number ?? p.position}. ${names[p.userId] ?? `Player ${p.number ?? p.position}`}`).slice(0, 100).join(""),
     description: Array.from(p.fill ? "Fill" : `${p.role}${p.weapon ? ` - ${p.weapon}` : ""}`).slice(0, 100).join(""),
     value: p.userId,
     default: a.marks[p.userId] === "attended",

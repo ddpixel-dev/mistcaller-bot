@@ -294,3 +294,18 @@ test("one party: a held slot error keeps its old text, and new slots are party 1
   await editContent(sql, id, edit({ slots: [...base.slots, { role: "Support", weapon: "Locus" }] }), NOW);
   assert.ok((await getRosterView(sql, id, NOW))!.slots.every((s) => s.party === 1));
 });
+
+test("an edit that leaves out title, notes, start and tier keeps the values stored at the time of the edit", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, cta: true, notes: "old", slots: [{ role: "Tank", weapon: "Mace" }], slots2: [{ role: "DPS", weapon: "Bow" }] });
+  await sql`update content set title = 'Renamed', notes = null, gear_tier = 'T7.0', starts_at = '2026-12-05T20:00:00Z' where id = ${id}`;
+  const r = await editContent(sql, id, { hasLoot: null, kind: null, slots2: [{ role: "DPS", weapon: "Bow" }, { role: "Tank", weapon: "Axe" }] }, new Date("2026-10-06T12:00:00Z"));
+  assert.equal(r.result, "ok");
+  if (r.result === "ok") assert.equal(r.startChanged, false);
+  const v = (await getRosterView(sql, id, new Date("2026-10-06T12:00:00Z")))!;
+  assert.equal(v.title, "Renamed");
+  assert.equal(v.notes, null);
+  assert.equal(v.tier, "T7.0");
+  assert.equal(v.startsAt.toISOString(), "2026-12-05T20:00:00.000Z");
+  assert.equal(v.slots.filter((s) => s.party === 2).length, 2);
+});

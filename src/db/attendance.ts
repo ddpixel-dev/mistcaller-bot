@@ -1,7 +1,7 @@
 import type { Sql } from "./client.ts";
 
 // A member without a position (a Fill) has no position, role or weapon.
-export type Player = { userId: string; position: number | null; role: string; weapon: string; fill: boolean; party: number };
+export type Player = { userId: string; position: number | null; role: string; weapon: string; fill: boolean; party: number; number?: number | null }; // number: the position the roster shows (restarts in party 2)
 export type Attendance = {
   contentId: string;
   guildId: string;
@@ -24,7 +24,8 @@ export async function getAttendance(sql: Sql, contentId: string): Promise<Attend
     from content where id = ${contentId}`;
   if (!c) return null;
   const [players, marks] = await Promise.all([
-    sql`select su.user_id, su.status, su.party, s.position, s.role, s.weapon, su.chosen_weapon
+    sql`select su.user_id, su.status, su.party, s.position, s.role, s.weapon, su.chosen_weapon,
+          s.position - (select count(*)::int from slot l where l.content_id = s.content_id and l.party < s.party) as number
         from signup su left join slot s on s.id = su.slot_id
         where su.content_id = ${contentId} and su.status in ('signed', 'fill')
         order by s.position nulls last, su.joined_at, su.user_id`,
@@ -33,7 +34,7 @@ export async function getAttendance(sql: Sql, contentId: string): Promise<Attend
   return {
     contentId: c.id, guildId: c.guild_id, threadId: c.thread_id, title: c.title, createdBy: c.created_by,
     status: c.status, partyCount: c.party_count ?? 1, partiesSubmitted: (c.attendance_parties_submitted ?? []).map(Number), startsAt: c.starts_at, submittedAt: c.attendance_submitted_at, reportPostedAt: c.report_posted_at,
-    players: players.map((p) => ({ userId: p.user_id, position: p.position ?? null, role: p.role ?? "", weapon: p.weapon ?? p.chosen_weapon ?? "", fill: p.status === "fill", party: p.party ?? 1 })),
+    players: players.map((p) => ({ userId: p.user_id, position: p.position ?? null, role: p.role ?? "", weapon: p.weapon ?? p.chosen_weapon ?? "", fill: p.status === "fill", party: p.party ?? 1, number: p.number ?? null })),
     marks: Object.fromEntries(marks.map((m) => [m.user_id, m.status])) as Attendance["marks"],
   };
 }

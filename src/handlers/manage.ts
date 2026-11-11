@@ -131,7 +131,7 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const start = current && (v.start ?? "").trim() === utcInput(current.startsAt)
     ? ({ ok: true, value: current.startsAt } as ReturnType<typeof parseUtcStart>)
     : parseUtcStart(v.start ?? "", deps.now());
-  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : (current?.cta ? parseCtaSlots(v.slots ?? "", 1, current.partyCount) : parseSlots(v.slots ?? ""));
+  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : (current?.cta ? parseCtaSlots(v.slots ?? "", 1, current.partyCount, current.slots.filter((s) => s.party === 1)) : parseSlots(v.slots ?? ""));
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
   if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
@@ -292,10 +292,10 @@ export async function handleParty2Modal(deps: Deps, i: Interaction): Promise<Int
   if (!checked.ok) return checked.response;
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view || view.partyCount !== 2) return reply(INVALID);
-  const slots2 = parseCtaSlots(modalValues(i).slots ?? "", 2, 2);
+  const slots2 = parseCtaSlots(modalValues(i).slots ?? "", 2, 2, view.slots.filter((s) => s.party === 2));
   if (!slots2.ok) return await formProblems(deps, i, String(customId), [slots2.error]);
   const result = await editContent(deps.sql, view.id, {
-    title: view.title, notes: view.notes, startsAt: view.startsAt, tier: view.tier, hasLoot: null, kind: null, slots2: slots2.value,
+    hasLoot: null, kind: null, slots2: slots2.value,
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
   if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);

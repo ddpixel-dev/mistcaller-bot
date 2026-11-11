@@ -1,9 +1,11 @@
 import type { Sql } from "./client.ts";
 
+import { displayNumber } from "../domain/parties.ts";
 import { ANY_FILL, describeFill, pickFillSlot, type FillPref } from "../domain/fillmatch.ts";
 
 // `fillWanted` is set when the player was a fill: what they asked for, for the announcement (FR-057).
-export type Promotion = { userId: string; slotId: string; position: number; role: string; weapon: string; fillWanted?: string };
+// `position` is the content-wide number; `number` is the one the roster shows (it restarts in party 2), with its party and the content's party count.
+export type Promotion = { userId: string; slotId: string; position: number; number: number; party: number; partyCount: number; role: string; weapon: string; fillWanted?: string };
 export type WaitResult = "ok" | "already" | "signed" | "open_slot" | "unknown_role" | "locked" | "not_found" | "selection";
 
 type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
@@ -20,7 +22,7 @@ const storedPref = (p: FillPref) => (p.any ? { roles: null, slots: null } : { ro
 // content is open (it stays open after its start, until it ends).
 export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Promise<Promotion[]> {
   void now;
-  const [c] = await tx`select status from content where id = ${contentId}`;
+  const [c] = await tx`select status, party_count from content where id = ${contentId}`;
   if (!c || c.status !== "open") return [];
   const open = (await tx`
     select s.id, s.position, s.party, s.role, s.weapon from slot s
@@ -34,7 +36,11 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     where content_id = ${contentId} and status in ('waitlist', 'fill')
     order by joined_at, user_id for update`;
   const out: Promotion[] = [];
-  const positions = new Map((await tx`select id, position from slot where content_id = ${contentId}`).map((r) => [r.id as string, r.position as number]));
+  const all = (await tx`select id, position, party from slot where content_id = ${contentId}`).map((r) => ({ id: r.id as string, position: r.position as number, party: r.party as number }));
+  const shown = (id: string): number | undefined => {
+    const s = all.find((x) => x.id === id);
+    return s ? displayNumber(s, all) : undefined;
+  };
   for (const w of waiting) {
     if (open.length === 0) break;
     const isFill = w.status === "fill";
@@ -49,7 +55,7 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     await tx`
       update signup set slot_id = ${slot.id}, status = 'signed', wait_role = null, fill_roles = null, fill_slots = null, joined_at = now()
       where content_id = ${contentId} and user_id = ${w.user_id}`;
-    out.push({ userId: w.user_id, slotId: slot.id, position: slot.position, role: slot.role, weapon: slot.weapon, ...(pref ? { fillWanted: describeFill(pref, (id) => positions.get(id)) } : {}) });
+    out.push({ userId: w.user_id, slotId: slot.id, position: slot.position, number: shown(slot.id) ?? slot.position, party: slot.party, partyCount: (c.party_count as number | null) ?? 1, role: slot.role, weapon: slot.weapon, ...(pref ? { fillWanted: describeFill(pref, shown) } : {}) });
   }
   return out;
 }

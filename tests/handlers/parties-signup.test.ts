@@ -4,7 +4,7 @@ import { testSql, resetDb } from "../helpers/db.ts";
 import { createContent, getRosterView, setPartyMessageId } from "../../src/db/content.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { IS_COMPONENTS_V2 } from "../../src/render/roster.ts";
-import type { Rest } from "../../src/discord/rest.ts";
+import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { flatComponents } from "../helpers/discordLimits.ts";
 
@@ -131,4 +131,22 @@ test("an old one-party roster button without a suffix works as before", async ()
   assert.equal(r.type, 7);
   assert.equal((await entry(sql, id, A)).party, 1);
   assert.deepEqual(edits, []);
+});
+
+test("a rate-limited edit of the other party's message does not delay or fail the reply", async () => {
+  const { sql, id, p1, p2, d } = await setup();
+  await d(menu(`join:${id}`, [p1[0]], A));
+  const seen: unknown[] = [];
+  const orig = rest.editMessage;
+  rest.editMessage = async (_c, _m, _b, o) => { seen.push(o); throw new DiscordApiError(429, "rl"); };
+  const logs: string[] = [];
+  const log = console.error;
+  console.error = (m: string) => { logs.push(String(m)); };
+  try {
+    const r: any = await d(menu(`join:${id}@2`, [p2[0]], A));
+    assert.equal(r.type, 7);
+    assert.equal((await entry(sql, id, A)).party, 2);
+  } finally { rest.editMessage = orig; console.error = log; }
+  assert.deepEqual(seen, [{ retry429: false }]);
+  assert.equal(JSON.parse(logs[0]!).evt, "roster_edit_failed");
 });

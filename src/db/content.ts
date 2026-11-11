@@ -4,7 +4,7 @@ import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
 import type { ContentStatus, ContentType, RosterView, SlotDef } from "../domain/types.ts";
 import { sortByRole, roleRank } from "../domain/roles.ts";
-import { MAX_PARTY_SLOTS } from "../domain/parties.ts";
+import { MAX_PARTY_SLOTS, displayNumber } from "../domain/parties.ts";
 
 export type NewContent = {
   guildId: string;
@@ -144,6 +144,11 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
   ]);
   const tally = tallyVotes(voteRows.map((v) => v.choice as VoteChoice));
   const voteClosed = !isVoteOpen(c.starts_at, now);
+  // A fill's chosen positions are shown with the numbers the roster shows (they restart in party 2).
+  const shownOf = (id: string): number | undefined => {
+    const s = slots.find((x) => x.id === id);
+    return s ? displayNumber(s as { party: number; position: number }, slots as unknown as { party: number; position: number }[]) : undefined;
+  };
   return {
     id: c.id,
     guildId: c.guild_id,
@@ -174,7 +179,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     applicants: applied.map((f) => {
       const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
       const pref = { any: roles.length === 0 && slotIds.length === 0, roles, slotIds };
-      return { userId: f.user_id as string, wants: describeFill(pref, (id) => slots.find((x) => x.id === id)?.position), pref };
+      return { userId: f.user_id as string, wants: describeFill(pref, shownOf), pref };
     }),
     fills: fills.map((f) => f.user_id as string),
     fillPrefs: Object.fromEntries(fills.map((f) => {
@@ -184,7 +189,7 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     fillWants: Object.fromEntries(fills.map((f) => {
       const roles = (f.fill_roles as string[] | null) ?? [], slotIds = (f.fill_slots as string[] | null) ?? [];
       const any = roles.length === 0 && slotIds.length === 0;
-      return [f.user_id as string, describeFill({ any, roles, slotIds }, (id) => slots.find((x) => x.id === id)?.position)];
+      return [f.user_id as string, describeFill({ any, roles, slotIds }, shownOf)];
     })),
     buildRef: c.build_channel_id ?? null,
     ownerId: c.created_by ?? null,
