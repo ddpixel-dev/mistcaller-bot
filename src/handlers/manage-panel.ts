@@ -109,6 +109,8 @@ function editPanel(view: RosterView, note: string | null) {
         type: 1,
         components: [
           button("Edit details", "📝", `mg:f:${id}`, 1),
+          // A CTA's slots are edited per party in their own forms (owner request 2026-11-11).
+          ...(view.cta && !view.blank ? [button(view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots", "📝", `ed:o:${id}`, 1)] : []),
           ...(view.partyCount === 2 && !view.blank ? [button("Edit party 2 slots", "📝", `ed:p:${id}`, 1)] : []),
           button("Build link", "🧰", `ed:b:${id}`),
         ],
@@ -188,6 +190,17 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
         custom_id: `edp:${id}`,
         title: "Edit party 2 slots",
         components: [textInput("slots", "Party 2 slots", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 2)) })],
+      },
+    };
+  }
+  if (parts[1] === "o") {
+    if (!view.cta || view.blank) return reply(INVALID);
+    return {
+      type: MODAL,
+      data: {
+        custom_id: `edp1:${id}`,
+        title: view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots",
+        components: [textInput("slots", view.partyCount === 2 ? "Party 1 slots" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) })],
       },
     };
   }

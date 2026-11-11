@@ -19,6 +19,7 @@ import { parseCtaSlots } from "../domain/parties.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { escapeText, renderRosterMessage, rosterUrl } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
+import { parseBombersCap } from "../domain/bombers.ts";
 import { announcementBody } from "./ctaannounce.ts";
 import { getCtaChannel } from "../db/cta.ts";
 import { refreshRosters } from "./rosters.ts";
@@ -90,6 +91,23 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
   if (checked.target.status !== "open") return reply("Only open content can be edited. Locked, finished or cancelled content cannot.");
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view) return reply(NO_CONTENT);
+  // A CTA's details hold no slots: each party's slots have their own button in the Edit panel (owner request 2026-11-11).
+  if (view.cta && !view.blank) {
+    return {
+      type: MODAL,
+      data: {
+        custom_id: `edit:${view.id}:k`,
+        title: "Edit CTA details",
+        components: [
+          textInput("title", "Title", 100, { value: view.title }),
+          textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { value: utcInput(view.startsAt) }),
+          textInput("tier", "Gear Tier", 80, { value: view.tier }),
+          textInput("notes", "Notes (optional)", 500, { required: false, style: 2, ...(view.notes ? { value: view.notes } : {}) }),
+          textInput("bombers", "Bombers cap (1-20, empty = no Bombers)", 2, { required: false, ...(view.bombers ? { value: String(view.bombers) } : {}) }),
+        ],
+      },
+    };
+  }
   return {
     type: MODAL,
     data: {
@@ -142,20 +160,23 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
   const start = current && (v.start ?? "").trim() === utcInput(current.startsAt)
     ? ({ ok: true, value: current.startsAt } as ReturnType<typeof parseUtcStart>)
     : parseUtcStart(v.start ?? "", deps.now());
-  const slots = isBlank ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : (current?.cta ? parseCtaSlots(v.slots ?? "", 1, current.partyCount, current.slots.filter((s) => s.party === 1)) : parseSlots(v.slots ?? ""));
+  // A CTA's slots come from the Edit panel's own forms: this form leaves them as they are and reads the Bombers cap instead.
+  const ctaForm = current?.cta === true && !isBlank;
+  const slots = isBlank || ctaForm ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
+  const cap = ctaForm ? parseBombersCap(v.bombers ?? "") : ({ ok: true, value: null } as ReturnType<typeof parseBombersCap>);
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
-  if (!title.ok || !start.ok || !tier.ok || !slots.ok || !notes.ok) {
-    return await formProblems(deps, i, String(customId), [title, start, tier, slots, notes].flatMap((r) => (r.ok ? [] : [r.error])));
+  if (!title.ok || !start.ok || !tier.ok || !slots.ok || !cap.ok || !notes.ok) {
+    return await formProblems(deps, i, String(customId), [title, start, tier, slots, cap, notes].flatMap((r) => (r.ok ? [] : [r.error])));
   }
 
   const result = await editContent(deps.sql, checked.target.id, {
     title: title.value, notes: notes.value, startsAt: start.value, tier: tier.value,
-    hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, slots: slots.value,
+    hasLoot: parts[2] === "k" ? null : parts[2] === "1", kind: kindId, ...(ctaForm ? { bombers: cap.value } : { slots: slots.value }),
     ...(buildRef !== undefined ? { buildRef } : {}),
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
-  if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);
+  if (result.result === "slots_held" || result.result === "bombers_held") return await formProblems(deps, i, String(customId), [result.error]);
 
   const refreshed = await refreshRoster(deps, checked.target.id);
   await refreshDashboardSoon(deps, checked.target.guildId, "schedule");
@@ -294,24 +315,28 @@ export async function handleListCommand(deps: Deps, i: Interaction): Promise<Int
   return reply(`📅 **Live and upcoming content**\n${lines.join("\n")}${more}`.slice(0, 2000));
 }
 
-// edp:<content>: the Edit party 2 slots form. Only party 2's lines change; every other field keeps its current value and
-// party 1 is left as it is. Party 2's holders keep their slots (planSlotEdit), and a held slot cannot be removed.
-export async function handleParty2Modal(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+// edp:<content> (party 2) and edp1:<content> (party 1 of a CTA): the Edit slots forms. Only that party's lines change;
+// every other field keeps its current value and the other party is left as it is. The party's holders keep their slots
+// (planSlotEdit), and a held slot cannot be removed.
+async function editPartyModal(deps: Deps, i: Interaction, party: 1 | 2): Promise<InteractionResponse> {
   const customId = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
   const parts = typeof customId === "string" ? customId.split(":") : [];
-  if (parts.length !== 2 || parts[0] !== "edp" || !UUID.test(parts[1]!)) return reply(INVALID);
+  if (parts.length !== 2 || parts[0] !== (party === 2 ? "edp" : "edp1") || !UUID.test(parts[1]!)) return reply(INVALID);
   const checked = await authorize(deps, i, await getManageTargetById(deps.sql, parts[1]!));
   if (!checked.ok) return checked.response;
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
-  if (!view || view.partyCount !== 2) return reply(INVALID);
-  const slots2 = parseCtaSlots(modalValues(i).slots ?? "", 2, 2, view.slots.filter((s) => s.party === 2));
-  if (!slots2.ok) return await formProblems(deps, i, String(customId), [slots2.error]);
+  if (!view || (party === 2 ? view.partyCount !== 2 : !view.cta || view.blank)) return reply(INVALID);
+  const parsed = parseCtaSlots(modalValues(i).slots ?? "", party, view.partyCount, view.slots.filter((s) => s.party === party));
+  if (!parsed.ok) return await formProblems(deps, i, String(customId), [parsed.error]);
   const result = await editContent(deps.sql, view.id, {
-    hasLoot: null, kind: null, slots2: slots2.value,
+    hasLoot: null, kind: null, ...(party === 2 ? { slots2: parsed.value } : { slots: parsed.value }),
   }, deps.now());
   if (result.result === "unavailable") return reply("This content can no longer be edited. It may have been locked, ended or cancelled.");
-  if (result.result === "slots_held") return await formProblems(deps, i, String(customId), [result.error]);
+  if (result.result === "slots_held" || result.result === "bombers_held") return await formProblems(deps, i, String(customId), [result.error]);
   const refreshed = await refreshRoster(deps, view.id);
   await announcePromotions(deps, checked.target.threadId, view.title, result.promoted);
-  return reply(refreshed ? "Party 2 updated." : "Party 2 updated, but a roster message could not be refreshed. It will update on the next change.");
+  const name = view.partyCount === 2 ? `Party ${party}` : "The slots";
+  return reply(refreshed ? `${name} updated.` : `${name} updated, but a roster message could not be refreshed. It will update on the next change.`);
 }
+export const handleParty2Modal = (deps: Deps, i: Interaction) => editPartyModal(deps, i, 2);
+export const handleParty1Modal = (deps: Deps, i: Interaction) => editPartyModal(deps, i, 1);

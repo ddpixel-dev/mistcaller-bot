@@ -69,17 +69,28 @@ export type EditInput = {
   buildRef?: string | null; // undefined keeps the current value, null removes it
   slots?: SlotDef[]; // party 1; undefined leaves it as it is (the party 2 form uses that)
   slots2?: SlotDef[]; // party 2 of a two-party CTA; undefined leaves it as it is (FR-070)
+  bombers?: number | null; // a CTA's Bombers cap; undefined keeps it, null turns Bombers off (FR-071)
 };
 
 export type EditResult =
   | { result: "ok"; startChanged: boolean; notify: string[]; promoted: Promotion[] }
   | { result: "unavailable" }
-  | { result: "slots_held"; error: string };
+  | { result: "slots_held"; error: string }
+  | { result: "bombers_held"; error: string };
 
 export async function editContent(sql: Sql, id: string, input: EditInput, now: Date): Promise<EditResult> {
   return await sql.begin(async (tx): Promise<EditResult> => {
-    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id, title, notes, gear_tier from content where id = ${id} for update`;
+    const [c] = await tx`select status, starts_at, has_loot, kind, build_channel_id, title, notes, gear_tier, cta, bombers from content where id = ${id} for update`;
     if (!c || c.status !== "open") return { result: "unavailable" };
+    // Bombers (FR-071): the cap cannot go below the players already in it. The content row is locked, so a join cannot slip in.
+    let bombers: number | null = c.bombers ?? null;
+    if (c.cta && input.bombers !== undefined) {
+      const [{ n }] = await tx`select count(*)::int as n from signup where content_id = ${id} and status = 'bomber'`;
+      if (n > (input.bombers ?? 0)) {
+        return { result: "bombers_held", error: input.bombers === null ? `${n} player(s) are in Bombers. Remove them first (Manage → Remove player), then turn Bombers off.` : `${n} player(s) are in Bombers, more than ${input.bombers}. Remove some first (Manage → Remove player), or keep a cap of at least ${n}.` };
+      }
+      bombers = input.bombers;
+    }
 
     const slotRows = await tx`
       select s.id, s.position, s.party, s.role, s.weapon, s.duty, su.user_id
@@ -128,7 +139,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
         title = ${input.title ?? c.title}, notes = ${input.notes === undefined ? c.notes : input.notes}, starts_at = ${startsAt},
         gear_tier = ${input.tier ?? c.gear_tier},
         has_loot = ${input.hasLoot ?? c.has_loot}, kind = ${input.kind ?? c.kind},
-        build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}
+        build_channel_id = ${input.buildRef === undefined ? c.build_channel_id : input.buildRef}, bombers = ${bombers}
       where id = ${id}`;
 
     const startChanged = c.starts_at.getTime() !== startsAt.getTime();
@@ -137,7 +148,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
       await tx`update content set reminder_sent_at = ${needsReminder(startsAt, now) ? null : now} where id = ${id}`;
     }
     const notify = startChanged
-      ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill') order by joined_at`).map(
+      ? (await tx`select user_id from signup where content_id = ${id} and status in ('signed', 'fill', 'bomber') order by joined_at`).map(
           (r) => r.user_id as string,
         )
       : [];
