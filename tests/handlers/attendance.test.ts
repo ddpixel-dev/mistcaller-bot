@@ -355,3 +355,137 @@ test("a 20-player form and report stay inside Discord's limits", async () => {
   assert.ok(renderReport(a).content.length <= 2000);
   void deps;
 });
+
+// ---- Task 11: attendance per party ----
+const P4 = "100000000000000004", P5 = "100000000000000005";
+async function setup2() {
+  const s = await setup();
+  const { sql, deps } = s;
+  const id = await createContent(sql, {
+    guildId: "g1", threadId: "t2", type: "pvp", title: "CTA", notes: null, startsAt: START,
+    tier: "T8.0", hasLoot: false, createdBy: "boss", now: BEFORE,
+    slots: [{ role: "Tank", weapon: "Mace" }, { role: "Healer", weapon: "Holy" }],
+    slots2: [{ role: "Tank", weapon: "Mace" }, { role: "DPS", weapon: "Bow" }],
+  } as any);
+  await setMessageId(sql, id, "m9");
+  const view = (await getRosterView(sql, id, BEFORE))!;
+  assert.equal(view.partyCount, 2);
+  const by = (party: number) => view.slots.filter((x) => x.party === party).map((x) => x.id);
+  await claimSlot(sql, { contentId: id, slotId: by(1)[0]!, userId: P1, guildId: "g1", now: BEFORE });
+  await claimSlot(sql, { contentId: id, slotId: by(1)[1]!, userId: P2, guildId: "g1", now: BEFORE });
+  await claimSlot(sql, { contentId: id, slotId: by(2)[0]!, userId: P4, guildId: "g1", now: BEFORE });
+  await claimSlot(sql, { contentId: id, slotId: by(2)[1]!, userId: P5, guildId: "g1", now: BEFORE });
+  return { ...s, id2: id, d: s.d };
+}
+const att2 = (r: any) => (r.data.components[0]?.components ?? []).map((c: any) => c.custom_id);
+
+test("two parties: the form starts with a party choice, one party has none", async () => {
+  const { id2, d, id } = await setup2();
+  const r: any = await d(cmd("attendance", "boss", { channel_id: "t2", channel: { id: "t2", type: 11, parent_id: "fp" } }));
+  assert.deepEqual(att2(r), [`att:g:${id2}`, `att:g:${id2}@2`]);
+  assert.equal(r.data.components.length, 1);
+  const one: any = await d(cmd("attendance"));
+  assert.equal(one.data.components[0].components[0].custom_id, `att:pick:${id}`);
+});
+
+test("two parties: choosing party 2 lists only its players with suffixed ids; party 1 marks stay", async () => {
+  const { sql, id2, d } = await setup2();
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  const r: any = await d(click(`att:g:${id2}@2`));
+  const menu = r.data.components[0].components[0];
+  assert.deepEqual(menu.options.map((o: any) => o.value), [P4, P5]);
+  assert.equal(menu.custom_id, `att:pick:${id2}@2`);
+  const flat = flatComponents(r.data).map((c: any) => c.custom_id);
+  assert.ok(flat.includes(`att:submit:${id2}@2`) && flat.includes(`att:later:${id2}@2`));
+  const p: any = await d(click(`att:pick:${id2}@2`, "boss", [P4]));
+  assert.equal(p.data.components[0].components[0].custom_id, `att:pick:${id2}@2`);
+  assert.deepEqual(await marks(sql, id2), { [P1]: "attended", [P4]: "attended" });
+  await d(click(`att:pick:${id2}@2`, "boss", []));
+  assert.deepEqual(await marks(sql, id2), { [P1]: "attended" }, "party 1 mark untouched");
+});
+
+test("two parties: a player of the other party cannot be marked from this form", async () => {
+  const { sql, id2, d } = await setup2();
+  isEphemeral(await d(click(`att:pick:${id2}@2`, "boss", [P1])), "out of date");
+  assert.deepEqual(await marks(sql, id2), {});
+});
+
+test("two parties: an unmarked party 2 player is not recorded, never a no-show", async () => {
+  const { sql, id2, d, deps } = await setup2();
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  await d(click(`att:submit:${id2}`));
+  assert.deepEqual(await marks(sql, id2), { [P1]: "attended", [P2]: "no_show" });
+  await sql`update content set status = 'done' where id = ${id2}`;
+  assert.deepEqual(await memberHistory(sql, "g1", P4), { attended: 0, noShow: 0, notRecorded: 1 });
+  const a = (await getAttendance(sql, id2))!;
+  assert.equal(a.players.find((p) => p.userId === P4)!.party, 2);
+  void deps;
+});
+
+test("two parties: an invalid party suffix is refused", async () => {
+  const { id2, d } = await setup2();
+  isEphemeral(await d(click(`att:g:${id2}@3`)), "not valid");
+
+
+});
+
+test("one party: a click carrying @2 is refused", async () => {
+  const { id, d } = await setup();
+  isEphemeral(await d(click(`att:g:${id}@2`)), "not valid");
+});
+
+test("history counts a player once when they moved between parties", async () => {
+  const { sql, id2, d } = await setup2();
+  await sql`update signup set party = 1, slot_id = null, status = 'fill' where content_id = ${id2} and user_id = ${P4}`;
+  await d(click(`att:pick:${id2}`, "boss", [P4]));
+  await sql`update content set status = 'done' where id = ${id2}`;
+  assert.deepEqual(await memberHistory(sql, "g1", P4), { attended: 1, noShow: 0, notRecorded: 0 });
+});
+
+test("two parties: the report posts once both parties are submitted, listing both", async () => {
+  const { sql, id2, d, posts } = await setup2();
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  const r1: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(r1).includes("Party 1 submitted") && text(r1).includes("Party 2"), text(r1));
+  assert.equal(posts.length, 0);
+  assert.equal((await sql`select attendance_submitted_at from content where id = ${id2}`)[0]!.attendance_submitted_at, null);
+  const again: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(again).includes("Still to do"));
+  assert.equal(posts.length, 0, "submitting party 1 twice does not post");
+  const open: any = await d(click(`att:g:${id2}@2`));
+  assert.ok(flatComponents(open.data).some((c: any) => c.label === "Submit party 2"));
+  await d(click(`att:pick:${id2}@2`, "boss", [P4]));
+  const r2: any = await d(click(`att:submit:${id2}@2`));
+  assert.ok(text(r2).includes("report is posted"), text(r2));
+  assert.equal(posts.length, 1);
+  const body = posts[0]!.body.content as string;
+  for (const u of [P1, P2, P4, P5]) assert.ok(body.includes(u), body);
+  assert.deepEqual(await marks(sql, id2), { [P1]: "attended", [P2]: "no_show", [P4]: "attended", [P5]: "no_show" });
+  isEphemeral(await d(click(`att:submit:${id2}@2`)), "already submitted");
+});
+
+test("two parties: a party never shown stays not recorded when the other is submitted", async () => {
+  const { sql, id2, d } = await setup2();
+  await d(click(`att:submit:${id2}`));
+  assert.deepEqual(await marks(sql, id2), { [P1]: "no_show", [P2]: "no_show" });
+});
+
+test("two parties: an empty party counts as submitted, so submitting the other posts the report once", async () => {
+  const { sql, id2, d, posts } = await setup2();
+  await sql`delete from signup where content_id = ${id2} and party = 2`;
+  const form: any = await d(click(`att:g:${id2}@2`));
+  assert.deepEqual(form.data.components, []);
+  await d(click(`att:pick:${id2}`, "boss", [P1]));
+  const r: any = await d(click(`att:submit:${id2}`));
+  assert.ok(text(r).includes("report is posted"), text(r));
+  assert.equal(posts.length, 1);
+  await d(click(`att:submit:${id2}`));
+  assert.equal(posts.length, 1);
+});
+
+test("two parties: with nobody signed up the form does not crash", async () => {
+  const { sql, id2, d } = await setup2();
+  await sql`delete from signup where content_id = ${id2}`;
+  const r: any = await d(click(`att:g:${id2}`));
+  assert.ok(text(r).includes("nothing to record"));
+});

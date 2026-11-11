@@ -1,6 +1,6 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { WEAPONS } from "../data/weapons.ts";
 import { SLOT_LABEL, WEAPON_CLASSES, isWeaponClass, weaponsOfClass, type WeaponClass } from "../domain/weapons.ts";
 import { getRosterView } from "../db/content.ts";
@@ -10,19 +10,21 @@ import { escapeText } from "../render/roster.ts";
 import { roleIcon } from "../render/theme.ts";
 import { weaponEmojiByName } from "../render/weaponIcon.ts";
 import type { RosterView } from "../domain/types.ts";
+import { displayNumber, withParty } from "../domain/parties.ts";
+import { partyChoice, partyOfClick, shownNumber, slotsOfParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Set weapon**, again.";
 
 // The private Set weapon panel (ADR 0029): a position without a weapon, then the weapon class, then the weapon.
-function weaponPanel(view: RosterView, position: number | null, cls: WeaponClass | null) {
-  const open = view.slots.filter((s) => !s.weapon).slice(0, 25);
+function weaponPanel(view: RosterView, position: number | null, cls: WeaponClass | null, party = 1) {
+  const open = slotsOfParty(view, party).filter((s) => !s.weapon).slice(0, 25);
   const rows: unknown[] = [{
     type: 1,
     components: [{
-      type: 3, custom_id: `sw:p:${view.id}`, placeholder: "Position without a weapon",
+      type: 3, custom_id: withParty(`sw:p:${view.id}`, party), placeholder: "Position without a weapon",
       options: open.map((s) => ({
-        label: Array.from(`${s.position}. ${s.role}`).slice(0, 100).join(""), value: String(s.position), default: s.position === position,
+        label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}`).slice(0, 100).join(""), value: String(s.position), default: s.position === position,
         emoji: { name: roleIcon(s.role) }, ...(s.chosenWeapon ? { description: Array.from(`Player's pick: ${s.chosenWeapon}`).slice(0, 100).join("") } : {}),
       })),
     }],
@@ -31,7 +33,7 @@ function weaponPanel(view: RosterView, position: number | null, cls: WeaponClass
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `sw:c:${view.id}:${position}`, placeholder: "Weapon class",
+        type: 3, custom_id: withParty(`sw:c:${view.id}:${position}`, party), placeholder: "Weapon class",
         options: WEAPON_CLASSES.filter((c) => c !== "Other").map((c) => ({ label: c, value: c, default: c === cls })),
       }],
     });
@@ -41,15 +43,16 @@ function weaponPanel(view: RosterView, position: number | null, cls: WeaponClass
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `sw:w:${view.id}:${position}:${cls}`, placeholder: "Weapon",
+        type: 3, custom_id: withParty(`sw:w:${view.id}:${position}:${cls}`, party), placeholder: "Weapon",
         options: list.map((w) => ({
           label: `${w.name} (${SLOT_LABEL[w.slot]})`.slice(0, 100), value: w.base, ...(weaponEmojiByName(w.name) ? { emoji: weaponEmojiByName(w.name)! } : {}),
         })),
       }],
     });
   }
+  const shown = position === null ? 0 : shownNumber(view, position);
   const content = position === null ? "Pick the position to give a weapon."
-    : !cls ? `Now pick the weapon class for position ${position}.` : `Now pick the weapon for position ${position}.`;
+    : !cls ? `Now pick the weapon class for position ${shown}.` : `Now pick the weapon for position ${shown}.`;
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
 }
 
@@ -70,39 +73,47 @@ export async function handleSetWeaponComponent(deps: Deps, i: Interaction): Prom
   if (view.status !== "open" && view.status !== "locked") return reply("This content is finished or cancelled.");
 
   const position = parts[3] !== undefined ? Number(parts[3]) : null;
-  const positionOk = (n: number | null) => n !== null && view.slots.some((s) => s.position === n && !s.weapon);
+  const party = partyOfClick(i, view);
+  if (party === null) return reply(NOT_VALID);
+  const positionOk = (n: number | null) => n !== null && slotsOfParty(view, party).some((s) => s.position === n && !s.weapon);
   if (isButton) {
     if (!view.slots.some((s) => !s.weapon)) return reply("Every position already has a weapon. Use **Edit**, then **Edit details**, to change one.");
+    const row = partyChoice("sw:g", id, view);
+    if (row) return { type: CHANNEL_MESSAGE, data: { content: "Which party is the position in?", components: [row], flags: EPHEMERAL, allowed_mentions: { parse: [] } } };
     return { type: CHANNEL_MESSAGE, data: { ...weaponPanel(view, null, null), flags: EPHEMERAL } };
+  }
+  if (parts[1] === "g" && parts.length === 3 && view.partyCount > 1) {
+    if (!slotsOfParty(view, party).some((s) => !s.weapon)) return reply(`Every position in Party ${party} already has a weapon.`);
+    return { type: UPDATE_MESSAGE, data: weaponPanel(view, null, null, party) };
   }
   if (parts[1] === "p" && parts.length === 3) {
     const n = Number(values[0]);
     if (values.length !== 1 || !positionOk(n)) return reply(INVALID);
-    return { type: UPDATE_MESSAGE, data: weaponPanel(view, n, null) };
+    return { type: UPDATE_MESSAGE, data: weaponPanel(view, n, null, party) };
   }
   if (parts[1] === "c" && parts.length === 4) {
     const cls = values[0];
     if (values.length !== 1 || typeof cls !== "string" || !isWeaponClass(cls) || !positionOk(position)) return reply(INVALID);
-    return { type: UPDATE_MESSAGE, data: weaponPanel(view, position, cls) };
+    return { type: UPDATE_MESSAGE, data: weaponPanel(view, position, cls, party) };
   }
   if (parts[1] === "w" && parts.length === 5 && isWeaponClass(parts[4]!)) {
     const weapon = weaponsOfClass(WEAPONS, parts[4]! as WeaponClass).find((w) => w.base === values[0]);
-    if (values.length !== 1 || !weapon || position === null) return reply(INVALID);
+    if (values.length !== 1 || !weapon || position === null || !slotsOfParty(view, party).some((s) => s.position === position)) return reply(INVALID);
     const r = await setSlotWeapon(deps.sql, { contentId: id, position, weapon: weapon.name });
     if (r.result !== "ok") {
       return reply(r.result === "has_weapon" ? "That position already has a weapon."
-        : r.result === "no_slot" ? `There is no position ${position}.` : "This content is finished or cancelled.");
+        : r.result === "no_slot" ? `There is no position ${shownNumber(view, position)}.` : "This content is finished or cancelled.");
     }
     await refreshRoster(deps, id);
     // A player whose own pick was replaced is told in the post (owner decision 2026-10-24); only they are pinged.
     if (r.holder && r.replaced) {
       await announce(
         deps, view.threadId,
-        `🗡️ <@${host}> set the weapon of position ${position} to **${escapeText(weapon.name)}**. <@${r.holder}>, it replaces your pick (${escapeText(r.replaced)}).`,
+        `🗡️ <@${host}> set the weapon of position ${shownNumber(view, position)} to **${escapeText(weapon.name)}**. <@${r.holder}>, it replaces your pick (${escapeText(r.replaced)}).`,
         [r.holder],
       );
     }
-    return { type: UPDATE_MESSAGE, data: { content: `✅ Position ${position} now uses ${escapeText(weapon.name)}.`, components: [], allowed_mentions: { parse: [] } } };
+    return { type: UPDATE_MESSAGE, data: { content: `✅ Position ${shownNumber(view, position)} now uses ${escapeText(weapon.name)}.`, components: [], allowed_mentions: { parse: [] } } };
   }
   return reply(INVALID);
 }

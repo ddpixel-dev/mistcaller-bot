@@ -1,11 +1,11 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
-import { createContent, getRosterView, type NewContent } from "../../src/db/content.ts";
+import { createContent, getRosterView, setMessageId, type NewContent } from "../../src/db/content.ts";
 import { OLD_LAYOUT, handleJoin, handleLeave, handleLeaveSlot, handleOldRosterControl, handleWait } from "../../src/handlers/signup.ts";
 import { createDispatch, type Deps } from "../../src/discord/dispatch.ts";
 import { IS_COMPONENTS_V2 } from "../../src/render/roster.ts";
-import type { Rest } from "../../src/discord/rest.ts";
+import { DiscordApiError, type Rest } from "../../src/discord/rest.ts";
 import type { Interaction } from "../../src/discord/types.ts";
 import { discordProblems, flatComponents, plain, textOf } from "../helpers/discordLimits.ts";
 
@@ -310,4 +310,19 @@ test("Tentative: refused once the content is finished or cancelled", async () =>
   await handleJoin(deps, pickMenu(contentId, [slots[0]]));
   await sql`update content set status = 'cancelled' where id = ${contentId}`;
   isEphemeral(await d(press(`tent:${contentId}`)), "no longer open");
+});
+
+test("a weapon-less slot still gets the weapon picker when the roster message was deleted (404)", async () => {
+  const { sql, contentId, slots } = await setup();
+  await sql`update slot set weapon = null where id = ${slots[0]}`;
+  await setMessageId(sql, contentId, "m1");
+  const deps: Deps = { sql, now: () => NOW, rest: { ...rest, async editMessage() { throw new DiscordApiError(404, "Unknown Message"); } } };
+  const orig = console.error;
+  console.error = () => {};
+  try {
+    const r: any = await handleJoin(deps, pickMenu(contentId, [slots[0]]));
+    assert.equal(r.type, 4);
+    assert.ok(JSON.stringify(r.data).includes("Which weapon will you bring"));
+  } finally { console.error = orig; }
+  assert.deepEqual(await holders(sql, contentId), ["u1", null, null]);
 });

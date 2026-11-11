@@ -6,6 +6,7 @@ import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "..
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
 import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, type PresetSettings } from "../db/preset.ts";
+import { MAX_PARTY_SLOTS, maxPartiesFor, parseCtaSlots } from "../domain/parties.ts";
 import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
@@ -107,10 +108,29 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       if (value === NO_PRESET) return reply("This server has no presets yet. Save one with `/content preset save`.");
       const preset = value ? await getPresetById(deps.sql, d.guildId, value) : null;
       if (!preset) return reply("That preset no longer exists.");
-      await saveCard(deps.sql, d.id, { ...presetFields(preset.settings), slots: preset.slots.slice(0, 20), slotsText: null });
+      // A preset keeps `party` per slot (absent = 1); loading sets the parties to the highest one (a CTA only).
+      const second = d.cta && maxPartiesFor(d.kind, true) > 1 ? preset.slots.filter((s) => s.party === 2).slice(0, MAX_PARTY_SLOTS) : [];
+      const first = preset.slots.filter((s) => s.party !== 2).slice(0, 20);
+      await saveCard(deps.sql, d.id, {
+        ...presetFields(preset.settings), slots: first, slotsText: null,
+        parties: second.length > 0 ? 2 : 1, slots2: second.map(({ party: _p, ...s }) => s), slots2Text: null,
+      });
       return await showCard(deps, await reload(deps, d), {
         note: `📋 Filled from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**${preset.settings ? "" : " (slots only: it was saved before presets kept everything)"}.`,
       });
+    }
+    case "parties": {
+      if (!d.cta || maxPartiesFor(d.kind, true) < 2 || (value !== "1" && value !== "2")) return reply(EXPIRED);
+      // Back to one party drops party 2, typed text included.
+      await saveCard(deps.sql, d.id, value === "1" ? { parties: 1, slots2: [], slots2Text: null } : { parties: 2 });
+      return await showCard(deps, await reload(deps, d));
+    }
+    case "p2": return d.cta && d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
+    case "copy": {
+      if (!d.cta || d.parties < 2) return reply(EXPIRED);
+      // Typed party 1 lines that did not parse are copied as typed, to be fixed in party 2.
+      await saveCard(deps.sql, d.id, d.slotsText !== null ? { slots2: [], slots2Text: d.slotsText } : { slots2: d.slots.map(({ role, weapon, duty }) => ({ role, weapon, ...(duty ? { duty } : {}) })), slots2Text: null });
+      return await showCard(deps, await reload(deps, d));
     }
     case "details": return detailsForm(d);
     case "blank": {
@@ -176,11 +196,24 @@ function detailsForm(d: StoredDraft): InteractionResponse {
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, {
-          style: 2, required: false, placeholder: "Tank - Axe  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
+        textInput("slots", d.cta && d.parties >= 2 ? "Party 1 slots (one per line: Role - Weapon)" : "Slots (one per line: Role - Weapon)", 1500, {
+          style: 2, required: false, placeholder: d.cta ? "Tank - Axe" : "Tank - Axe  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
         }),
         textInput("notes", "Notes (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
       ],
+    },
+  };
+}
+
+// Party 2 of a CTA: its own form, one box of the same size as the Details slots.
+function party2Form(d: StoredDraft): InteractionResponse {
+  const text = d.slots2Text ?? formatSlotLines(d.slots2);
+  return {
+    type: MODAL,
+    data: {
+      custom_id: `ccs2:${d.id}`,
+      title: "Party 2 slots",
+      components: [textInput("slots2", "Party 2 slots", 1500, { style: 2, required: false, placeholder: "Tank - Axe", ...(text ? { value: text } : {}) })],
     },
   };
 }
@@ -205,6 +238,19 @@ export async function handleCardDetails(deps: Deps, i: Interaction): Promise<Int
     ...(parsed === null ? { slots: [], slotsText: null } : parsed.ok ? { slots: parsed.value, slotsText: null } : { slotsText: typed }),
   });
   return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [`Slots: ${parsed.error}`] } : {});
+}
+
+// ccs2:<draft>: the Party 2 form of a CTA. Valid lines are stored; lines that fail are kept as typed, with the reason.
+export async function handleCardParty2(deps: Deps, i: Interaction): Promise<InteractionResponse> {
+  const raw = (i.data as { custom_id?: unknown } | undefined)?.custom_id;
+  const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
+  if (prefix !== "ccs2" || extra !== undefined) return reply(EXPIRED);
+  const d = await ownedDraft(deps, i, id);
+  if (!d || !d.cta || d.parties < 2) return reply(EXPIRED);
+  const typed = (modalValues(i).slots2 ?? "").trim();
+  const parsed = typed ? parseCtaSlots(typed, 2, d.parties) : null;
+  await saveCard(deps.sql, d.id, parsed === null ? { slots2: [], slots2Text: null } : parsed.ok ? { slots2: parsed.value, slots2Text: null } : { slots2Text: typed });
+  return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [parsed.error] } : {});
 }
 
 // ccb:<draft>: the Build link form. Empty removes it (FR-031).
@@ -259,7 +305,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!where.ok) return await showCard(deps, d, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
+    slots: c.slots, slots2: c.slots2, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
@@ -342,10 +388,12 @@ export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<
   const settings: PresetSettings = {
     type: d.type, kind: d.kind, loot: d.loot, selection: d.selection, title: d.title, tier: d.gearTier, notes: d.notes, buildRef: d.buildRef,
   };
-  const result = await savePreset(deps.sql, { guildId: d.guildId, name: name.value, slots: checked.value.slots, createdBy: userId, settings });
+  // Party 2 slots are saved with `party: 2`; party 1 slots have no party key, as in older presets.
+  const presetSlots = [...checked.value.slots, ...checked.value.slots2.map((s) => ({ ...s, party: 2 }))];
+  const result = await savePreset(deps.sql, { guildId: d.guildId, name: name.value, slots: presetSlots, createdBy: userId, settings });
   if (result === "full") return await presetPanel(deps, d, `⚠️ This server already has ${MAX_PRESETS} presets. Save under an existing name to replace one, or delete one first.`);
   const label = escapeText(name.value);
-  return await presetPanel(deps, d, result === "replaced" ? `💾 The preset **${label}** was replaced with these ${checked.value.slots.length} positions.` : `💾 Saved the preset **${label}** with ${checked.value.slots.length} positions.`);
+  return await presetPanel(deps, d, result === "replaced" ? `💾 The preset **${label}** was replaced with these ${presetSlots.length} positions.` : `💾 Saved the preset **${label}** with ${presetSlots.length} positions.`);
 }
 
 // What picking a preset sets on the card: everything it kept except the start time. A category that does not fit the type goes back to Other.

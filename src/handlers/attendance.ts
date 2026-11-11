@@ -1,7 +1,7 @@
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { leafOption } from "../discord/modal.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getRosterView } from "../db/content.ts";
@@ -11,7 +11,10 @@ import {
 } from "../db/attendance.ts";
 import { canManage, isAdmin } from "../domain/permissions.ts";
 import { renderAttendanceForm, renderReport } from "../render/attendance.ts";
-import { renderRosterMessage } from "../render/roster.ts";
+import { escapeText } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
+import { partyChoice } from "./party-pick.ts";
+import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_CONTENT = "There is no active content in this post.";
@@ -40,7 +43,14 @@ async function names(deps: Deps, a: Attendance): Promise<Record<string, string>>
   return out;
 }
 
-const formData = async (deps: Deps, a: Attendance) => renderAttendanceForm(a, await names(deps, a));
+// Two parties: the form starts with the party choice; a party shows only its own players (FR-070).
+async function formData(deps: Deps, a: Attendance, party?: number) {
+  if (a.partyCount >= 2 && !party) {
+    const row = partyChoice("att:g", a.contentId, { partyCount: a.partyCount } as RosterView);
+    return { content: `📋 **Attendance: ${escapeText(a.title)}**\nWhich party do you want to mark?`, components: [row], allowed_mentions: { parse: [] as [] } };
+  }
+  return renderAttendanceForm(a, await names(deps, a), party);
+}
 
 // Post the report in the content's post, once, after the owner submitted. A failed post is released for the next run.
 export async function postReport(deps: Deps, contentId: string): Promise<boolean> {
@@ -81,7 +91,7 @@ export async function handleEnd(deps: Deps, i: Interaction): Promise<Interaction
   if (result === "unavailable") return reply("This content is already finished or cancelled.");
   try {
     const view = await getRosterView(deps.sql, a.contentId, deps.now());
-    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view?.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
@@ -100,7 +110,7 @@ export async function handleReopen(deps: Deps, i: Interaction): Promise<Interact
   if (result === "not_ended") return reply("This content is not ended, so there is nothing to reopen.");
   try {
     const view = await getRosterView(deps.sql, a.contentId, deps.now());
-    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view?.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }
@@ -137,6 +147,11 @@ export async function handleAttendanceComponent(deps: Deps, i: Interaction): Pro
   if (!actor) return reply(NOT_ALLOWED);
   if (a.reportPostedAt) return reply("The attendance was already submitted and the report posted.");
 
+  const party = a.partyCount >= 2 ? i.party ?? 1 : undefined;
+  if ((i.party ?? 1) > a.partyCount) return reply(NOT_VALID);
+  if (action === "g") {
+    return { type: UPDATE_MESSAGE, data: await formData(deps, a, party ?? 1) };
+  }
   if (action === "open") {
     const inDm = !i.guild_id;
     return { type: CHANNEL_MESSAGE, data: { ...(await formData(deps, a)), ...(inDm ? {} : { flags: EPHEMERAL }) } };
@@ -144,17 +159,22 @@ export async function handleAttendanceComponent(deps: Deps, i: Interaction): Pro
   if (action === "pick") {
     const values = data?.values;
     if (!Array.isArray(values) || !values.every((v) => typeof v === "string" && /^\d{5,25}$/.test(v))) return reply(INVALID);
-    const result = await setAttended(deps.sql, { contentId: id, userIds: values as string[], markedBy: actor, now: deps.now() });
+    const result = await setAttended(deps.sql, { contentId: id, userIds: values as string[], markedBy: actor, now: deps.now(), party });
     if (result !== "ok") return reply(INVALID);
     const fresh = await getAttendance(deps.sql, id);
-    return { type: UPDATE_MESSAGE, data: await formData(deps, fresh!) };
+    return { type: UPDATE_MESSAGE, data: await formData(deps, fresh!, party) };
   }
   if (action === "later") {
     return { type: UPDATE_MESSAGE, data: { content: "Saved. Open the form again from the button, or with `/content attendance`.", components: [], allowed_mentions: { parse: [] } } };
   }
   if (action === "submit") {
-    const result = await submitAttendance(deps.sql, { contentId: id, markedBy: actor, now: deps.now() });
+    const result = await submitAttendance(deps.sql, { contentId: id, markedBy: actor, now: deps.now(), party });
     if (result !== "ok") return reply(INVALID);
+    const after = await getAttendance(deps.sql, id);
+    if (after && !after.submittedAt) {
+      const todo = Array.from({ length: after.partyCount }, (_, k) => k + 1).filter((n) => !after.partiesSubmitted.includes(n));
+      return { type: UPDATE_MESSAGE, data: { content: `✅ Party ${party} submitted. Still to do: ${todo.map((n) => `Party ${n}`).join(", ")}. The report posts once every party is submitted.`, components: [], allowed_mentions: { parse: [] as [] } } };
+    }
     const posted = await postReport(deps, id);
     return {
       type: UPDATE_MESSAGE,

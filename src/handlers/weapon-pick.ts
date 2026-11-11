@@ -6,6 +6,7 @@ import { SLOT_LABEL, WEAPON_CLASSES, isWeaponClass, weaponsOfClass, type WeaponC
 import { chooseWeapon } from "../db/signup.ts";
 import { getRosterView } from "../db/content.ts";
 import { escapeText, renderRosterMessage } from "../render/roster.ts";
+import { refreshRosters } from "./rosters.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Pick your position again, or use `/content me`.";
@@ -40,7 +41,7 @@ export const pickerResponse = (contentId: string, intro: string): InteractionRes
 async function refreshRoster(deps: Deps, id: string): Promise<void> {
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
-    if (view?.messageId) await deps.rest.editMessage(view.threadId, view.messageId, renderRosterMessage(view));
+    if (view?.messageId) await refreshRosters(deps, view);
   } catch (err) {
     console.error(JSON.stringify({ evt: "roster_refresh_failed", name: err instanceof Error ? err.name : "unknown" }));
   }

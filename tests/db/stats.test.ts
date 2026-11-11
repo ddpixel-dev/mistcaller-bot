@@ -104,3 +104,13 @@ test("the top lists are cut at 5 hosts and 10 players", async () => {
   assert.equal(s.topHosts.length, 5);
   assert.equal(s.topPlayers.length, 10);
 });
+
+test("a player who moved between parties is one participant and one signup", async () => {
+  const sql = await testSql();
+  const id = await make({ threadId: "cta", startsAt: new Date(NOW.getTime() + DAY), slots2: [{ role: "Tank", weapon: "Mace" }] });
+  await seat(id, 0, "u1");
+  const v = (await getRosterView(sql, id, NOW))!;
+  await claimSlot(sql, { contentId: id, slotId: v.slots.find((s) => s.party === 2)!.id, userId: "u1", guildId: "g1", now: NOW });
+  const s = await getStats(sql, "g1", NOW);
+  assert.deepEqual([s.all.participants, s.all.signups], [1, 1]);
+});

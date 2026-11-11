@@ -1,24 +1,26 @@
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
-import { CHANNEL_MESSAGE, EPHEMERAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
+import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { getRosterView } from "../db/content.ts";
 import { getManageTargetById, setSlotDuty } from "../db/manage.ts";
 import { CLEAR_DUTY, DUTIES, DUTY_WORD, dutyDef } from "../domain/duties.ts";
 import { roleIcon } from "../render/theme.ts";
 import { authorize, refreshRoster } from "./manage.ts";
 import type { RosterView } from "../domain/types.ts";
+import { displayNumber, withParty } from "../domain/parties.ts";
+import { partyChoice, partyOfClick, shownNumber, slotsOfParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Set duty**, again.";
 
 // The private Set duty panel (FR-048): every position, then (once one is chosen) the duties and Clear.
-function dutyPanel(view: RosterView, position: number | null) {
+function dutyPanel(view: RosterView, position: number | null, party = 1) {
   const rows: unknown[] = [{
     type: 1,
     components: [{
-      type: 3, custom_id: `dt:p:${view.id}`, placeholder: "Position",
-      options: view.slots.slice(0, 25).map((s) => ({
-        label: Array.from(`${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
+      type: 3, custom_id: withParty(`dt:p:${view.id}`, party), placeholder: "Position",
+      options: slotsOfParty(view, party).slice(0, 25).map((s) => ({
+        label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
         value: String(s.position), default: s.position === position, emoji: { name: roleIcon(s.role) },
         ...(dutyDef(s.duty) ? { description: `Now: ${dutyDef(s.duty)!.label}` } : {}),
       })),
@@ -28,7 +30,7 @@ function dutyPanel(view: RosterView, position: number | null) {
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `dt:d:${view.id}:${position}`, placeholder: DUTY_WORD,
+        type: 3, custom_id: withParty(`dt:d:${view.id}:${position}`, party), placeholder: DUTY_WORD,
         options: [
           ...DUTIES.map((x) => ({ label: x.label, value: x.id, emoji: { name: x.icon } })),
           { label: "Clear", value: CLEAR_DUTY, emoji: { name: "✖️" } },
@@ -36,7 +38,7 @@ function dutyPanel(view: RosterView, position: number | null) {
       }],
     });
   }
-  const content = position === null ? "Pick the position to give a duty." : `Now pick the duty for position ${position}.`;
+  const content = position === null ? "Pick the position to give a duty." : `Now pick the duty for position ${shownNumber(view, position)}.`;
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
 }
 
@@ -53,22 +55,30 @@ export async function handleDutyComponent(deps: Deps, i: Interaction): Promise<I
   const view = await getRosterView(deps.sql, id, deps.now());
   if (!view) return reply(INVALID);
 
-  if (isButton) return { type: CHANNEL_MESSAGE, data: { ...dutyPanel(view, null), flags: EPHEMERAL } };
+  const party = partyOfClick(i, view);
+  if (party === null) return reply(NOT_VALID);
+  if (isButton) {
+    const row = partyChoice("dt:g", id, view);
+    if (row) return { type: CHANNEL_MESSAGE, data: { content: "Which party do you want to set a duty in?", components: [row], flags: EPHEMERAL, allowed_mentions: { parse: [] } } };
+    return { type: CHANNEL_MESSAGE, data: { ...dutyPanel(view, null), flags: EPHEMERAL } };
+  }
+  if (parts[1] === "g" && parts.length === 3 && view.partyCount > 1) return { type: UPDATE_MESSAGE, data: dutyPanel(view, null, party) };
   if (parts[1] === "p" && parts.length === 3) {
     const position = Number(values[0]);
-    if (values.length !== 1 || !view.slots.some((s) => s.position === position)) return reply(INVALID);
-    return { type: UPDATE_MESSAGE, data: dutyPanel(view, position) };
+    if (values.length !== 1 || !slotsOfParty(view, party).some((s) => s.position === position)) return reply(INVALID);
+    return { type: UPDATE_MESSAGE, data: dutyPanel(view, position, party) };
   }
   if (parts[1] === "d" && parts.length === 4 && /^\d{1,2}$/.test(parts[3]!)) {
     const duty = values[0];
     if (values.length !== 1 || typeof duty !== "string" || (duty !== CLEAR_DUTY && !dutyDef(duty))) return reply(INVALID);
     const position = Number(parts[3]);
+    if (!slotsOfParty(view, party).some((s) => s.position === position)) return reply(`There is no position ${shownNumber(view, position)} in this party.`);
     const result = await setSlotDuty(deps.sql, { contentId: id, position, duty: duty === CLEAR_DUTY ? null : duty });
     if (result === "unavailable") return reply("This content is no longer open, so duties cannot change.");
     if (result === "no_slot") return reply(`There is no position ${position}.`);
     await refreshRoster(deps, id);
     const label = duty === CLEAR_DUTY ? `${DUTY_WORD} cleared` : `${dutyDef(duty)!.label} assigned`;
-    return { type: UPDATE_MESSAGE, data: { content: `✅ ${label} for position ${position}.`, components: [], allowed_mentions: { parse: [] } } };
+    return { type: UPDATE_MESSAGE, data: { content: `✅ ${label} for position ${shownNumber(view, position)}.`, components: [], allowed_mentions: { parse: [] } } };
   }
   return reply(INVALID);
 }

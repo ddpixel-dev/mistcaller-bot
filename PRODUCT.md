@@ -350,7 +350,7 @@ status: built, release 0.31.7 (owner request 2026-11-10, ADR 0045; design docs/p
 An admin shall set one message with `cta-msg` (a message link) in `/content setup`, and every CTA created afterwards shall carry a forward of it as a separate, pinned message below the roster (a forward, not a copy, since 2026-11-10: the bot has no Message Content intent, ADR 0045). The forward keeps the text, embeds, attachments and channel mentions, and never pings anyone. A missing source or a failed pin does not stop the CTA; the creator is told privately.
 
 ### FR-070: Two parties in a CTA
-status: accepted 2026-11-10, not built (owner request 2026-11-10, ADR 0044; same design doc; migration 0032)
+status: built, release 0.31.8 (owner request 2026-11-10, ADR 0044; design docs/plan/2026-11-10-cta-pinned-message-and-parties-design.md; migration 0032)
 A CTA shall be created with 1 or 2 parties of up to 20 players each, each party with its own roster message, menu, fills and waitlist. Positions are typed per party and a role other than Tank, DTank, Healer, Support or DPS is rejected with a clear error. Host panels ask which party first. The party count is fixed after creation. The model is built to be reused by ZvZ.
 
 ### FR-029: Help and owner tips

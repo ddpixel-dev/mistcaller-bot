@@ -36,3 +36,8 @@ test("help also works without a member (a direct message cannot reach it, but no
 test("help mentions the CTA message option", () => {
   assert.ok(HELP_TEXT.includes("cta-msg"));
 });
+
+test("help mentions two-party CTAs and the supported CTA roles", () => {
+  assert.ok(/two parties/i.test(HELP_TEXT));
+  for (const role of ["Tank", "DTank", "Healer", "Support", "DPS"]) assert.ok(HELP_TEXT.includes(role), role);
+});
