@@ -18,7 +18,6 @@ export const KINDS: KindDef[] = [
   { id: "faction-warfare", label: "Faction Warfare", type: "pvp", color: 0x3b6fd1, icon: "🚩" },
   { id: "crystal-league", label: "Crystal League", type: "pvp", color: 0x5b8ee6, icon: "💎" },
   { id: "arena", label: "Arena", type: "pvp", color: 0x4a5fa8, icon: "🏟️" },
-  { id: "skirmish", label: "Skirmish", type: "pvp", color: 0x2f6f9f, icon: "🤺" },
   { id: "training", label: "Training", type: "pvp", color: 0x6d7fa3, icon: "🎯" },
   { id: "outposts", label: "Outpost", type: "pvp", color: 0x3f7f8f, icon: "🛡️" },
   { id: "castle", label: "Castle", type: "pvp", color: 0x35508f, icon: "🏯" },
@@ -29,10 +28,11 @@ export const KINDS: KindDef[] = [
   { id: DEFAULT_KIND, label: "Other", type: "pvp", color: 0x2b4db0, icon: "⚔️" },
   // ZvZ (ADR 0048): its own type. Faction Warfare, Outposts and Castle also stay under PvP for older content.
   { id: "faction-warfare", label: "Faction Warfare", type: "zvz", color: 0x3b6fd1, icon: "🚩" },
-  { id: "outposts", label: "Outpost", type: "zvz", color: 0x3f7f8f, icon: "🛡️" },
+  // Outpost and Castle are one ZvZ option since 2026-11-22 (FR-080); the old ids stay readable in LEGACY_KINDS.
+  { id: "outpost-castle", label: "Outpost & Castle", type: "zvz", color: 0x35508f, icon: "🏯" },
   { id: "siege", label: "Siege", type: "zvz", color: 0x8a3a2f, icon: "🪜" },
+  { id: "territory-attack", label: "Territory Attack", type: "zvz", color: 0x8a2f3f, icon: "🗡️" },
   { id: "territory-defense", label: "Territory Defense", type: "zvz", color: 0x2f7f5f, icon: "🏴" },
-  { id: "castle", label: "Castle", type: "zvz", color: 0x35508f, icon: "🏯" },
   { id: DEFAULT_KIND, label: "Other", type: "zvz", color: 0x1c3a8a, icon: "🏰" },
   { id: "group-dungeon", label: "Group dungeon", type: "pve", color: 0xc9a227, icon: "🏚️" },
   { id: "avalonian-dungeon", label: "Avalonian dungeon", type: "pve", color: 0xb8860b, icon: "🌌" },
@@ -43,6 +43,7 @@ export const KINDS: KindDef[] = [
   { id: "ancient-lands", label: "Ancient Lands", type: "pve", color: 0xbf9b30, icon: "🗿" },
   { id: "ava-gold", label: "Ava Gold", type: "pve", color: 0xe6b422, icon: "💰" },
   { id: "ava-skip", label: "Ava Skip", type: "pve", color: 0xd9a21b, icon: "🛤️" },
+  { id: "tracking", label: "Tracking", type: "pve", color: 0xb5892a, icon: "🐾" }, // owner request 2026-11-22 (FR-080)
   { id: DEFAULT_KIND, label: "Other", type: "pve", color: 0xc9a227, icon: "🐉" },
 ];
 
@@ -58,13 +59,18 @@ const LEGACY_KINDS: KindDef[] = [
   { id: "fame-farming", label: "Fame farming", type: "pve", color: 0xe0b84a, icon: "🌾" },
   { id: "gold-chest", label: "Avalonian gold chest", type: "pve", color: 0xdaa520, icon: "💰" },
   { id: "avalonian-raid", label: "Avalonian raid", type: "pve", color: 0xa9830f, icon: "⚔️" }, // retired 2026-11-06
+  // Retired 2026-11-22 (FR-080): Skirmish in PvP; in ZvZ, Outpost and Castle became Outpost & Castle.
+  { id: "skirmish", label: "Skirmish", type: "pvp", color: 0x2f6f9f, icon: "🤺" },
+  { id: "outposts", label: "Outpost", type: "zvz", color: 0x3f7f8f, icon: "🛡️" },
+  { id: "castle", label: "Castle", type: "zvz", color: 0x35508f, icon: "🏯" },
 ];
 
 // PvX holds every PvP and PvE category (owner decision 2026-10-08), each once.
 const PVX_COLOR = 0x6f4fb0;
 // A menu holds 25 options, and the PvP and PvE lists together are 26 once a shared id is counted once, so PvX leaves out
 // Training (practice, not mixed content). Content already saved as PvX Training still shows its label (kindDef).
-const PVX_LEFT_OUT = new Set(["training"]);
+// Tracking (PvE, 2026-11-22) is left out of PvX by the owner's choice.
+const PVX_LEFT_OUT = new Set(["training", "tracking"]);
 // Alphabetical by label, Other last (owner request 2026-11-06), in every list including PvX.
 const alphabetical = (list: KindDef[]): KindDef[] =>
   [...list.filter((k) => k.id !== DEFAULT_KIND).sort((a, b) => a.label.localeCompare(b.label, "en")), ...list.filter((k) => k.id === DEFAULT_KIND)];

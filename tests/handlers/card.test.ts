@@ -932,7 +932,7 @@ test("ZvZ is a type on Plan Content: its own categories, and it needs its own ev
   const { id } = await open(d, undefined, "n");
   const r: any = await d(press(`cc:type:${id}`, ["zvz"]));
   const kind = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:kind:"))!;
-  assert.deepEqual(kind.options.map((o: any) => o.label), ["Castle", "Faction Warfare", "Outpost", "Siege", "Territory Defense", "Other"]);
+  assert.deepEqual(kind.options.map((o: any) => o.label), ["Faction Warfare", "Outpost & Castle", "Siege", "Territory Attack", "Territory Defense", "Other"]);
   await d(form(`ccd:${id}`, details));
   assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for ZvZ content"));
   await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'zf', 'zvz')`;
