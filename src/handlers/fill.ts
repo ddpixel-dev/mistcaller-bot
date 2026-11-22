@@ -64,7 +64,7 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
         options: [
           ...applicants.map((a) => ({
             label: (who[a.userId] ?? `Member ${a.userId.slice(-4)}`).slice(0, 100), value: a.userId, default: a.userId === chosen,
-            description: Array.from(`${tentative.has(a.userId) ? "❓ Tentative · " : ""}Applied: ${a.wants}`).slice(0, 100).join(""), emoji: { name: "📨" },
+            description: Array.from(`${tentative.has(a.userId) ? "❓ Tentative · " : ""}Applied: ${a.wants}${allTaken(view, a.pref) ? " (taken)" : ""}`).slice(0, 100).join(""), emoji: { name: "📨" },
           })),
           ...waiting.map((u) => ({
             label: (who[u] ?? `Member ${u.slice(-4)}`).slice(0, 100), value: u, default: u === chosen, emoji: { name: "🔁" },
@@ -84,10 +84,13 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
       }],
     });
   }
-  // FR-057: for a fill or an applicant, only the open positions that match what they asked for; any other member can go anywhere.
+  // FR-079 (bug 2026-11-22): every open position of the party, the ones that match what a fill or an applicant asked for
+  // first. Their choice guides the host but never stops them; taken positions are never listed.
   const pref = chosen ? view.applicants?.find((a) => a.userId === chosen)?.pref ?? view.fillPrefs?.[chosen] ?? null : null;
   const allOpen = slotsOfParty(view, party).filter((s) => s.userId === null);
-  const open = allOpen.filter((s) => !pref || fillMatches(pref, s)).slice(0, 25);
+  const asked = (s: (typeof allOpen)[number]) => !!pref && !pref.any && fillMatches(pref, s);
+  const open = [...allOpen.filter(asked), ...allOpen.filter((s) => !asked(s))].slice(0, 25);
+  const anyAsked = open.some(asked);
   if (chosen && open.length > 0) {
     rows.push({
       type: 1,
@@ -95,15 +98,22 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
         type: 3, custom_id: withParty(`fa:s:${view.id}:${chosen}`, party), placeholder: "Open position",
         options: open.map((s) => ({
           label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""), value: s.id,
-          emoji: { name: roleIcon(s.role) },
+          emoji: { name: roleIcon(s.role) }, ...(asked(s) ? { description: "Asked for" } : {}),
         })),
       }],
     });
   }
   const content = !chosen ? (mode === "review" ? (applicants.length ? "Pick the applicant to accept." : "Nobody has applied yet.") : "Pick the player to assign: a fill, or any member.")
-    : open.length > 0 ? `Now pick the position for <@${chosen}>${pref ? " (only the open positions that suit what they asked for)" : ""}.`
-    : allOpen.length > 0 ? `No open position suits what <@${chosen}> asked for. Add one with **Edit details**, or pick someone else.` : "There is no open position to place them in.";
+    : open.length === 0 ? "There is no open position to place them in."
+    : pref && !pref.any && !anyAsked ? `The position they asked for is taken; pick another for <@${chosen}>.`
+    : `Now pick the position for <@${chosen}>${anyAsked ? " (the positions they asked for come first)" : ""}.`;
   return { content, components: rows, allowed_mentions: { parse: [] as [] } };
+}
+
+// An applicant who named positions only, and every one of them is now taken (FR-079).
+function allTaken(view: RosterView, pref: { any: boolean; roles: string[]; slotIds: string[] }): boolean {
+  if (pref.any || pref.roles.length > 0 || pref.slotIds.length === 0) return false;
+  return pref.slotIds.every((id) => view.slots.find((s) => s.id === id)?.userId != null);
 }
 
 // The roster is refreshed and the thread is told who signed whom up (owner request 2026-10-24: very important).
