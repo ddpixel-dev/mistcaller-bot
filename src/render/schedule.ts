@@ -98,9 +98,14 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
   let count = 0;
   let size = 0;
   const page = () => pages[pages.length - 1]!;
+  let upcomingLabel = running.length > 0; // FR-080: the first upcoming day says where the upcoming events start
   for (const g of groups) {
     if (g.events.length === 0) continue;
     let heading = g.heading;
+    if (upcomingLabel && g !== groups[0]) {
+      heading = `## 🔜 Upcoming\n${g.heading}`;
+      upcomingLabel = false;
+    }
     let headed = false; // the heading is written once per page; a block after a divider continues under it
     let lines: string[] = [];
     const flush = () => {

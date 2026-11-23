@@ -193,3 +193,14 @@ test("FR-080: twelve mixed events with dividers stay within Discord's limits", (
     event({ title: "T".repeat(30), startsAt: i < 2 ? new Date(NOW.getTime() - (i + 1) * 60000) : at(i % 7, 13, i), cta: i % 2 === 0 }));
   for (const b of render(events)) assert.deepEqual(discordProblems(b), []);
 });
+
+test("FR-080: after Live now and its divider, the upcoming days start under an Upcoming label; without live events there is no label", () => {
+  const [body] = render([event({ title: "Running", startsAt: new Date(NOW.getTime() - 45 * 60000) }), event({ title: "Later", startsAt: at(1, 18) })]);
+  const k = kinds(body);
+  const live = k.findIndex((c) => c.includes("Live now"));
+  assert.equal(k[live + 1], "|");
+  assert.ok(k[live + 2]!.startsWith("## 🔜 Upcoming\n## 📆 Fri 16 Oct"), k[live + 2]);
+  assert.equal(all([body]).split("Upcoming").length, 2, "said once");
+  assert.ok(!all(render([event({ startsAt: at(0, 13) }), event({ startsAt: at(1, 13) })])).includes("Upcoming"), "no live events, no label");
+  assert.ok(!all(render([event({ startsAt: new Date(NOW.getTime() - 60000) })])).includes("Upcoming"), "only live events, no label");
+});
