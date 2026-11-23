@@ -20,6 +20,7 @@ export type CardFields = {
   slots2Text: string | null;
   bombers: number | null; // a CTA's Bombers cap, 1 to 20, or none (FR-071)
   massing: string | null; // where the party gathers (FR-074)
+  editingPresetId: string | null; // the preset Edit preset loaded into the card (FR-078)
 };
 
 export type StoredDraft = GuidedDraft & {
@@ -45,6 +46,7 @@ export type StoredDraft = GuidedDraft & {
   slots2Text: string | null; // typed party 2 lines that did not parse
   bombers: number | null;
   massing: string | null;
+  editingPresetId: string | null;
 };
 
 const toDraft = (r: Record<string, any>): StoredDraft => ({
@@ -76,6 +78,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   slots2Text: r.slots2_text ?? null,
   bombers: r.bombers ?? null,
   massing: r.massing ?? null,
+  editingPresetId: r.editing_preset_id ?? null,
 });
 
 // One draft per member per place: opening the creation card again starts over.
@@ -89,7 +92,7 @@ export async function startCard(
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = false, selection = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
       step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, gear_tier = null, title = excluded.title,
-      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, massing = null, created_at = now()
+      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, massing = null, editing_preset_id = null, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -106,6 +109,7 @@ export async function saveCard(sql: Sql, id: string, f: Partial<CardFields> & { 
       start_text = ${pick(f.startText, c.start_text)}, gear_tier = ${pick(f.gearTier, c.gear_tier)}, notes = ${pick(f.notes, c.notes)},
       slots_text = ${pick(f.slotsText, c.slots_text)}, build_channel_id = ${pick(f.buildRef, c.build_channel_id)},
       parties = ${pick(f.parties, c.parties)}, slots2 = ${f.slots2 ? sql.json(f.slots2 as never) : c.slots2}, slots2_text = ${pick(f.slots2Text, c.slots2_text)}, bombers = ${pick(f.bombers, c.bombers)}, massing = ${pick(f.massing, c.massing)},
+      editing_preset_id = ${pick(f.editingPresetId, c.editing_preset_id)},
       slots = ${slots ? sql.json(slots as never) : c.slots}, count = ${slots ? slots.length || null : c.count}, step = ${slots ? slots.length : c.step},
       role = ${slots ? null : c.role}, weapon = ${slots ? null : c.weapon}, duty = ${slots ? null : c.duty}, weapon_class = ${slots ? null : c.weapon_class}
     where id = ${id}`;

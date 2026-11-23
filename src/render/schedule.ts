@@ -37,9 +37,12 @@ function eventText(e: ScheduleEvent, guildId: string): string {
 }
 
 const textBlock = (content: string) => ({ type: 10, content });
-const message = (parts: string[]) => ({
+// FR-080: a divider line between groups that would otherwise read as one sequence.
+const DIVIDER = { type: 14, divider: true, spacing: 1 } as const;
+type Part = string | typeof DIVIDER;
+const message = (parts: Part[]) => ({
   flags: IS_COMPONENTS_V2,
-  components: [{ type: 17, accent_color: ACCENT, components: parts.map(textBlock) }],
+  components: [{ type: 17, accent_color: ACCENT, components: parts.map((p) => (typeof p === "string" ? textBlock(p) : p)) }],
   allowed_mentions: { parse: [] as [] },
 });
 
@@ -91,16 +94,18 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
 
   // Pack the groups into messages by event count and by text size. A day that continues repeats its heading.
   const groups: Group[] = [...(running.length ? [{ heading: "## 🔴 Live now", events: running }] : []), ...days];
-  const pages: string[][] = [[]];
+  const pages: Part[][] = [[]];
   let count = 0;
   let size = 0;
   const page = () => pages[pages.length - 1]!;
   for (const g of groups) {
     if (g.events.length === 0) continue;
     let heading = g.heading;
+    let headed = false; // the heading is written once per page; a block after a divider continues under it
     let lines: string[] = [];
     const flush = () => {
-      if (lines.length > 0) page().push(`${heading}\n${lines.join("\n\n")}`);
+      if (lines.length > 0) page().push(headed ? lines.join("\n\n") : `${heading}\n${lines.join("\n\n")}`);
+      if (lines.length > 0) headed = true;
       lines = [];
     };
     // Call-to-arms events come first, then the normal content; labelled only when the group needs telling apart (FR-059).
@@ -117,6 +122,10 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
         count = 0;
         size = 0;
         heading = `${g.heading} (cont.)`;
+        headed = false;
+      } else if (firstNormal && lines.length > 0) {
+        flush();
+        page().push(DIVIDER); // FR-080: between the call-to-arms events and the normal content
       }
       if (lines.length === 0) size += heading.length + 2;
       lines.push(text);
@@ -124,9 +133,12 @@ export function renderSchedule(events: ScheduleEvent[], guildId: string, now: Da
       size += text.length + 2;
     }
     flush();
+    if (g === groups[0] && running.length > 0) page().push(DIVIDER); // FR-080: Live now, then the upcoming days
   }
+  // A divider only ever sits between two blocks of one message.
+  for (const p of pages) while (p.length > 0 && typeof p[p.length - 1] !== "string") p.pop();
   const total = pages.length;
-  return [renderHub(), ...pages.map((parts, i) => {
+  return [renderHub(), ...pages.map((parts: Part[], i) => {
     const head = i === 0
       ? `# 📅 Events Calendar\n${updated} · ${shown} event${shown === 1 ? "" : "s"} · times in UTC, with yours beside them`
       : `-# Events Calendar, continued (${i + 1}/${total})`;

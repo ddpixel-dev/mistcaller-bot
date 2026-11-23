@@ -87,7 +87,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
     if (c.cta && input.bombers !== undefined) {
       const [{ n }] = await tx`select count(*)::int as n from signup where content_id = ${id} and status = 'bomber'`;
       if (n > (input.bombers ?? 0)) {
-        return { result: "bombers_held", error: input.bombers === null ? `${n} player(s) are in Bombers. Remove them first (Manage → Remove player), then turn Bombers off.` : `${n} player(s) are in Bombers, more than ${input.bombers}. Remove some first (Manage → Remove player), or keep a cap of at least ${n}.` };
+        return { result: "bombers_held", error: input.bombers === null ? `${n} player(s) are in Bombers. Remove them first (Edit content → Remove player), then turn Bombers off.` : `${n} player(s) are in Bombers, more than ${input.bombers}. Remove some first (Edit content → Remove player), or keep a cap of at least ${n}.` };
       }
       bombers = input.bombers;
     }

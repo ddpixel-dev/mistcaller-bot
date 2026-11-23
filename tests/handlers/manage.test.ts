@@ -181,7 +181,7 @@ test("the removed host commands point to Manage; the cancel buttons and the edit
   const { deps, id } = await setup();
   const d = createDispatch(deps);
   for (const sub of ["edit", "cancel", "lock", "unlock", "end", "reopen", "attendance", "duty", "assign"]) {
-    assert.ok(text(await d(command(sub))).includes("Press **Manage**"), sub);
+    assert.ok(text(await d(command(sub))).includes("Press **Edit content**"), sub);
   }
   assert.equal((await d(button(`cancelno:${id}`))).type, 7);
   assert.equal((await d(modal(id, "k", good))).type, 4);

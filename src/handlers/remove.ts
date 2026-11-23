@@ -14,7 +14,7 @@ import { groupName, groupsOf, partyChoice, partyOfClick, slotsOfParty, userInPar
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Remove player**, again.";
+const INVALID = "That panel is out of date. Press **Edit content** on the roster, then **Remove player**, again.";
 
 type Entry = { userId: string; where: string };
 

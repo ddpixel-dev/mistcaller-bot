@@ -5,7 +5,7 @@ import { modalValues, textInput } from "../discord/modal.ts";
 import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
-import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, type PresetSettings } from "../db/preset.ts";
+import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, updatePreset, type PresetSettings } from "../db/preset.ts";
 import { MAX_PARTY_SLOTS, maxPartiesFor, parseCtaSlots } from "../domain/parties.ts";
 import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
@@ -54,9 +54,11 @@ export async function handleLauncher(_deps: Deps, _i: Interaction): Promise<Inte
 }
 
 async function card(deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}) {
-  const presets = (await listPresets(deps.sql, d.guildId, d.cta)).map((p) => ({ id: p.id, name: p.name, count: p.slots.length }));
+  const all = await listPresets(deps.sql, d.guildId, d.cta);
+  const presets = all.map((p) => ({ id: p.id, name: p.name, count: p.slots.length }));
   const forum = d.targetForumId ? await getEventForum(deps.sql, d.guildId, d.targetForumId) : null;
-  return renderCard(d, { presets, forumType: forum?.type ?? null, now: deps.now(), ...extra });
+  const editing = d.editingPresetId ? all.find((p) => p.id === d.editingPresetId)?.name ?? null : null; // FR-078
+  return renderCard(d, { presets, forumType: forum?.type ?? null, now: deps.now(), editing, ...extra });
 }
 
 export const showCard = async (deps: Deps, d: StoredDraft, extra: { problems?: string[]; note?: string } = {}): Promise<InteractionResponse> =>
@@ -106,7 +108,11 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, { selection: value === "1" });
       return await showCard(deps, await reload(deps, d));
     }
+    case "editpick":
+      if (!(await mayManagePresets(deps, i))) return reply(NOT_PRESET_ADMIN);
+      // falls through: Edit preset loads the preset like the Preset menu, and remembers it
     case "preset": {
+      const editPick = action === "editpick";
       if (value === NO_PRESET) return reply("This server has no presets yet. Save one with `/content preset save`.");
       const found = value ? await getPresetById(deps.sql, d.guildId, value) : null;
       const preset = found && found.cta === d.cta ? found : null; // each card loads only its own kind (FR-073)
@@ -117,7 +123,9 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, {
         ...presetFields(preset.settings, d.cta), slots: first, slotsText: null,
         parties: second.length > 0 ? 2 : 1, slots2: second.map(({ party: _p, ...s }) => s), slots2Text: null,
+        editingPresetId: editPick ? preset.id : null, // FR-078: Edit preset edits it; the Preset menu only fills the card
       });
+      if (editPick) return await showCard(deps, await reload(deps, d));
       return await showCard(deps, await reload(deps, d), {
         note: `📋 Filled from the preset **${preset.name.replace(/[*_`~|\\]/g, "")}**${preset.settings ? "" : " (slots only: it was saved before presets kept everything)"}.`,
       });
@@ -143,13 +151,26 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       return blankForm(d);
     }
     // Manage presets (ADR 0039): admins only, checked at every step. The panel replaces the card in the same message.
-    case "presets": case "savepreset": case "delpreset": case "delpick": case "delyes": {
+    case "presets": case "savepreset": case "delpreset": case "delpick": case "delyes": case "editpreset": {
       if (!(await mayManagePresets(deps, i))) return reply(NOT_PRESET_ADMIN);
       if (action === "presets") return await presetPanel(deps, d);
       if (action === "savepreset") {
         const checked = validateCard(d, deps.now());
         if (!checked.ok) return await presetPanel(deps, d);
-        return { type: MODAL, data: { custom_id: `ccp:${d.id}`, title: "Save as preset", components: [textInput("name", "Preset name", 50, { placeholder: "Ava roam" })] } };
+        // FR-078: while editing, the form is "Save preset" with the preset's name, which can be changed.
+        const edited = d.editingPresetId ? await getPresetById(deps.sql, d.guildId, d.editingPresetId) : null;
+        return {
+          type: MODAL,
+          data: {
+            custom_id: `ccp:${d.id}`, title: edited ? "Save preset" : "Save as preset",
+            components: [textInput("name", "Preset name", 50, { placeholder: "Ava roam", ...(edited ? { value: edited.name } : {}) })],
+          },
+        };
+      }
+      if (action === "editpreset") {
+        const presets = await listPresets(deps.sql, d.guildId, d.cta);
+        if (presets.length === 0) return await presetPanel(deps, d, "This server has no presets to edit.");
+        return { type: UPDATE_MESSAGE, data: renderPresetPanel(d.id, { kind: "pick", purpose: "edit", presets: presets.map((p) => ({ id: p.id, name: p.name, count: p.slots.length })) }) };
       }
       if (action === "delpreset") {
         const presets = await listPresets(deps.sql, d.guildId, d.cta);
@@ -477,6 +498,16 @@ export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<
   };
   // Party 2 slots are saved with `party: 2`; party 1 slots have no party key, as in older presets.
   const presetSlots = [...checked.value.slots, ...checked.value.slots2.map((s) => ({ ...s, party: 2 }))];
+  if (d.editingPresetId) {
+    // FR-078: Edit preset writes the card back to that preset, renamed if the name changed.
+    const updated = await updatePreset(deps.sql, { guildId: d.guildId, id: d.editingPresetId, name: name.value, slots: presetSlots, settings, createdBy: userId, cta: d.cta });
+    if (updated === "name_taken") return await presetPanel(deps, d, "⚠️ Another preset already uses that name. Pick another name.");
+    if (updated === "gone") {
+      await saveCard(deps.sql, d.id, { editingPresetId: null });
+      return await presetPanel(deps, d, "That preset no longer exists. Use **Save as preset** to save this card as a new one.");
+    }
+    return await presetPanel(deps, d, `💾 Updated the preset **${escapeText(name.value)}** with ${presetSlots.length} positions.`);
+  }
   const result = await savePreset(deps.sql, { guildId: d.guildId, name: name.value, slots: presetSlots, createdBy: userId, settings, cta: d.cta });
   if (result === "name_taken") return await presetPanel(deps, d, `⚠️ A ${d.cta ? "normal-content" : "CTA"} preset already uses that name. Pick another name.`);
   if (result === "full") return await presetPanel(deps, d, `⚠️ This server already has ${MAX_PRESETS} ${d.cta ? "CTA " : ""}presets. Save under an existing name to replace one, or delete one first.`);
@@ -500,6 +531,8 @@ function presetFields(s: PresetSettings | null, cta: boolean) {
 async function presetPanel(deps: Deps, d: StoredDraft, note?: string): Promise<InteractionResponse> {
   const fresh = await reload(deps, d);
   const checked = validateCard(fresh, deps.now());
-  const hasPresets = (await listPresets(deps.sql, fresh.guildId, fresh.cta)).length > 0;
-  return { type: UPDATE_MESSAGE, data: renderPresetPanel(fresh.id, { kind: "main", ready: checked.ok, problems: checked.ok ? [] : checked.problems, hasPresets, note }) };
+  const all = await listPresets(deps.sql, fresh.guildId, fresh.cta);
+  const editing = fresh.editingPresetId ? all.find((p) => p.id === fresh.editingPresetId)?.name ?? null : null;
+  if (fresh.editingPresetId && !editing) await saveCard(deps.sql, fresh.id, { editingPresetId: null }); // deleted meanwhile
+  return { type: UPDATE_MESSAGE, data: renderPresetPanel(fresh.id, { kind: "main", ready: checked.ok, problems: checked.ok ? [] : checked.problems, hasPresets: all.length > 0, note, editing }) };
 }

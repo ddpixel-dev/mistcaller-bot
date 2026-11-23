@@ -67,7 +67,7 @@ test("a selection event has Review applicants (applicants only) and Assign playe
   await d(click(`join:${id}`, A, [slots[1]!]));
   const manage: any = await d(click(`mg:${id}`, OWNER, undefined, { message: { id: "m1", flags: V2 } }));
   assert.ok(labels(manage).some((l) => l?.startsWith("Review applicants (1)")), labels(manage).join("|"));
-  assert.ok(labels(manage).includes("Assign player") && !labels(manage).includes("Add player"));
+  assert.ok(labels(manage).includes("Add player") && !labels(manage).includes("Assign player"));
   assert.deepEqual(discordProblems({ ...manage.data, flags: 0 }), []);
 
   // Review applicants: the applicants only, no member picker.
@@ -142,27 +142,52 @@ test("the Edit panel switches selection on and off; off is refused while applica
 test("a normal event has Assign player, no Review applicants and no disclaimer", async () => {
   const { d, id, edits } = await setup(false);
   const manage: any = await d(click(`mg:${id}`, OWNER));
-  assert.ok(labels(manage).includes("Assign player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
+  assert.ok(labels(manage).includes("Add player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
   assert.ok(edits.length === 0);
 });
 
-test("the host sees only the open positions that suit what the applicant or the fill asked for", async () => {
+test("FR-079: the host sees every open position, the ones the applicant or the fill asked for first", async () => {
   const { d, id, slots, sql } = await setup();
   await d(click(`fp:${id}`, A, ["r:Healer"]));
-  await d(click(`join:${id}`, B, [slots[0]!]));
+  await d(click(`join:${id}`, B, [slots[2]!]));
   const forA: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
   const optsA = forA.data.components.at(-1).components[0].options;
-  assert.deepEqual(optsA.map((o: any) => o.label), ["2. Healer - Holy"], "A asked for Healer only");
-  assert.ok(text(forA).includes("only the open positions that suit"));
+  assert.deepEqual(optsA.map((o: any) => [o.label, o.description]), [["2. Healer - Holy", "Asked for"], ["1. Tank - Mace", undefined], ["3. DPS - Bow", undefined]]);
+  assert.ok(text(forA).includes("positions they asked for come first"), text(forA));
   const forB: any = await d(click(`fa:p:${id}`, OWNER, [B], PANEL));
-  assert.deepEqual(forB.data.components.at(-1).components[0].options.map((o: any) => o.label), ["1. Tank - Mace"], "B applied for position 1");
+  assert.deepEqual(forB.data.components.at(-1).components[0].options.map((o: any) => o.label), ["3. DPS - Bow", "1. Tank - Mace", "2. Healer - Holy"]);
   const anyone: any = await d(click(`fa:u:${id}`, OWNER, [STRANGER], PANEL));
-  assert.equal(anyone.data.components.at(-1).components[0].options.length, 3, "any other member can go anywhere");
-  await assignPlayerFor(sql, id, slots[1]!, STRANGER);
-  const none: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
-  assert.ok(text(none).includes("No open position suits what"));
-  assert.ok(!none.data.components.some((r: any) => r.components[0].custom_id.startsWith("fa:s:")));
+  assert.ok(anyone.data.components.at(-1).components[0].options.every((o: any) => o.description === undefined), "no preference, nothing marked");
+  assert.ok(!text(anyone).includes("asked for"));
 });
+
+test("FR-079: an applicant whose position was filled can still be placed in another open position", async () => {
+  const { d, id, slots, sql, posts } = await setup();
+  await d(click(`join:${id}`, A, [slots[1]!]));
+  await d(click(`join:${id}`, B, [slots[1]!]));
+  await d(click(`fa:s:${id}:${A}`, OWNER, [slots[1]!], PANEL));
+  const review: any = await d(click(`fa:r:${id}`, OWNER, undefined, PANEL));
+  assert.deepEqual(review.data.components[0].components[0].options.map((o: any) => o.description), ["Applied: #2 (taken)"]);
+  const forB: any = await d(click(`fa:q:${id}`, OWNER, [B], PANEL));
+  const opts = forB.data.components.at(-1).components[0].options;
+  assert.deepEqual(opts.map((o: any) => o.label), ["1. Tank - Mace", "3. DPS - Bow"], "taken positions are never listed");
+  assert.ok(text(forB).includes("The position they asked for is taken"), text(forB));
+  const done: any = await d(click(`fa:s:${id}:${B}`, OWNER, [slots[2]!], PANEL));
+  assert.ok(text(done).includes(`<@${B}> is now in position 3`), text(done));
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[2]!.userId, B);
+  assert.ok(posts.some((p) => String(p.body.content).includes(`accepted <@${B}>`)));
+});
+
+test("FR-079: Add player places a fill whose chosen position is filled", async () => {
+  const { d, id, slots, sql } = await setup(false);
+  const { joinFill } = await import("../../src/db/signup.ts");
+  await assignPlayerFor(sql, id, slots[1]!, STRANGER);
+  await joinFill(sql, { contentId: id, guildId: "g1", userId: A, now: NOW, pref: { any: false, roles: [], slotIds: [slots[1]!] } });
+  const forA: any = await d(click(`fa:p:${id}`, OWNER, [A], PANEL));
+  assert.deepEqual(forA.data.components.at(-1).components[0].options.map((o: any) => o.label), ["1. Tank - Mace", "3. DPS - Bow"]);
+  assert.ok(text(forA).includes("The position they asked for is taken"), text(forA));
+});
+
 async function assignPlayerFor(sql: any, id: string, slotId: string, userId: string) {
   const { assignPlayer } = await import("../../src/db/signup.ts");
   await assignPlayer(sql, { contentId: id, guildId: "g1", userId, slotId, now: NOW });

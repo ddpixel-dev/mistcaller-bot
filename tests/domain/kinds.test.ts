@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KINDS, kindDef, kindsOf, resolveKind } from "../../src/domain/kinds.ts";
 
-test("the lists match ADR 0010 and FR-023: 18 PvP and 10 PvE kinds, Other in each", () => {
-  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 18);
-  assert.equal(KINDS.filter((k) => k.type === "pve").length, 10);
+test("the lists match ADR 0010 and FR-023: 17 PvP and 11 PvE (Skirmish out, Tracking in, FR-080) kinds, Other in each", () => {
+  assert.equal(KINDS.filter((k) => k.type === "pvp").length, 17);
+  assert.equal(KINDS.filter((k) => k.type === "pve").length, 11);
   assert.ok(kindDef("pvp", "other") && kindDef("pve", "other"));
   assert.ok(kindDef("pvp", "skirmish") && kindDef("pvp", "training"));
   assert.ok(kindDef("pvp", "gank-squad") && kindDef("pvp", "bomb-squad"));
@@ -120,7 +120,7 @@ test("Avalonian raid is retired: not offered anywhere, but old content keeps its
   assert.equal(resolveKind("pve", "avalonian-raid").ok, false);
   assert.equal(kindDef("pve", "avalonian-raid")!.label, "Avalonian raid");
   const pvx = kindsOf("pvx").map((k) => k.id);
-  assert.ok(pvx.includes("skirmish") && !pvx.includes("training"));
+  assert.ok(!pvx.includes("training"));
   assert.ok(pvx.length <= 25);
 });
 
@@ -129,8 +129,8 @@ test("the PvP category is called Outpost, in the singular", () => {
   assert.ok(!kindsOf("pvp").some((k) => k.label === "Outposts"));
 });
 
-test("ZvZ is a content type of its own with Faction Warfare, Outpost, Siege, Territory Defense, Castle and Other", () => {
-  assert.deepEqual(kindsOf("zvz").map((k) => k.label), ["Castle", "Faction Warfare", "Outpost", "Siege", "Territory Defense", "Other"]);
+test("ZvZ is a content type of its own with Faction Warfare, Outpost & Castle, Siege, Territory Attack, Territory Defense and Other", () => {
+  assert.deepEqual(kindsOf("zvz").map((k) => k.label), ["Faction Warfare", "Outpost & Castle", "Siege", "Territory Attack", "Territory Defense", "Other"]);
   assert.ok(kindsOf("zvz").every((k) => k.type === "zvz"));
   assert.equal(kindDef("zvz", "siege")?.label, "Siege");
   assert.equal(kindDef("zvz", "other")?.icon, "🏰");
@@ -145,4 +145,31 @@ test("PvX still holds the PvP and PvE categories only, within one menu of 25; th
   assert.ok(!pvx.some((k) => k.id === "siege" || k.id === "territory-defense"), "ZvZ-only categories are not PvX");
   assert.ok(kindsOf("pvp").some((k) => k.id === "zvz"), "ZvZ stays a PvP category for older content");
   assert.equal(kindDef("pvx", "siege"), null);
+});
+
+test("FR-080: Tracking is a PvE category, left out of PvX", () => {
+  const t = kindsOf("pve").find((k) => k.id === "tracking");
+  assert.deepEqual(t && [t.label, t.icon], ["Tracking", "🐾"]);
+  assert.ok(!kindsOf("pvx").some((k) => k.id === "tracking"));
+  assert.ok(kindsOf("pvx").length <= 25);
+});
+
+test("FR-080: Skirmish is no longer offered in PvP or PvX, and old content keeps its label", () => {
+  assert.ok(!kindsOf("pvp").some((k) => k.id === "skirmish"));
+  assert.ok(!kindsOf("pvx").some((k) => k.id === "skirmish"));
+  assert.equal(resolveKind("pvp", "skirmish").ok, false);
+  assert.equal(kindDef("pvp", "skirmish")?.label, "Skirmish");
+  assert.equal(kindDef("pvx", "skirmish")?.label, "Skirmish");
+});
+
+test("FR-080: ZvZ Territory Attack and Outpost & Castle; old ZvZ Outpost and Castle keep their labels; PvP keeps both", () => {
+  const zvz = Object.fromEntries(kindsOf("zvz").map((k) => [k.id, k.icon]));
+  assert.equal(zvz["territory-attack"], "🗡️");
+  assert.equal(zvz["outpost-castle"], "🏯");
+  assert.ok(!("outposts" in zvz) && !("castle" in zvz));
+  assert.equal(kindDef("zvz", "outposts")?.label, "Outpost");
+  assert.equal(kindDef("zvz", "castle")?.label, "Castle");
+  assert.equal(resolveKind("zvz", "castle").ok, false);
+  const pvp = kindsOf("pvp").map((k) => k.id);
+  assert.ok(pvp.includes("outposts") && pvp.includes("castle"));
 });

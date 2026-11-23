@@ -15,6 +15,7 @@ export type CardContext = {
   forumType: ContentType | null; // the event forum's type, when the card was opened from its launcher
   problems?: string[];
   note?: string;
+  editing?: string | null; // the name of the preset Edit preset loaded (FR-078)
   now: Date;
 };
 
@@ -56,6 +57,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         "-# Roles fills party 1; use Party 2 slots for the second party."]
       : slotBlock("Slots", d.slots, d.slotsText, d.cta ? "Slots" : "Details")),
     ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
+    ...(ctx.editing ? ["", `✏️ Editing the preset **${escapeText(ctx.editing)}**. Change the card, then **Manage presets → Save preset**.`] : []),
     ...(ctx.note ? ["", ctx.note] : []),
   ];
 
@@ -203,8 +205,8 @@ export function renderLauncher() {
 
 // The Manage presets panel (ADR 0039): it replaces the card in the same message, with Back to return. Admins only (the handler checks).
 export type PresetView =
-  | { kind: "main"; ready: boolean; problems: string[]; hasPresets: boolean; note?: string }
-  | { kind: "pick"; presets: { id: string; name: string; count: number }[] }
+  | { kind: "main"; ready: boolean; problems: string[]; hasPresets: boolean; note?: string; editing?: string | null }
+  | { kind: "pick"; presets: { id: string; name: string; count: number }[]; purpose?: "delete" | "edit" }
   | { kind: "confirm"; presetId: string; name: string };
 
 export function renderPresetPanel(id: string, v: PresetView) {
@@ -214,21 +216,27 @@ export function renderPresetPanel(id: string, v: PresetView) {
       { type: 10, content: [
         "## 💾 Manage presets",
         ...(v.note ? [v.note, ""] : []),
-        "**Save as preset** saves this card as it is now, if it is valid (the same checks as Create): type, category, loot vote, sign-up, title, gear tier, notes, build link and positions. The start time is not saved.",
+        ...(v.editing
+          ? [`✏️ Editing the preset **${escapeText(v.editing)}**. **Save preset** writes this card back to it (you can rename it), if it is valid (the same checks as Create). The start time is not saved.`]
+          : ["**Save as preset** saves this card as it is now, if it is valid (the same checks as Create): type, category, loot vote, sign-up, title, gear tier, notes, build link and positions. The start time is not saved."]),
+        "**Edit preset** loads a saved preset into this card, to change it and save it back.",
         "**Delete preset** removes a saved preset, after you confirm.",
         ...(v.ready ? [] : ["", "⚠️ **The card is not ready to save yet:**", ...v.problems.map((p) => `⚠️ ${p}`)]),
       ].join("\n").slice(0, 3000) },
       { type: 1, components: [
-        { ...btn("Save as preset", "💾", `cc:savepreset:${id}`, 1), disabled: !v.ready },
+        { ...btn(v.editing ? "Save preset" : "Save as preset", "💾", `cc:savepreset:${id}`, 1), disabled: !v.ready },
+        { ...btn("Edit preset", "✏️", `cc:editpreset:${id}`), disabled: !v.hasPresets },
         { ...btn("Delete preset", "🗑️", `cc:delpreset:${id}`), disabled: !v.hasPresets },
         btn("Back to the card", "↩️", `cc:back:${id}`),
       ] },
     );
   } else if (v.kind === "pick") {
     body.push(
-      { type: 10, content: "## 🗑️ Delete a preset\nChoose the preset to delete. You will be asked to confirm." },
+      { type: 10, content: v.purpose === "edit"
+        ? "## ✏️ Edit a preset\nChoose the preset to edit. It is loaded into the card; change it, then save it with **Manage presets → Save preset**."
+        : "## 🗑️ Delete a preset\nChoose the preset to delete. You will be asked to confirm." },
       { type: 1, components: [{
-        type: 3, custom_id: `cc:delpick:${id}`, placeholder: "Choose the preset to delete",
+        type: 3, custom_id: `cc:${v.purpose === "edit" ? "editpick" : "delpick"}:${id}`, placeholder: v.purpose === "edit" ? "Choose the preset to edit" : "Choose the preset to delete",
         options: v.presets.slice(0, 25).map((p) => ({ label: Array.from(p.name).slice(0, 100).join(""), value: p.id, description: `${p.count} positions` })),
       }] },
       { type: 1, components: [btn("Back", "↩️", `cc:presets:${id}`)] },
