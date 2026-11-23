@@ -26,7 +26,7 @@ export const HELP_TEXT = [
   "• **Lock** or **Unlock** signups, **End** (automatic 4 hours after start), **Cancel**.",
   "• **Attendance** opens the form. A finished roster offers Attendance and **Reopen**.",
   "• **Ping players** sends each player one private reminder.",
-  "• Pick a preset on the creation card to fill the slots. Admins save and delete presets with **Manage presets**.",
+  "• Pick a preset on the creation card to fill the slots. Admins save, edit and delete presets with **Manage presets**.",
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do on any content, and `/content history` for any member.",

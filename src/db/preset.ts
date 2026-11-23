@@ -67,6 +67,23 @@ export async function savePreset(
   });
 }
 
+// FR-078: Edit preset writes one preset back by id: its name, slots and settings. A name is unique in the server, so a name
+// another preset uses (either kind) is refused; a preset of another server or kind, or one deleted meanwhile, is "gone".
+export async function updatePreset(
+  sql: Sql,
+  a: { guildId: string; id: string; name: string; slots: SlotDef[]; settings: PresetSettings | null; createdBy: string; cta: boolean },
+): Promise<"ok" | "gone" | "name_taken"> {
+  return await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtext(${"preset:" + a.guildId}))`;
+    const [own] = await tx`select id from slot_preset where id = ${a.id} and guild_id = ${a.guildId} and cta = ${a.cta}`;
+    if (!own) return "gone" as const;
+    const [dup] = await tx`select id from slot_preset where guild_id = ${a.guildId} and lower(name) = lower(${a.name}) and id <> ${a.id}`;
+    if (dup) return "name_taken" as const;
+    await tx`update slot_preset set name = ${a.name}, slots = ${tx.json(a.slots as never)}, settings = ${a.settings ? tx.json(a.settings as never) : null}, created_by = ${a.createdBy} where id = ${a.id}`;
+    return "ok" as const;
+  });
+}
+
 // The presets of one kind: the CTA card lists the CTA ones, Plan Content the others (FR-073).
 export async function listPresets(sql: Sql, guildId: string, cta = false): Promise<Preset[]> {
   const rows = await sql`select * from slot_preset where guild_id = ${guildId} and cta = ${cta} order by lower(name)`;

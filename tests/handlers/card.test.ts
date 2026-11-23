@@ -487,7 +487,7 @@ test("Manage presets sits beside Blank template and opens a panel in place with 
   assert.deepEqual(labels(r).slice(0, 2), ["Blank template", "Manage presets"]);
   const panel: any = await d(press(`cc:presets:${id}`, undefined, admin));
   assert.equal(panel.type, 7, "it replaces the card in the same message");
-  assert.deepEqual(labels(panel), ["Save as preset", "Delete preset", "Back to the card"]);
+  assert.deepEqual(labels(panel), ["Save as preset", "Edit preset", "Delete preset", "Back to the card"]);
   assert.ok(say(panel).includes("saves this card as it is now, if it is valid") && say(panel).includes("The start time is not saved"));
   assert.deepEqual(discordProblems(panel.data), []);
   const back: any = await d(press(`cc:back:${id}`, undefined, admin));
@@ -539,6 +539,84 @@ test("Save as preset is lit only when the card is valid, opens a name form, and 
   assert.ok(say((await d(form(`ccp:${id}`, { name: "   " }, admin))) as any).includes("needs a name"));
   const stranger = { member: { user: { id: OTHER }, roles: [], permissions: "32" } };
   assert.ok(((await d(form(`ccp:${id}`, { name: "Mine" }, stranger))) as any).data.content.includes("expired or is not yours"));
+});
+
+// FR-078: Edit preset.
+async function editing(d: any, sql: any) {
+  const id = await validCard(d);
+  await d(form(`ccp:${id}`, { name: "Ava roam" }, admin));
+  const [{ id: presetId }] = await sql`select id from slot_preset`;
+  const { id: card } = await open(d);
+  return { card, presetId: presetId as string };
+}
+
+test("FR-078: Edit preset picks a preset, loads it into the card and says it is editing it", async () => {
+  const { d, sql } = await setup();
+  const { card, presetId } = await editing(d, sql);
+  const panel: any = await d(press(`cc:presets:${card}`, undefined, admin));
+  assert.equal(button(panel, "Edit preset").disabled, false);
+  const pick: any = await d(press(`cc:editpreset:${card}`, undefined, admin));
+  const menu = flatComponents(pick.data).find((c: any) => c.type === 3)!;
+  assert.equal(menu.custom_id, `cc:editpick:${card}`);
+  assert.deepEqual(menu.options.map((o: any) => [o.label, o.value]), [["Ava roam", presetId]]);
+  assert.deepEqual(discordProblems(pick.data), []);
+  const loaded: any = await d(press(`cc:editpick:${card}`, [presetId], admin));
+  assert.equal(loaded.type, 7);
+  assert.ok(say(loaded).includes("✏️ Editing the preset **Ava roam**"), say(loaded));
+  assert.ok(say(loaded).includes("📝 **Title** Ava roam"), "the preset's title is on the card");
+  const again: any = await d(press(`cc:presets:${card}`, undefined, admin));
+  assert.ok(labels(again).includes("Save preset") && !labels(again).includes("Save as preset"), labels(again).join("|"));
+});
+
+test("FR-078: Save preset opens the name form with the name and updates that preset, renamed, without adding one", async () => {
+  const { d, sql } = await setup();
+  const { card, presetId } = await editing(d, sql);
+  await d(press(`cc:editpick:${card}`, [presetId], admin));
+  await d(form(`ccd:${card}`, { ...details, title: "New title" }));
+  const modal: any = await d(press(`cc:savepreset:${card}`, undefined, admin));
+  assert.equal(modal.type, 9);
+  assert.equal(modal.data.title, "Save preset");
+  assert.equal(modal.data.components[0].components[0].value, "Ava roam");
+  const saved: any = await d(form(`ccp:${card}`, { name: "Ava roam 2" }, admin));
+  assert.ok(say(saved).includes("Updated the preset **Ava roam 2**"), say(saved));
+  const rows = await sql`select id, name, settings from slot_preset`;
+  assert.deepEqual(rows.map((r: any) => [r.id, r.name, r.settings.title]), [[presetId, "Ava roam 2", "New title"]]);
+});
+
+test("FR-078: loading a preset from the Preset menu ends edit mode", async () => {
+  const { d, sql } = await setup();
+  const { card, presetId } = await editing(d, sql);
+  await d(press(`cc:editpick:${card}`, [presetId], admin));
+  await d(press(`cc:preset:${card}`, [presetId]));
+  const panel: any = await d(press(`cc:presets:${card}`, undefined, admin));
+  assert.ok(labels(panel).includes("Save as preset") && !labels(panel).includes("Save preset"));
+});
+
+test("FR-078: a preset deleted during the edit is not recreated, and a name taken by another preset is refused", async () => {
+  const { d, sql } = await setup();
+  const { card, presetId } = await editing(d, sql);
+  const { savePreset } = await import("../../src/db/preset.ts");
+  await savePreset(sql, { guildId: GUILD, name: "Other", slots: [{ role: "Tank", weapon: "" }], createdBy: OWNER });
+  await d(press(`cc:editpick:${card}`, [presetId], admin));
+  await d(form(`ccd:${card}`, details));
+  assert.ok(say((await d(form(`ccp:${card}`, { name: "other" }, admin))) as any).includes("already uses that name"));
+  await sql`delete from slot_preset where id = ${presetId}`;
+  assert.ok(say((await d(form(`ccp:${card}`, { name: "Ava roam" }, admin))) as any).includes("That preset no longer exists"));
+  assert.deepEqual((await sql`select name from slot_preset`).map((r: any) => r.name), ["Other"]);
+  const panel: any = await d(press(`cc:presets:${card}`, undefined, admin));
+  assert.ok(labels(panel).includes("Save as preset"), "edit mode ended");
+});
+
+test("FR-078: Edit preset is dimmed with no presets, and only admins can use it", async () => {
+  const { d, sql } = await setup();
+  const { id } = await open(d);
+  assert.equal(button((await d(press(`cc:presets:${id}`, undefined, admin))) as any, "Edit preset").disabled, true);
+  const { savePreset } = await import("../../src/db/preset.ts");
+  await savePreset(sql, { guildId: GUILD, name: "Ava", slots: [{ role: "Tank", weapon: "" }], createdBy: OWNER });
+  const [{ id: avaId }] = await sql`select id from slot_preset`;
+  for (const [custom, values] of [[`cc:editpreset:${id}`, undefined], [`cc:editpick:${id}`, [avaId]]] as const) {
+    assert.ok(((await d(press(custom, values as any, plainMember))) as any).data.content.includes("Only admins"), custom);
+  }
 });
 
 test("a full server (25 presets) can still replace a name but not add one", async () => {
