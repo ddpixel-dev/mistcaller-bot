@@ -94,11 +94,12 @@ function headerText(view: RosterView, filled: number, notes: boolean, count = { 
     ...(view.ownerId ? [fact("👑", "Host", `<@${view.ownerId}>`)] : []),
     // FR-074: where the party gathers, typed by the host.
     ...(view.massing ? [fact("📍", "Massing at", massingText(view.massing))] : []),
-    ...(view.selection ? [SELECTION_NOTE] : []),
     fact("⚙️", "Gear tier", view.tier === "" ? "Any" : escapeText(view.tier)),
     ...(view.buildRef ? [fact("🧰", "Build", buildRefText(view.buildRef, view.guildId))] : []),
     fact("🕰️", "UTC", formatUtc(view.startsAt)),
     fact("🌍", "Your time", `<t:${epoch}:f> · <t:${epoch}:R>`),
+    // FR-080: a small line under Your time, like a tip.
+    ...(view.selection ? [SELECTION_NOTE] : []),
   ];
   const banner = statusBanner(view.status);
   if (banner) lines.push(banner);
@@ -113,7 +114,7 @@ function headerText(view: RosterView, filled: number, notes: boolean, count = { 
 export const TENTATIVE = " ❓";
 
 // FR-058: the disclaimer of a host-selected event, in the post itself.
-export const SELECTION_NOTE = "Host picks the party";
+export const SELECTION_NOTE = "-# 🎯 Host picks the party: apply, and the host accepts you.";
 
 // The host's text, escaped; a channel mention (<#id>) stays a link. Mentions never ping: every message sends none.
 export function massingText(s: string): string {
@@ -279,7 +280,8 @@ function renderPartyMessage(view: RosterView, party: number): {
 // two parties); one join menu and one waitlist menu per party; shared Leave and Tentative (a player holds one place);
 // Bombers; the vote, Ping and Manage; the tips. One party with no Bombers renders as a one-party roster always has.
 // The icon of each party's title in a call to arms.
-const PARTY_ICONS = ["⚔️", "🛡️"];
+// FR-080: 👥 as on the creation card (⚔️ and 🛡️ are the DPS and Tank icons).
+const PARTY_ICONS = ["👥", "👥"];
 
 function renderCtaMessage(view: RosterView): {
   flags: number;

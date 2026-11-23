@@ -502,7 +502,9 @@ test("role icons: DTank has its own brick, Tank its shield, a Scout role the tel
 
 test("a selection event says so in the post, lists the applicants with what they asked for, and has no waitlist menu", () => {
   const v = view({ slots: slots(3, 3), selection: true, applicants: [{ userId: "9001", wants: "Healer, #7" }, { userId: "9002", wants: "Any" }] });
-  assert.ok(raw(v).includes("\nHost picks the party\n"), "a plain sentence, no disclaimer label or icon");
+  // FR-080: a small line right under Your time, like a tip.
+  assert.ok(raw(v).includes("<t:1791396000:R>\n-# 🎯 Host picks the party: apply, and the host accepts you.\n"), raw(v));
+  assert.equal(raw(v).split("Host picks the party").length, 2, "said once");
   assert.ok(!raw(v).includes("Disclaimer") && !raw(v).includes("⚠️"));
   assert.ok(raw(v).includes("\n\n📨 **Applicants"), "a blank line sets the applicants apart from the players");
   assert.ok(raw(v).includes("📨 **Applicants (2):** <@9001> (Healer, \\#7) · <@9002> (Any)"), raw(v));
@@ -662,8 +664,9 @@ test("a CTA is one message whatever party is asked for: both parties' rows, numb
   const v = twoParty();
   assert.equal(JSON.stringify(p(v, 2)), JSON.stringify(p(v, 1)), "the party argument is ignored for a CTA");
   const lines = ptxt(v).split("\n");
-  const h1 = lines.findIndex((l) => l.startsWith("⚔️ **Party 1 (1/2)**"));
-  const h2 = lines.findIndex((l) => l.startsWith("🛡️ **Party 2 (1/3)**"));
+  // FR-080: 👥 as on the creation card; ⚔️ and 🛡️ are the DPS and Tank icons.
+  const h1 = lines.findIndex((l) => l.startsWith("👥 **Party 1 (1/2)**"));
+  const h2 = lines.findIndex((l) => l.startsWith("👥 **Party 2 (1/3)**"));
   assert.ok(h1 > 0 && h2 > h1, lines.join("\n"));
   assert.ok(lines[h1 + 1]!.startsWith("1. ") && lines[h1 + 1]!.includes("Mace"));
   assert.ok(lines[h1 + 2]!.startsWith("2. ") && lines[h1 + 2]!.includes("Holy"));
@@ -760,7 +763,7 @@ test("Bombers: a line after the parties with ❓ after tentative bombers, and a 
   // A one-party CTA with Bombers: the groups read the same, so the party has its icon heading too.
   const one = view({ cta: true, bombers: 10, bomberIds: [] });
   assert.ok(textOf(p(one)).includes("💣 Bombers (0/10)"));
-  assert.ok(ptxt(one).includes("⚔️ **Party 1 ("));
+  assert.ok(ptxt(one).includes("👥 **Party 1 ("));
   assert.equal(bomb(one).label, "Bombers 0/10");
   // Bombers is for a CTA only, and no Bombers line or button when it is not set.
   assert.ok(!textOf(p(twoParty())).includes("Bombers"));
