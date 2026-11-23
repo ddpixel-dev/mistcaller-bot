@@ -159,3 +159,37 @@ test("FR-064: an event names its host on the details line, and leaves it out whe
   assert.ok(withHost.includes("👑 <@987654321>"), withHost);
   assert.ok(!noHost.includes("👑"), noHost);
 });
+
+// FR-080: dividers so the groups do not read as one sequence.
+const blocks = (body: any) => body.components[0].components as any[];
+const kinds = (body: any) => blocks(body).map((c) => (c.type === 14 ? "|" : String(c.content)));
+
+test("FR-080: a divider separates a day's call-to-arms events from its normal content", () => {
+  const [body] = render([event({ title: "Normal early", startsAt: at(0, 13) }), event({ title: "CTA late", startsAt: at(0, 20), cta: true })]);
+  const k = kinds(body);
+  const cta = k.findIndex((c) => c.includes("CTA late"));
+  assert.ok(cta > 0 && k[cta]!.includes("Thu 15 Oct"), "the CTA group carries the day heading");
+  assert.equal(k[cta + 1], "|");
+  assert.ok(k[cta + 2]!.includes("Normal early") && k[cta + 2]!.includes("**Content**") && !k[cta + 2]!.includes("CTA late"));
+  const divider = blocks(body)[cta + 1];
+  assert.deepEqual(divider, { type: 14, divider: true, spacing: 1 });
+  assert.deepEqual(discordProblems(body), []);
+});
+
+test("FR-080: a divider separates Live now from the upcoming days, and nothing ends a message with a divider", () => {
+  const [body] = render([event({ title: "Running", startsAt: new Date(NOW.getTime() - 45 * 60000) }), event({ title: "Later", startsAt: at(1, 18) })]);
+  const k = kinds(body);
+  const live = k.findIndex((c) => c.includes("Live now"));
+  assert.equal(k[live + 1], "|");
+  assert.ok(k[live + 2]!.includes("Fri 16 Oct"));
+  const [onlyLive] = render([event({ title: "Running", startsAt: new Date(NOW.getTime() - 45 * 60000) })]);
+  assert.notEqual(kinds(onlyLive).at(-1), "|");
+  const [oneKind] = render([event({ startsAt: at(0, 13) }), event({ startsAt: at(0, 14) })]);
+  assert.ok(!kinds(oneKind).includes("|"), "a day with one kind and no live events has no divider");
+});
+
+test("FR-080: twelve mixed events with dividers stay within Discord's limits", () => {
+  const events = Array.from({ length: EVENTS_PER_MESSAGE }, (_, i) =>
+    event({ title: "T".repeat(30), startsAt: i < 2 ? new Date(NOW.getTime() - (i + 1) * 60000) : at(i % 7, 13, i), cta: i % 2 === 0 }));
+  for (const b of render(events)) assert.deepEqual(discordProblems(b), []);
+});
