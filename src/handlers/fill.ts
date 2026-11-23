@@ -111,8 +111,8 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
 }
 
 // An applicant who named positions only, and every one of them is now taken (FR-079).
-function allTaken(view: RosterView, pref: { any: boolean; roles: string[]; slotIds: string[] }): boolean {
-  if (pref.any || pref.roles.length > 0 || pref.slotIds.length === 0) return false;
+function allTaken(view: RosterView, pref: { any: boolean; roles: string[]; slotIds: string[] } | undefined): boolean {
+  if (!pref || pref.any || pref.roles.length > 0 || pref.slotIds.length === 0) return false;
   return pref.slotIds.every((id) => view.slots.find((s) => s.id === id)?.userId != null);
 }
 
