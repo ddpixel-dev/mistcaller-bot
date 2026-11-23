@@ -51,3 +51,17 @@ test("a preference reads back as text: Any, or the roles then the position numbe
   assert.equal(describeFill({ any: false, roles: ["Healer", "Tank"], slotIds: [U1, U2] }, pos), "Healer, Tank, #3, #7");
   assert.equal(describeFill({ any: false, roles: [], slotIds: ["gone"] }, pos), "Any", "positions that no longer exist leave nothing chosen, which means Any");
 });
+
+// FR-076: in weapon mode a fill chooses weapons; matching and seating use the slot's label.
+test("FR-076: a fill that chose a weapon matches the weapon slots, in any capitals", () => {
+  assert.equal(fillMatches({ any: false, roles: ["bow"], slotIds: [] }, { id: "x", position: 1, role: "", weapon: "Bow" }), true);
+  assert.equal(fillMatches({ any: false, roles: ["bow"], slotIds: [] }, { id: "x", position: 1, role: "", weapon: "Mace" }), false);
+});
+
+test("FR-076: Any takes a Healer role slot first, and the lowest weapon slot when there are only weapon slots", () => {
+  const healer = { id: "h", position: 3, role: "Healer", weapon: "" };
+  const bow = { id: "b", position: 1, role: "", weapon: "Bow" };
+  const mace = { id: "m", position: 2, role: "", weapon: "Mace" };
+  assert.equal(pickFillSlot(ANY_FILL, [bow, healer])!.id, "h");
+  assert.equal(pickFillSlot(ANY_FILL, [mace, bow])!.id, "b");
+});

@@ -73,3 +73,14 @@ test("a changed line plus an inserted line: the change renames the slot of the s
   const r = planSlotEdit(slots(["a", "b", "c"]), [def("Scout", "Bow"), same[0]!, def("Healer", "Fallen"), same[2]!]);
   assert.deepEqual(r, { ok: true, value: { rename: [{ id: "s2", role: "Healer", weapon: "Fallen", duty: null }], add: [def("Scout", "Bow")], remove: [] } });
 });
+
+// FR-076: weapon slots have no role; they are written back as `Weapon (Duty)` and matched by their weapon.
+test("FR-076: formatSlotLines writes a weapon slot as its weapon and duty", () => {
+  assert.equal(formatSlotLines([{ role: "", weapon: "Bow", duty: "scout" }, { role: "", weapon: "Hallowfall" }]), "Bow (Scout)\nHallowfall");
+});
+
+test("FR-076: planSlotEdit pairs weapon slots by their weapon", () => {
+  const slot = (id: string, position: number, weapon: string, userId: string | null = null): RosterSlot => ({ id, position, party: 1, role: "", weapon, userId, duty: null });
+  const r = planSlotEdit([slot("a", 1, "Mace", "u1"), slot("b", 2, "Bow")], [{ role: "", weapon: "Mace" }, { role: "", weapon: "Bow", duty: "scout" }]);
+  assert.deepEqual(r, { ok: true, value: { rename: [{ id: "b", role: "", weapon: "Bow", duty: "scout" }], add: [], remove: [] } });
+});

@@ -162,7 +162,8 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
     : parseUtcStart(v.start ?? "", deps.now());
   // A CTA's slots come from the Edit panel's own forms: this form leaves them as they are and reads the Bombers cap instead.
   const ctaForm = current?.cta === true && !isBlank;
-  const slots = isBlank || ctaForm ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
+  // FR-077: lines are checked, except a line equal to one of the roster's slots, so an older roster stays editable.
+  const slots = isBlank || ctaForm ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "", "role", (current?.slots ?? []).filter((s) => s.party === 1));
   const cap = ctaForm ? parseBombersCap(v.bombers ?? "") : ({ ok: true, value: null } as ReturnType<typeof parseBombersCap>);
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).

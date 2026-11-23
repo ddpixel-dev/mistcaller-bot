@@ -1,5 +1,6 @@
 import type { Result, RosterSlot, SlotDef } from "./types.ts";
 import { dutyDef } from "./duties.ts";
+import { slotLabel, slotText } from "./slotlabel.ts";
 
 export type SlotPlan = {
   rename: { id: string; role: string; weapon: string; duty: string | null }[];
@@ -7,8 +8,9 @@ export type SlotPlan = {
   remove: string[];
 };
 
+// The lines back, as typed: `Role - Weapon (Duty)`, or `Weapon (Duty)` for a slot with no role (FR-076).
 export function formatSlotLines(slots: { role: string; weapon: string; duty?: string | null }[]): string {
-  return slots.map((s) => `${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` (${dutyDef(s.duty)!.label})` : ""}`).join("\n");
+  return slots.map((s) => `${slotText(s)}${dutyDef(s.duty) ? ` (${dutyDef(s.duty)!.label})` : ""}`).join("\n");
 }
 
 // FR-020, FR-055: lines are matched to slots by content, not by line number, so adding or removing a line never changes
@@ -40,7 +42,7 @@ export function planSlotEdit(current: RosterSlot[], next: SlotDef[]): Result<Slo
   };
   const rest: SlotDef[] = [];
   for (const want of unmatched) {
-    const slot = free.find((s) => sameRole(s.role, want.role));
+    const slot = free.find((s) => sameRole(slotLabel(s), slotLabel(want))); // by role, or by weapon in weapon mode (FR-076)
     if (slot) pair(want, slot);
     else rest.push(want);
   }
@@ -53,7 +55,7 @@ export function planSlotEdit(current: RosterSlot[], next: SlotDef[]): Result<Slo
   plan.remove = free.map((s) => s.id);
   const held = ordered.filter((s) => plan.remove.includes(s.id) && s.userId !== null);
   if (held.length > 0) {
-    const list = held.map((s) => `${s.position}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).join(", ");
+    const list = held.map((s) => `${s.position}. ${slotText(s)}`).join(", ");
     return {
       ok: false,
       error: `Cannot remove ${list}: someone holds it. Ask them to leave first, or keep the line.`,

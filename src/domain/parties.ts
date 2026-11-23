@@ -1,8 +1,7 @@
 // Parties of a call to arms (FR-070). Pure domain: no Discord or database imports (NFR-007).
 // slot.position stays unique per content (party 1 first, then party 2); the number shown restarts at 1 in each party.
 import { parseSlots } from "./parse.ts";
-import { ROLE_ORDER } from "./roles.ts";
-import type { Result, SlotDef } from "./types.ts";
+import type { Result, SlotDef, SlotMode } from "./types.ts";
 
 export const MAX_PARTY_SLOTS = 20;
 export const CTA_ROLES = ["Tank", "DTank", "Healer", "Support", "DPS"] as const;
@@ -12,23 +11,13 @@ export function maxPartiesFor(_kind: string, isCta: boolean): 1 | 2 {
   return isCta ? 2 : 1;
 }
 
-// `existing` are the party's current slots: a line equal to one of them (role, weapon, duty) is kept as it is, so a CTA
-// created before the role list was fixed can still be edited. New or changed lines must use a supported role.
-export function parseCtaSlots(input: string, party: number, parties: number, existing: { role: string; weapon?: string | null; duty?: string | null }[] = []): Result<SlotDef[]> {
-  const parsed = parseSlots(input);
-  if (!parsed.ok) return parsed;
-  // parseSlots drops blank lines and keeps the order, so the nth slot is the nth non-blank line.
-  const lineNumbers = input.split(/\r?\n/).map((l, i) => ({ text: l.trim(), n: i + 1 })).filter((l) => l.text !== "").map((l) => l.n);
-  for (let i = 0; i < parsed.value.length; i++) {
-    const slot = parsed.value[i]!;
-    const role = slot.role;
-    const unchanged = existing.some((e) => e.role === slot.role && (e.weapon ?? "") === (slot.weapon ?? "") && (e.duty ?? null) === (slot.duty ?? null));
-    if (!unchanged && !(ROLE_ORDER as readonly string[]).includes(role.trim().toLowerCase())) {
-      const where = parties > 1 ? `Party ${party}, line ${lineNumbers[i]}` : `Line ${lineNumbers[i]}`;
-      return { ok: false, error: `${where}: "${role}" is not a supported role. Use Tank, DTank, Healer, Support or DPS.` };
-    }
-  }
-  return parsed;
+// One party's lines (FR-070), checked like every content's (FR-077) and read in the content's mode (FR-076). `existing` are
+// the party's current slots: a line equal to one of them is kept unchecked, so an older roster can still be edited.
+// With two parties the error names the party.
+export function parseCtaSlots(input: string, party: number, parties: number, existing: { role: string; weapon?: string | null; duty?: string | null }[] = [], mode: SlotMode = "role"): Result<SlotDef[]> {
+  const parsed = parseSlots(input, mode, existing);
+  if (parsed.ok || parties <= 1) return parsed;
+  return { ok: false, error: parsed.error.replace(/^Line /, `Party ${party}, line `) };
 }
 
 // The group number of Bombers in a host panel's party choice (FR-071): Remove player and Attendance only.

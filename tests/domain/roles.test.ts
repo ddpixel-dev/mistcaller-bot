@@ -9,3 +9,8 @@ test("roles sort Tank, DTank, Healer, Support, DPS, then any other role in the o
   assert.ok(roleRank(" Tank ") < roleRank("DTank"));
   assert.equal(roleRank("Bomber"), roleRank("Caller"));
 });
+
+test("FR-076: weapon slots (no role) keep their typed order, after any role slot", () => {
+  const out = sortByRole([{ role: "", weapon: "Mace" }, { role: "Tank", weapon: "" }, { role: "", weapon: "Bow" }]);
+  assert.deepEqual(out.map((s) => s.weapon || s.role), ["Tank", "Mace", "Bow"]);
+});

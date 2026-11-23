@@ -283,7 +283,7 @@ function party1Form(d: StoredDraft): InteractionResponse {
     data: {
       custom_id: `ccs1:${d.id}`,
       title: two ? "Party 1 slots" : "Slots",
-      components: [textInput("slots", two ? "Party 1 slots (one per line: Role - Weapon)" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, required: false, placeholder: "Tank - Axe", ...(text ? { value: text } : {}) })],
+      components: [textInput("slots", two ? "Party 1 slots (one per line: Role - Weapon)" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, required: false, placeholder: "Tank - Mace", ...(text ? { value: text } : {}) })],
     },
   };
 }
@@ -296,7 +296,7 @@ function party2Form(d: StoredDraft): InteractionResponse {
     data: {
       custom_id: `ccs2:${d.id}`,
       title: "Party 2 slots",
-      components: [textInput("slots2", "Party 2 slots", 1500, { style: 2, required: false, placeholder: "Tank - Axe", ...(text ? { value: text } : {}) })],
+      components: [textInput("slots2", "Party 2 slots", 1500, { style: 2, required: false, placeholder: "Tank - Mace", ...(text ? { value: text } : {}) })],
     },
   };
 }

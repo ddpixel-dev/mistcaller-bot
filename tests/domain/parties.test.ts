@@ -13,7 +13,7 @@ test("maxPartiesFor allows two parties only for a CTA", () => {
 });
 
 test("parseCtaSlots rejects a role outside the CTA roles", () => {
-  const r = parseCtaSlots("Tank - Axe\nHeal", 1, 2);
+  const r = parseCtaSlots("Tank - Mace\nHeal", 1, 2);
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.error, 'Party 1, line 2: "Heal" is not a supported role. Use Tank, DTank, Healer, Support or DPS.');
 });
@@ -66,4 +66,11 @@ test("the party picker text", async () => {
   const p = await import("../../src/domain/parties.ts");
   assert.equal(p.PARTIES_PLACEHOLDER, "How many parties?");
   assert.deepEqual([p.ONE_PARTY_LABEL, p.ONE_PARTY_EMOJI, p.TWO_PARTIES_LABEL, p.TWO_PARTIES_EMOJI], ["One Party", "👤", "Two Parties", "👥"]);
+});
+
+test("FR-076: parseCtaSlots reads weapon lines in weapon mode, with the party in the error", () => {
+  const r = parseCtaSlots("Bow\nHallowfall (Main Healer)", 2, 2, [], "weapon");
+  assert.deepEqual(r, { ok: true, value: [{ role: "", weapon: "Bow" }, { role: "", weapon: "Hallowfall", duty: "main-healer" }] });
+  const bad = parseCtaSlots("Bow\nHoly", 2, 2, [], "weapon");
+  assert.ok(!bad.ok && bad.error.startsWith('Party 2, line 2: "Holy" is not a weapon.'), JSON.stringify(bad));
 });
