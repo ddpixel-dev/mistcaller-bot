@@ -569,7 +569,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.31.11 (FR-078 Edit preset; FR-079 the host places an applicant or fill in any open position; FR-080 Tracking, no Skirmish, ZvZ Territory Attack and Outpost & Castle, 👥 party titles, the host-picks note under Your time, Add player, ❌ Remove player, the Edit content button, calendar dividers; ADR 0049, migration 0035). Before it 0.31.10 (FR-074, FR-075, ADR 0048, migration 0034).
+Phase: MVP, release 0.31.12 (the calendar's 🔜 Upcoming label after Live now, FR-080). Before it release 0.31.11 (FR-078 Edit preset; FR-079 the host places an applicant or fill in any open position; FR-080 Tracking, no Skirmish, ZvZ Territory Attack and Outpost & Castle, 👥 party titles, the host-picks note under Your time, Add player, ❌ Remove player, the Edit content button, calendar dividers; ADR 0049, migration 0035). Before it 0.31.10 (FR-074, FR-075, ADR 0048, migration 0034).
 Last updated: 2026-11-23
 Next step: release C of docs/plan/2026-11-22-slot-modes-and-batch-design.md, slots by Role or Weapon on every content and strict roles and weapons (FR-076, FR-077, ADR 0049, migration 0036); it needs its implementation plan first. The owner tries 0.31.11 (Edit preset, the applicant fix, the calendar dividers).
 
