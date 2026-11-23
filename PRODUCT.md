@@ -393,7 +393,7 @@ In Review applicants and Add player the position menu shall list every open posi
 
 ### FR-080: The 2026-11-22 batch
 status: built, release 0.31.11 (owner request 2026-11-22, ADR 0049)
-Tracking in PvE (not PvX); Skirmish removed from PvP; ZvZ gains Territory Attack, and its Outpost and Castle merge into Outpost & Castle; party headings use 👥; the host-picks note is a small line under Your time; Assign player is named Add player and Remove player has ❌; the roster button Manage is named Edit content; the calendar has a divider between CTA and other content and between Live now and upcoming.
+Tracking in PvE (not PvX); Skirmish removed from PvP; ZvZ gains Territory Attack, and its Outpost and Castle merge into Outpost & Castle; party headings use 👥; the host-picks note is a small line under Your time; Assign player is named Add player and Remove player has ❌; the roster button Manage is named Edit content; the calendar has a divider between CTA and other content and between Live now and upcoming. Changed 2026-11-23 (owner request): when Live now is shown, the upcoming days start under a 🔜 Upcoming label.
 
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
@@ -569,7 +569,7 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.31.11 (FR-078 Edit preset; FR-079 the host places an applicant or fill in any open position; FR-080 Tracking, no Skirmish, ZvZ Territory Attack and Outpost & Castle, 👥 party titles, the host-picks note under Your time, Add player, ❌ Remove player, the Edit content button, calendar dividers; ADR 0049, migration 0035). Before it 0.31.10 (FR-074, FR-075, ADR 0048, migration 0034).
+Phase: MVP, release 0.31.12 (the calendar's 🔜 Upcoming label after Live now, FR-080). Before it release 0.31.11 (FR-078 Edit preset; FR-079 the host places an applicant or fill in any open position; FR-080 Tracking, no Skirmish, ZvZ Territory Attack and Outpost & Castle, 👥 party titles, the host-picks note under Your time, Add player, ❌ Remove player, the Edit content button, calendar dividers; ADR 0049, migration 0035). Before it 0.31.10 (FR-074, FR-075, ADR 0048, migration 0034).
 Last updated: 2026-11-23
 Next step: release C of docs/plan/2026-11-22-slot-modes-and-batch-design.md, slots by Role or Weapon on every content and strict roles and weapons (FR-076, FR-077, ADR 0049, migration 0036); it needs its implementation plan first. The owner tries 0.31.11 (Edit preset, the applicant fix, the calendar dividers).
 
