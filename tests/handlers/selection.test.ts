@@ -67,7 +67,7 @@ test("a selection event has Review applicants (applicants only) and Assign playe
   await d(click(`join:${id}`, A, [slots[1]!]));
   const manage: any = await d(click(`mg:${id}`, OWNER, undefined, { message: { id: "m1", flags: V2 } }));
   assert.ok(labels(manage).some((l) => l?.startsWith("Review applicants (1)")), labels(manage).join("|"));
-  assert.ok(labels(manage).includes("Assign player") && !labels(manage).includes("Add player"));
+  assert.ok(labels(manage).includes("Add player") && !labels(manage).includes("Assign player"));
   assert.deepEqual(discordProblems({ ...manage.data, flags: 0 }), []);
 
   // Review applicants: the applicants only, no member picker.
@@ -142,7 +142,7 @@ test("the Edit panel switches selection on and off; off is refused while applica
 test("a normal event has Assign player, no Review applicants and no disclaimer", async () => {
   const { d, id, edits } = await setup(false);
   const manage: any = await d(click(`mg:${id}`, OWNER));
-  assert.ok(labels(manage).includes("Assign player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
+  assert.ok(labels(manage).includes("Add player") && !labels(manage).some((l) => l?.startsWith("Review applicants")));
   assert.ok(edits.length === 0);
 });
 

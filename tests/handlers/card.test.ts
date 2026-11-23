@@ -361,7 +361,7 @@ test("Blank template: needs the type for normal content; opens a form with title
   assert.equal((await sql`select count(*)::int as n from slot`)[0]!.n, 0);
   const edit = calls.filter((c) => c.op === "editMessage").at(-1)!;
   const buttons = flatComponents(edit.args[2]).filter((c: any) => c.type === 2).map((c: any) => c.label);
-  assert.deepEqual(buttons, ["Manage"]);
+  assert.deepEqual(buttons, ["Edit content"]);
 });
 
 test("a blank CTA needs no type: it is ZvZ and is announced in the CTA channel", async () => {

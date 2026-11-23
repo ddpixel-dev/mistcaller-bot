@@ -11,7 +11,7 @@ import { displayNumber, withParty } from "../domain/parties.ts";
 import { partyChoice, partyOfClick, shownNumber, slotsOfParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Set duty**, again.";
+const INVALID = "That panel is out of date. Press **Edit content** on the roster, then **Set duty**, again.";
 
 // The private Set duty panel (FR-048): every position, then (once one is chosen) the duties and Clear.
 function dutyPanel(view: RosterView, position: number | null, party = 1) {

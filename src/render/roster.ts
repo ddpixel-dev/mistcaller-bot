@@ -128,7 +128,7 @@ const text = (content: string) => ({ type: 10, content });
 // Small grey tips at the very bottom of a live roster (owner request 2026-10-08).
 export const OWNER_TIPS = [
   "-# 💡 **Tips for the owner**",
-  "-# 🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more",
+  "-# 🛠️ Press **Edit content** to edit, add players, end or cancel · `/content help` for more",
 ].join("\n");
 
 // `party` picks which message of a call to arms to render (FR-070). Party 1 is the whole message of any other content;
@@ -161,7 +161,7 @@ function renderPartyMessage(view: RosterView, party: number): {
   // FR-060: a blank content is its details and a Manage button: no roster, menus, Leave, vote or Ping.
   if (view.blank) {
     const parts: unknown[] = [text(headerText(view, 0, true))];
-    if (live || view.status === "done") parts.push({ type: 1, components: [{ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` }] });
+    if (live || view.status === "done") parts.push({ type: 1, components: [{ type: 2, style: 2, label: "Edit content", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` }] });
     if (live) parts.push(text(OWNER_TIPS));
     return {
       flags: IS_COMPONENTS_V2,
@@ -263,7 +263,7 @@ function renderPartyMessage(view: RosterView, party: number): {
   });
   // The creator and admins open their private Manage panel (FR-048); checked when pressed, shown to everyone. A finished
   // roster keeps it, the one enabled control, for the attendance and reopen (ADR 0029).
-  if (first && (live || view.status === "done")) buttons.push({ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
+  if (first && (live || view.status === "done")) buttons.push({ type: 2, style: 2, label: "Edit content", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
   // A row holds five buttons at most.
   for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
   if (live && first) body.push(text(OWNER_TIPS));
@@ -408,7 +408,7 @@ function renderCtaMessage(view: RosterView): {
     type: 2, style: 2, label: "Ping players", emoji: { name: "📣" }, custom_id: `ping:${view.id}`,
     disabled: !(live && (view.pingLeft !== undefined ? view.pingLeft > 0 : filled > 0 || fills.length > 0 || bomberIds.length > 0)),
   });
-  if (live || view.status === "done") buttons.push({ type: 2, style: 2, label: "Manage", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
+  if (live || view.status === "done") buttons.push({ type: 2, style: 2, label: "Edit content", emoji: { name: "🛠️" }, custom_id: `mg:${view.id}` });
   for (let n = 0; n < buttons.length; n += 5) body.push({ type: 1, components: buttons.slice(n, n + 5) });
   if (live) body.push(text(OWNER_TIPS));
 

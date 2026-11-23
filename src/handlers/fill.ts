@@ -15,7 +15,7 @@ import { partyChoice, partyOfClick, shownNumber, slotsOfParty, userInParty } fro
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{5,25}$/;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Assign player** or **Review applicants**, again.";
+const INVALID = "That panel is out of date. Press **Edit content** on the roster, then **Add player** or **Review applicants**, again.";
 const NO_BOTS = "Bots cannot be signed up.";
 
 const failure = (r: AssignResult["result"], position?: number): string =>

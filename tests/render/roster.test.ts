@@ -339,7 +339,7 @@ test("a live roster ends with small tips for the owner; finished or cancelled on
   for (const status of ["open", "locked"] as const) {
     const tail = last(view({ status }));
     assert.equal(tail.type, 10, `${status}: the tips are the last block, below the buttons`);
-    assert.ok(tail.content.includes("**Manage**") && tail.content.includes("/content help"));
+    assert.ok(tail.content.includes("**Edit content**") && tail.content.includes("/content help"));
     assert.ok(!tail.content.includes("/content edit") && !tail.content.includes("/content end"), "the removed commands are not suggested");
     assert.ok(tail.content.split("\n").every((l: string) => l.startsWith("-# ")), "small grey subtext");
   }
@@ -387,7 +387,7 @@ test("two button rows at most: Leave, Tentative, Split, Regear, Ping players, th
   const rows = (msg(v) as any).components[0].components.filter((c: any) => c.type === 1 && c.components[0].type === 2);
   assert.equal(rows.length, 2);
   assert.deepEqual(rows[0].components.map((c: any) => c.label), ["Leave", "Tentative", "Split (0)", "Regear (0)", "Ping players"]);
-  assert.deepEqual(rows[1].components.map((c: any) => c.label), ["Manage"]);
+  assert.deepEqual(rows[1].components.map((c: any) => c.label), ["Edit content"]);
   assert.equal(byId(v, "mg:")[0]!.custom_id, "mg:c1");
   assert.equal(byId(view({ slots: slots(3, 0), hasLoot: false }), "mg:").length, 1, "Manage shows on an empty roster too");
   assert.equal(byId(view({ status: "locked" }), "mg:").length, 1);
@@ -555,7 +555,7 @@ test("a blank content has no roster: no party line, no menus, no Leave, Ping or 
   assert.ok(!t.includes("Party (") && !t.includes("Waitlist"), t);
   assert.equal(comps(v).filter((c) => c.type === 3).length, 0, "no menus");
   const labels = comps(v).filter((c) => c.type === 2).map((c) => c.label);
-  assert.deepEqual(labels, ["Manage"]);
+  assert.deepEqual(labels, ["Edit content"]);
   assert.deepEqual(discordProblems(msg(v)), []);
 });
 
