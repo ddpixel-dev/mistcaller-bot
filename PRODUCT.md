@@ -393,7 +393,7 @@ In Review applicants and Add player the position menu shall list every open posi
 
 ### FR-080: The 2026-11-22 batch
 status: built, release 0.31.11 (owner request 2026-11-22, ADR 0049)
-Tracking in PvE (not PvX); Skirmish removed from PvP; ZvZ gains Territory Attack, and its Outpost and Castle merge into Outpost & Castle; party headings use 👥; the host-picks note is a small line under Your time; Assign player is named Add player and Remove player has ❌; the roster button Manage is named Edit content; the calendar has a divider between CTA and other content and between Live now and upcoming.
+Tracking in PvE (not PvX); Skirmish removed from PvP; ZvZ gains Territory Attack, and its Outpost and Castle merge into Outpost & Castle; party headings use 👥; the host-picks note is a small line under Your time; Assign player is named Add player and Remove player has ❌; the roster button Manage is named Edit content; the calendar has a divider between CTA and other content and between Live now and upcoming. Changed 2026-11-23 (owner request): when Live now is shown, the upcoming days start under a 🔜 Upcoming label.
 
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
