@@ -1,5 +1,5 @@
 import type { Sql } from "./client.ts";
-import { isContentType, type ContentType, type SlotDef } from "../domain/types.ts";
+import { isContentType, isSlotMode, type ContentType, type SlotDef, type SlotMode } from "../domain/types.ts";
 
 export const MAX_PRESETS = 25;
 
@@ -8,6 +8,7 @@ export type PresetSettings = {
   type: ContentType | null; kind: string | null; loot: boolean; selection: boolean;
   title: string | null; tier: string | null; notes: string | null; buildRef: string | null;
   bombers: number | null; // a CTA's Bombers cap (FR-071); null for normal content and for a CTA without Bombers
+  slotMode: SlotMode; // FR-076; presets saved before it are role mode
 };
 // `cta`: saved from the CTA card; the CTA card lists only these and Plan Content only the others (ADR 0047, FR-073).
 export type Preset = { id: string; name: string; slots: SlotDef[]; createdBy: string; settings: PresetSettings | null; cta: boolean };
@@ -23,6 +24,7 @@ export function toSettings(raw: unknown): PresetSettings | null {
     kind: text(r.kind, 40), loot: r.loot === true, selection: r.selection === true,
     title: text(r.title, 100), tier: text(r.tier, 80), notes: text(r.notes, 500), buildRef: text(r.buildRef, 100),
     bombers: Number.isInteger(r.bombers) && (r.bombers as number) >= 1 && (r.bombers as number) <= 20 ? (r.bombers as number) : null,
+    slotMode: isSlotMode(r.slotMode) ? r.slotMode : "role",
   };
 }
 

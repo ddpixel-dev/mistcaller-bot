@@ -39,6 +39,7 @@ export type RosterView = {
   hasLoot: boolean;
   status: ContentStatus;
   partyCount: number; // 1 or 2 (FR-070)
+  slotMode: SlotMode; // slots by role or by weapon (FR-076)
   partyOf?: Record<string, number>; // party of each waitlist, fill and applied user; absent means party 1 (FR-070)
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string; party?: number }[];

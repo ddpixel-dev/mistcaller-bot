@@ -112,7 +112,7 @@ export async function editContent(sql: Sql, id: string, input: EditInput, now: D
     }
     for (const { plan } of plans) {
       for (const r of plan.rename) {
-        await tx`update slot set role = ${r.role}, weapon = ${r.weapon || null}, duty = ${r.duty} where id = ${r.id}`;
+        await tx`update slot set role = ${r.role || null}, weapon = ${r.weapon || null}, duty = ${r.duty} where id = ${r.id}`;
       }
       for (const sid of plan.remove) {
         await tx`delete from slot where id = ${sid}`;

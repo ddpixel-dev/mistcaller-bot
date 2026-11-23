@@ -494,7 +494,7 @@ export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<
   if (!checked.ok) return await presetPanel(deps, d);
   const settings: PresetSettings = {
     type: d.type, kind: d.kind, loot: d.loot, selection: d.selection, title: d.title, tier: d.gearTier, notes: d.notes, buildRef: d.buildRef,
-    bombers: d.cta ? d.bombers : null,
+    bombers: d.cta ? d.bombers : null, slotMode: d.slotMode,
   };
   // Party 2 slots are saved with `party: 2`; party 1 slots have no party key, as in older presets.
   const presetSlots = [...checked.value.slots, ...checked.value.slots2.map((s) => ({ ...s, party: 2 }))];

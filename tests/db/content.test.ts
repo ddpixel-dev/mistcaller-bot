@@ -206,3 +206,15 @@ test("migration 0021 sorts the positions of existing content by role and keeps s
   const v = (await getRosterView(sql, id, startsAt))!;
   assert.deepEqual(v.slots.map((s) => [s.position, s.role, s.userId]), [[1, "Tank", "u9"], [2, "Healer", null], [3, "DPS", null]]);
 });
+
+// FR-076: the slot mode is stored on the content; a weapon slot has no role in the database.
+test("FR-076: a weapon-mode content stores its mode and role-less slots; older content reads as role mode", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }, { role: "", weapon: "Mace", duty: "caller" }] });
+  assert.deepEqual((await sql`select role, weapon from slot where content_id = ${id} order by position`).map((r) => [r.role, r.weapon]), [[null, "Bow"], [null, "Mace"]]);
+  const v = (await getRosterView(sql, id, startsAt))!;
+  assert.equal(v.slotMode, "weapon");
+  assert.deepEqual(v.slots.map((s) => [s.role, s.weapon]), [["", "Bow"], ["", "Mace"]], "typed order kept, role empty");
+  const old = await createContent(sql, { ...base, threadId: "t2" });
+  assert.equal((await getRosterView(sql, old, startsAt))!.slotMode, "role");
+});

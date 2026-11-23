@@ -2,7 +2,7 @@ import { describeFill } from "../domain/fillmatch.ts";
 import { pingTargets } from "./ping.ts";
 import type { Sql } from "./client.ts";
 import { isVoteOpen, needsReminder, tallyVotes, type VoteChoice } from "../domain/vote.ts";
-import type { ContentStatus, ContentType, RosterView, SlotDef } from "../domain/types.ts";
+import { isSlotMode, type ContentStatus, type ContentType, type RosterView, type SlotDef, type SlotMode } from "../domain/types.ts";
 import { sortByRole, roleRank } from "../domain/roles.ts";
 import { MAX_PARTY_SLOTS, displayNumber } from "../domain/parties.ts";
 
@@ -14,6 +14,7 @@ export type NewContent = {
   title: string;
   notes: string | null;
   massing?: string | null; // where the party gathers (FR-074)
+  slotMode?: SlotMode; // slots by role (default) or by weapon (FR-076)
   startsAt: Date;
   tier: string;
   hasLoot: boolean;
@@ -70,10 +71,10 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
     const now = input.now ?? new Date();
     const [row] = await tx`
       insert into content (guild_id, thread_id, type, kind, title, notes, starts_at,
-        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count, roster_channel_id, bombers, massing_at)
+        gear_tier, has_loot, created_by, reminder_sent_at, build_channel_id, own_post, selection, cta, blank, party_count, roster_channel_id, bombers, massing_at, slot_mode)
       values (${input.guildId}, ${input.threadId}, ${input.type}, ${input.kind ?? "other"}, ${input.title}, ${input.notes},
         ${input.startsAt}, ${input.tier}, ${input.hasLoot}, ${input.createdBy},
-        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1}, ${input.rosterChannelId ?? null}, ${input.bombers ?? null}, ${input.massing ?? null})
+        ${needsReminder(input.startsAt, now) ? null : now}, ${input.buildRef ?? null}, ${input.ownPost ?? false}, ${input.selection ?? false}, ${input.cta ?? false}, ${input.blank ?? false}, ${slots2.length > 0 ? 2 : 1}, ${input.rosterChannelId ?? null}, ${input.bombers ?? null}, ${input.massing ?? null}, ${input.slotMode ?? "role"})
       returning id`;
     const id: string = row!.id;
     // Positions are numbered by role (ADR 0030).
@@ -87,7 +88,7 @@ async function insertContent(sql: Sql, input: NewContent): Promise<string> {
       content_id: id,
       position: i + 1,
       party,
-      role: s.role,
+      role: s.role || null, // a weapon slot has no role (FR-076)
       weapon: s.weapon || null,
       duty: s.duty ?? null,
     }));
@@ -176,11 +177,12 @@ export async function getRosterView(sql: Sql, contentId: string, now: Date): Pro
     hasLoot: c.has_loot,
     status: c.status as ContentStatus,
     partyCount: c.party_count ?? 1,
+    slotMode: isSlotMode(c.slot_mode) ? c.slot_mode : "role",
     slots: slots.map((s) => ({
       id: s.id,
       position: s.position,
       party: s.party,
-      role: s.role,
+      role: s.role ?? "",
       weapon: s.weapon ?? "",
       duty: s.duty ?? null,
       userId: s.user_id ?? null,

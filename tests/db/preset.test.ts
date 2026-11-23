@@ -47,7 +47,7 @@ test("updatePreset changes the name, slots and settings of that preset only", as
   await save("Roam");
   await save("Ava");
   const [roam] = (await listPresets(sql, "g1")).filter((p) => p.name === "Roam");
-  const settings = { type: "pve" as const, kind: "tracking", loot: true, selection: false, title: "Hunt", tier: "T6", notes: null, buildRef: null, bombers: null };
+  const settings = { type: "pve" as const, kind: "tracking", loot: true, selection: false, title: "Hunt", tier: "T6", notes: null, buildRef: null, bombers: null, slotMode: "role" as const };
   assert.equal(await updatePreset(sql, { guildId: "g1", id: roam!.id, name: "Roam 2", slots: [{ role: "DPS", weapon: "Bow" }], settings, createdBy: "o2", cta: false }), "ok");
   const all = await listPresets(sql, "g1");
   assert.deepEqual(all.map((p) => [p.name, p.slots.length]), [["Ava", 2], ["Roam 2", 1]]);
@@ -68,4 +68,11 @@ test("updatePreset refuses a name another preset uses (either kind), allows its 
   await sql`delete from slot_preset where id = ${roam.id}`;
   assert.equal(await updatePreset(sql, { ...base, name: "X" }), "gone");
   assert.equal((await listPresets(sql, "g1")).length, 0);
+});
+
+test("FR-076: preset settings keep the slot mode; older settings read as role mode", async () => {
+  const { toSettings } = await import("../../src/db/preset.ts");
+  assert.equal(toSettings({ type: "pvp" })!.slotMode, "role");
+  assert.equal(toSettings({ type: "pvp", slotMode: "weapon" })!.slotMode, "weapon");
+  assert.equal(toSettings({ type: "pvp", slotMode: "nonsense" })!.slotMode, "role");
 });

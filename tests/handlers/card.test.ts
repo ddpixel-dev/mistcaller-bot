@@ -441,7 +441,7 @@ test("a preset saved from a valid card fills the type, category, loot vote, sign
   await d(press(`cc:sel:${first}`, ["1"]));
   assert.ok(say((await d(form(`ccp:${first}`, { name: "Ava roam" }, admin))) as any).includes("Saved the preset"));
   const [row] = await sql`select settings from slot_preset`;
-  assert.deepEqual(row!.settings, { type: "pvp", kind: "zvz", loot: true, selection: true, title: "Ava roam", tier: "T8.3", notes: "Bring food", buildRef: null, bombers: null });
+  assert.deepEqual(row!.settings, { type: "pvp", kind: "zvz", loot: true, selection: true, title: "Ava roam", tier: "T8.3", notes: "Bring food", buildRef: null, bombers: null, slotMode: "role" });
   // a new card: one pick sets everything
   const second: any = await open(d);
   const [{ id: presetId }] = await sql`select id from slot_preset`;
