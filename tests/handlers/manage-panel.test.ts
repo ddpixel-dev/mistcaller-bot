@@ -49,9 +49,9 @@ test("Manage opens a private panel for the owner and admins only, with every hos
   const r: any = await d(click(`mg:${id}`, OWNER, undefined, ROSTER));
   assert.equal(r.type, 4);
   assert.equal(r.data.flags, 64);
-  assert.deepEqual(labels(r), ["Edit", "Assign player", "Remove player", "Set duty", "Lock", "End", "Cancel", "Attendance", "Set weapon"]);
-  assert.deepEqual(flatComponents(r.data).find((c) => c.label === "Remove player")!.emoji, { name: "👢" });
-  const add = flatComponents(r.data).find((c) => c.label === "Assign player")!;
+  assert.deepEqual(labels(r), ["Edit", "Add player", "Remove player", "Set duty", "Lock", "End", "Cancel", "Attendance", "Set weapon"]);
+  assert.deepEqual(flatComponents(r.data).find((c) => c.label === "Remove player")!.emoji, { name: "❌" });
+  const add = flatComponents(r.data).find((c) => c.label === "Add player")!;
   assert.deepEqual([add.style, add.emoji], [3, { name: "✍️" }], "a green button with the owner's icon");
   assert.deepEqual(discordProblems({ ...r.data, flags: 0 }), []);
   const ids = flatComponents(r.data).filter((c) => c.type === 2).map((c) => c.custom_id);
@@ -317,7 +317,7 @@ test("a CTA: Manage and its panel actions work from the CTA channel", async () =
   const { d, cta, edits } = await ctaSetup();
   const r: any = await d(click(`mg:${cta}`, OWNER, undefined, { ...ROSTER, message: { id: "t9", flags: V2 }, ...inCta }));
   assert.equal(r.type, 4);
-  assert.ok(text(r).includes("Manage this content"));
+  assert.ok(text(r).includes("Edit this content"));
   const locked: any = await d(click(`mg:l:${cta}`, OWNER, undefined, { ...PANEL, ...inCta }));
   assert.equal(locked.type, 7, "the panel is updated in place");
   assert.ok(text(locked).includes("Roster locked"));

@@ -14,7 +14,7 @@ import { displayNumber, withParty } from "../domain/parties.ts";
 import { partyChoice, partyOfClick, shownNumber, slotsOfParty } from "./party-pick.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That panel is out of date. Press **Manage** on the roster, then **Set weapon**, again.";
+const INVALID = "That panel is out of date. Press **Edit content** on the roster, then **Set weapon**, again.";
 
 // The private Set weapon panel (ADR 0029): a position without a weapon, then the weapon class, then the weapon.
 function weaponPanel(view: RosterView, position: number | null, cls: WeaponClass | null, party = 1) {

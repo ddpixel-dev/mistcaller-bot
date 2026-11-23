@@ -14,7 +14,7 @@ import { formatSlotLines } from "../domain/slots.ts";
 import type { RosterView } from "../domain/types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INVALID = "That panel is out of date. Press **Manage** on the roster again.";
+const INVALID = "That panel is out of date. Press **Edit content** on the roster again.";
 const NOT_OPEN = "Only open content can be edited. Locked, finished or cancelled content cannot.";
 
 // Each panel button runs the host action that used to be a command (FR-048, ADR 0029). The actions find the content
@@ -52,8 +52,8 @@ function panel(view: RosterView, status: string | null = null) {
           // A host-selected event also has Review applicants, for the people who applied only (FR-065); Assign player is for
           // any member. Green buttons (owner request 2026-10-24); the owner chose the ✍️ icon.
           ...(view.selection ? [{ ...button(`Review applicants${view.applicants?.length ? ` (${view.applicants.length})` : ""}`, "📨", `fa:r:${id}`, 3), disabled: !view.applicants?.length }] : []),
-          button("Assign player", "✍️", `fa:${id}`, 3),
-          button("Remove player", "👢", `rm:${id}`), // a kick (owner request 2026-10-24)
+          button("Add player", "✍️", `fa:${id}`, 3), // named Add player 2026-11-22 (FR-080)
+          button("Remove player", "❌", `rm:${id}`), // ❌ since 2026-11-22 (FR-080)
           button("Set duty", "📯", `dt:${id}`),
         ],
       },
@@ -69,7 +69,7 @@ function panel(view: RosterView, status: string | null = null) {
         ],
       },
     ];
-  return { content: `🛠️ **Manage this content.** Only you can see this.${status ? `\n${status}` : ""}`, flags: EPHEMERAL, allowed_mentions: { parse: [] as [] }, components: rows };
+  return { content: `🛠️ **Edit this content.** Only you can see this.${status ? `\n${status}` : ""}`, flags: EPHEMERAL, allowed_mentions: { parse: [] as [] }, components: rows };
 }
 
 // The Edit panel (ADR 0029): the category and the loot vote as menus that apply at once, the form for the text, and a
@@ -242,7 +242,7 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
   } else if (parts[1] === "s" && (picked === "1" || picked === "0")) {
     const r = await updateContentSettings(deps.sql, id, { selection: picked === "1" });
     if (r === "unavailable") return reply(NOT_OPEN);
-    if (r === "has_applicants") return reply(`${view.applicants?.length ?? "Some"} player(s) have applied. Accept or decline them first (Manage → Review applicants), then switch to open sign-up.`);
+    if (r === "has_applicants") return reply(`${view.applicants?.length ?? "Some"} player(s) have applied. Accept or decline them first (Edit content → Review applicants), then switch to open sign-up.`);
     note = picked === "1" ? "✅ Selection on: players apply and you pick the party." : "✅ Open sign-up: players take their own position.";
   } else {
     return reply(INVALID);

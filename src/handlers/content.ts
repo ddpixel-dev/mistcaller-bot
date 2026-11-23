@@ -19,6 +19,6 @@ export async function handleContentCommand(deps: Deps, i: Interaction): Promise<
     case "help": return await handleHelpCommand(deps, i);
     case "history": return await handleHistoryCommand(deps, i);
     case "stats": return await handleStatsCommand(deps, i);
-    default: return reply("That command no longer exists. Press **Manage** on the roster for the host's actions.");
+    default: return reply("That command no longer exists. Press **Edit content** on the roster for the host's actions.");
   }
 }
