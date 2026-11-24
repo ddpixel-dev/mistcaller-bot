@@ -4,7 +4,7 @@ import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../dis
 import { modalValues, textInput } from "../discord/modal.ts";
 import { getManageTargetById, getManageTargetFor, updateContentSettings } from "../db/manage.ts";
 import { getRosterView } from "../db/content.ts";
-import { authorize, handleCancel, handleLock, handleUnlock, openEditForm, refreshRoster } from "./manage.ts";
+import { authorize, handleCancel, handleLock, handleUnlock, openEditForm, refreshRoster, slotsBoxLabel } from "./manage.ts";
 import { handleAttendance, handleEnd, handleReopen } from "./attendance.ts";
 import { refreshDashboardSoon } from "../jobs/dashboards.ts";
 import { kindsOf, resolveKind } from "../domain/kinds.ts";
@@ -191,7 +191,7 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
       data: {
         custom_id: `edp:${id}`,
         title: "Edit party 2 slots",
-        components: [textInput("slots", "Party 2 slots", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 2)) })],
+        components: [textInput("slots", slotsBoxLabel(view, "Party 2 slots"), 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 2)) })],
       },
     };
   }
@@ -202,7 +202,7 @@ export async function handleEditPanelComponent(deps: Deps, i: Interaction): Prom
       data: {
         custom_id: `edp1:${id}`,
         title: view.partyCount === 2 ? "Edit party 1 slots" : "Edit slots",
-        components: [textInput("slots", view.partyCount === 2 ? "Party 1 slots" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) })],
+        components: [textInput("slots", slotsBoxLabel(view, view.partyCount === 2 ? "Party 1 slots" : "Slots"), 1500, { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) })],
       },
     };
   }

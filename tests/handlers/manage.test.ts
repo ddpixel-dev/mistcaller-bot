@@ -269,13 +269,13 @@ test("a CTA's Edit details holds no slots but the Bombers cap; the Edit panel ha
   assert.equal(one.type, 9);
   assert.equal(one.data.custom_id, `edp1:${id}`);
   const box1 = one.data.components[0].components[0];
-  assert.equal(box1.label, "Party 1 slots");
+  assert.equal(box1.label, "Party 1 slots (one per line: Role - Weapon)");
   assert.equal(box1.value, "Tank - Mace\nHealer - Holy");
   const opened: any = await d(button(`ed:p:${id}`));
   assert.equal(opened.type, 9);
   assert.equal(opened.data.custom_id, `edp:${id}`);
   const box = opened.data.components[0].components[0];
-  assert.equal(box.label, "Party 2 slots");
+  assert.equal(box.label, "Party 2 slots (one per line: Role - Weapon)");
   assert.equal(box.max_length, 1500);
   assert.equal(box.value, "Tank - Axe\nDPS - Bow");
 });
@@ -431,4 +431,32 @@ test("a title edit of normal content edits no announcement", async () => {
   const { deps, id, edits } = await setup();
   await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
   assert.ok(!edits.some((e: any) => e.channelId === "cta-ch"));
+});
+
+// ---- FR-076: Edit details on a weapon-mode roster ----
+test("FR-076: a weapon-mode roster's Edit form shows weapon lines and saves weapon lines; role lines are refused", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, slotMode: "weapon", slots: [{ role: "", weapon: "Bow", duty: "caller" }, { role: "", weapon: "Mace" }] });
+  await setMessageId(sql, id, "m1");
+  const deps: Deps = { sql, rest: { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} }, now: () => NOW };
+  const form: any = await openEditForm(deps, command("edit"));
+  const box = form.data.components.flatMap((r: any) => r.components).find((c: any) => c.custom_id === "slots");
+  assert.deepEqual([box.label, box.value], ["Slots (one per line: Weapon)", "Bow (Caller)\nMace"]);
+  const values = { title: "Ganking", start: "2026-12-01 18:00", tier: "T8.0", notes: "" };
+  assert.match(text(await handleEditModal(deps, modal(id, "k", { ...values, slots: "Tank - Mace" }))), /slots are by weapon/);
+  assert.match(text(await handleEditModal(deps, modal(id, "k", { ...values, slots: "Bow (Caller)\nMace\nHallowfall" }))), /Content updated/);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(v.slots.map((s) => [s.role, s.weapon]), [["", "Bow"], ["", "Mace"], ["", "Hallowfall"]]);
+});
+
+test("FR-076: a weapon-mode CTA's party forms read weapon lines", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, cta: true, slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }], slots2: [{ role: "", weapon: "Mace" }] });
+  await setMessageId(sql, id, "m1");
+  const deps: Deps = { sql, rest: { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} }, now: () => NOW };
+  const d = createDispatch(deps);
+  assert.match(text(await d(p2form(id, "Mace\nHallowfall"))), /Party 2 updated/);
+  assert.match(text(await d(p2form(id, "Tank - Mace"))), /Party 2, line 1: this content's slots are by weapon/);
+  const open: any = await d(button(`ed:p:${id}`));
+  assert.equal(open.data.components[0].components[0].label, "Party 2 slots (one per line: Weapon)");
 });
