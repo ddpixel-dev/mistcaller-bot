@@ -82,7 +82,7 @@ const modal = (values: Record<string, string>, loot = "1", over: Partial<Interac
 
 const good = {
   title: "Ava raid", start: "2026-10-07 18:00", tier: "T5.3-T7.0",
-  slots: "Tank - Axe\nHealer - Fallen\nDPS - Bow", notes: "bring food",
+  slots: "Tank - Mace\nHealer - Fallen Staff\nDPS - Bow", notes: "bring food",
 };
 
 const content = (r: any) => (r.data as any).content as string;
@@ -120,7 +120,7 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");
   assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
   assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
-  assert.equal(allMenus(r).length, 5, "the dimmed Preset menu is on the card while the server has none");
+  assert.equal(allMenus(r).length, 6, "the dimmed Preset menu is on the card while the server has none");
   assert.ok(String(allMenus(r)[0].custom_id).startsWith("cc:preset:"), "the Preset menu comes first");
 });
 
@@ -154,7 +154,7 @@ test("valid modal submit creates content, posts once, stores message id", async 
   assert.equal(rows[0]!.has_loot, true);
   assert.equal(rows[0]!.message_id, "msg-1");
   const slots = await sql`select role, weapon from slot order by position`;
-  assert.deepEqual(slots.map((s) => `${s.role}/${s.weapon}`), ["Tank/Axe", "Healer/Fallen", "DPS/Bow"]);
+  assert.deepEqual(slots.map((s) => `${s.role}/${s.weapon}`), ["Tank/Mace", "Healer/Fallen Staff", "DPS/Bow"]);
   assert.equal(posts.length, 1);
   assert.equal(posts[0]!.channelId, "thread-1");
   assert.deepEqual(posts[0]!.body.allowed_mentions, { parse: [] });
@@ -184,7 +184,7 @@ test("invalid inputs respond ephemeral with the parser message and create nothin
     "80 characters": { ...good, tier: "x".repeat(81) },
     "not a real": { ...good, start: "2026-02-30 18:00" },
     "not in the future": { ...good, start: "2026-10-01 18:00" },
-    "Too many slots": { ...good, slots: Array.from({ length: 21 }, () => "Tank - Axe").join("\n") },
+    "Too many slots": { ...good, slots: Array.from({ length: 21 }, () => "Tank - Mace").join("\n") },
     "too long": { ...good, title: "x".repeat(101) },
   };
   for (const [needle, values] of Object.entries(cases)) {
@@ -399,7 +399,7 @@ test("a Discord rejection when posting is logged with its status, code and reaso
 
 test("a roster with every role posts a message Discord accepts: V2 flag, valid emoji, within the limits", async () => {
   const { deps, posts } = await setup();
-  await handleCreateModal(deps, modal({ ...good, slots: "Tank - Axe\nHealer - Holy Staff\nSupport - Occult Staff\nDPS - Bow (Caller)" }));
+  await handleCreateModal(deps, modal({ ...good, slots: "Tank - Mace\nHealer - Holy Staff\nSupport - Occult Staff\nDPS - Bow (Caller)" }));
   const body = posts[0]!.body;
   assert.equal(body.flags & (1 << 15), 1 << 15);
   assert.deepEqual(discordProblems(body), []);

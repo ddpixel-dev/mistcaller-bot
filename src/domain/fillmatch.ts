@@ -1,9 +1,12 @@
 import { roleRank } from "./roles.ts";
+import { slotLabel } from "./slotlabel.ts";
 
 // FR-057: what a fill is willing to play. Any position, chosen roles, chosen positions (slot ids, so adding a position
 // never changes what was asked for), or a mix of roles and positions.
 export type FillPref = { any: boolean; roles: string[]; slotIds: string[] };
-export type OpenSlot = { id: string; position: number; role: string };
+export type OpenSlot = { id: string; position: number; role: string; weapon?: string };
+// A fill's "roles" are slot labels: roles, or weapons on a weapon-mode content (FR-076).
+const labelOf = (s: OpenSlot) => slotLabel({ role: s.role, weapon: s.weapon ?? "" });
 
 export const ANY_FILL: FillPref = { any: true, roles: [], slotIds: [] };
 export const MAX_FILL_VALUES = 25; // a Discord menu holds 25 options
@@ -12,7 +15,7 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 const isHealer = (role: string) => same(role, "healer");
 
 export function fillMatches(pref: FillPref, slot: OpenSlot): boolean {
-  return pref.any || pref.roles.some((r) => same(r, slot.role)) || pref.slotIds.includes(slot.id);
+  return pref.any || pref.roles.some((r) => same(r, labelOf(slot))) || pref.slotIds.includes(slot.id);
 }
 
 // The open position a fill takes: healers first (owner request 2026-11-06), then, for Any, by role order (Tank, DTank,

@@ -103,6 +103,13 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       await saveCard(deps.sql, d.id, { loot: value === "1" });
       return await showCard(deps, await reload(deps, d));
     }
+    case "mode": {
+      if (value !== "role" && value !== "weapon") return reply(EXPIRED);
+      if (value === d.slotMode) return await showCard(deps, d);
+      // FR-076: the lines were written for the other mode, so they are cleared rather than guessed.
+      await saveCard(deps.sql, d.id, { slotMode: value, slots: [], slotsText: null, slots2: [], slots2Text: null });
+      return await showCard(deps, await reload(deps, d), { note: `🧹 Slots cleared: they were written by ${d.slotMode}.` });
+    }
     case "sel": {
       if (value !== "0" && value !== "1") return reply(EXPIRED);
       await saveCard(deps.sql, d.id, { selection: value === "1" });
@@ -241,14 +248,19 @@ function detailsForm(d: StoredDraft): InteractionResponse {
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
-        textInput("slots", d.cta && d.parties >= 2 ? "Party 1 slots (one per line: Role - Weapon)" : "Slots (one per line: Role - Weapon)", 1500, {
-          style: 2, required: false, placeholder: d.cta ? "Tank - Axe" : "Tank - Axe  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
+        textInput("slots", slotsLabel(d, d.cta && d.parties >= 2 ? "Party 1 slots" : "Slots"), 1500, {
+          style: 2, required: false, placeholder: d.slotMode === "weapon" ? WEAPON_EXAMPLE : "Tank - Mace  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
         }),
         textInput("notes", "Notes (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
       ],
     },
   };
 }
+
+// FR-076: the slot boxes say how to write the lines in the card's mode.
+const WEAPON_EXAMPLE = "Hallowfall (Main Healer)";
+const slotsLabel = (d: StoredDraft, what: string) => `${what} (one per line: ${d.slotMode === "weapon" ? "Weapon" : "Role - Weapon"})`;
+const example = (d: StoredDraft) => (d.slotMode === "weapon" ? WEAPON_EXAMPLE : "Tank - Mace");
 
 // Massing at (FR-074): its own one-field form, for every kind of content (the Details form is full).
 function massingForm(d: StoredDraft): InteractionResponse {
@@ -283,7 +295,7 @@ function party1Form(d: StoredDraft): InteractionResponse {
     data: {
       custom_id: `ccs1:${d.id}`,
       title: two ? "Party 1 slots" : "Slots",
-      components: [textInput("slots", two ? "Party 1 slots (one per line: Role - Weapon)" : "Slots (one per line: Role - Weapon)", 1500, { style: 2, required: false, placeholder: "Tank - Axe", ...(text ? { value: text } : {}) })],
+      components: [textInput("slots", slotsLabel(d, two ? "Party 1 slots" : "Slots"), 1500, { style: 2, required: false, placeholder: example(d), ...(text ? { value: text } : {}) })],
     },
   };
 }
@@ -296,7 +308,7 @@ function party2Form(d: StoredDraft): InteractionResponse {
     data: {
       custom_id: `ccs2:${d.id}`,
       title: "Party 2 slots",
-      components: [textInput("slots2", "Party 2 slots", 1500, { style: 2, required: false, placeholder: "Tank - Axe", ...(text ? { value: text } : {}) })],
+      components: [textInput("slots2", slotsLabel(d, "Party 2 slots"), 1500, { style: 2, required: false, placeholder: example(d), ...(text ? { value: text } : {}) })],
     },
   };
 }
@@ -323,7 +335,7 @@ export async function handleCardDetails(deps: Deps, i: Interaction): Promise<Int
     return await showCard(deps, await reload(deps, d), cap.ok ? {} : { problems: [cap.error] });
   }
   const typed = (v.slots ?? "").trim();
-  const parsed = typed ? parseSlots(typed) : null;
+  const parsed = typed ? parseSlots(typed, d.slotMode) : null;
   await saveCard(deps.sql, d.id, {
     title: clean(v.title), startText: clean(v.start), gearTier: clean(v.tier), notes: clean(v.notes),
     ...(parsed === null ? { slots: [], slotsText: null } : parsed.ok ? { slots: parsed.value, slotsText: null } : { slotsText: typed }),
@@ -339,7 +351,7 @@ export async function handleCardParty1(deps: Deps, i: Interaction): Promise<Inte
   const d = await ownedDraft(deps, i, id);
   if (!d || !d.cta) return reply(EXPIRED);
   const typed = (modalValues(i).slots ?? "").trim();
-  const parsed = typed ? parseCtaSlots(typed, 1, d.parties) : null;
+  const parsed = typed ? parseCtaSlots(typed, 1, d.parties, [], d.slotMode) : null;
   await saveCard(deps.sql, d.id, parsed === null ? { slots: [], slotsText: null } : parsed.ok ? { slots: parsed.value, slotsText: null } : { slotsText: typed });
   return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [parsed.error] } : {});
 }
@@ -352,7 +364,7 @@ export async function handleCardParty2(deps: Deps, i: Interaction): Promise<Inte
   const d = await ownedDraft(deps, i, id);
   if (!d || !d.cta || d.parties < 2) return reply(EXPIRED);
   const typed = (modalValues(i).slots2 ?? "").trim();
-  const parsed = typed ? parseCtaSlots(typed, 2, d.parties) : null;
+  const parsed = typed ? parseCtaSlots(typed, 2, d.parties, [], d.slotMode) : null;
   await saveCard(deps.sql, d.id, parsed === null ? { slots2: [], slots2Text: null } : parsed.ok ? { slots2: parsed.value, slots2Text: null } : { slots2Text: typed });
   return await showCard(deps, await reload(deps, d), parsed && !parsed.ok ? { problems: [parsed.error] } : {});
 }
@@ -409,7 +421,7 @@ async function create(deps: Deps, i: Interaction, d: StoredDraft): Promise<Inter
   if (!where.ok) return await showCard(deps, d, { problems: [where.problem] });
   const done = await publish(deps, {
     guildId: d.guildId, creator: d.userId, type: c.type, kind: c.kind, title: c.title, notes: c.notes, startsAt: c.startsAt, tier: c.tier,
-    slots: c.slots, slots2: c.slots2, bombers: c.bombers, massing: d.massing, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
+    slots: c.slots, slots2: c.slots2, slotMode: c.slotMode, bombers: c.bombers, massing: d.massing, hasLoot: d.loot, selection: d.selection, cta: d.cta, buildRef: d.buildRef, place: where.place,
   });
   if (!done.ok) return done.response;
   await deleteDraft(deps.sql, d.id);
@@ -494,7 +506,7 @@ export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<
   if (!checked.ok) return await presetPanel(deps, d);
   const settings: PresetSettings = {
     type: d.type, kind: d.kind, loot: d.loot, selection: d.selection, title: d.title, tier: d.gearTier, notes: d.notes, buildRef: d.buildRef,
-    bombers: d.cta ? d.bombers : null,
+    bombers: d.cta ? d.bombers : null, slotMode: d.slotMode,
   };
   // Party 2 slots are saved with `party: 2`; party 1 slots have no party key, as in older presets.
   const presetSlots = [...checked.value.slots, ...checked.value.slots2.map((s) => ({ ...s, party: 2 }))];
@@ -517,13 +529,14 @@ export async function handleCardSavePreset(deps: Deps, i: Interaction): Promise<
 
 // What picking a preset sets on the card: everything it kept except the start time. A category that does not fit the type goes back to Other.
 function presetFields(s: PresetSettings | null, cta: boolean) {
-  if (!s) return {};
+  if (!s) return { slotMode: "role" as const }; // saved before presets kept settings: role mode (FR-076)
   const type = s.type ?? undefined;
   const kind = type && s.kind && resolveKind(type, s.kind).ok ? s.kind : DEFAULT_KIND;
   return {
     ...(type ? { type, kind } : {}), loot: s.loot, selection: s.selection,
     title: s.title, gearTier: s.tier, notes: s.notes, buildRef: s.buildRef,
     ...(cta ? { bombers: s.bombers } : {}),
+    slotMode: s.slotMode, // FR-076: presets saved before it are role mode
   };
 }
 

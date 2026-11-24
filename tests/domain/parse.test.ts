@@ -28,12 +28,12 @@ test("parseGearTier refuses an empty or over-long text, and says what to type", 
 });
 
 test("parseSlots happy path", () => {
-  assert.deepEqual(ok(parseSlots("Tank - Axe\nDPS-Longbow\n\nHealer – Holy")), [
-    { role: "Tank", weapon: "Axe" },
+  assert.deepEqual(ok(parseSlots("Tank - Mace\nDPS-Longbow\n\nHealer – Holy Staff")), [
+    { role: "Tank", weapon: "Mace" },
     { role: "DPS", weapon: "Longbow" },
-    { role: "Healer", weapon: "Holy" },
+    { role: "Healer", weapon: "Holy Staff" },
   ]);
-  assert.deepEqual(ok(parseSlots("Tank - Great Axe")), [{ role: "Tank", weapon: "Great Axe" }]);
+  assert.deepEqual(ok(parseSlots("Tank - Great Axe")), [{ role: "Tank", weapon: "Greataxe" }], "stored in the game's spelling (FR-077)");
 });
 
 test("parseSlots accepts a role alone, with or without a duty (the weapon is the player's choice)", () => {
@@ -48,15 +48,14 @@ test("parseSlots accepts a role alone, with or without a duty (the weapon is the
 });
 
 test("parseSlots errors", () => {
-  assert.ok(err(parseSlots("Tank - Axe\n - Axe")).includes("line 2"));
-  const many = Array.from({ length: 21 }, (_, i) => `R${i} - W`).join("\n");
+  assert.ok(err(parseSlots("Tank - Mace\n - Mace")).includes("line 2"));
+  const many = Array.from({ length: 21 }, () => "Tank - Mace").join("\n");
   assert.ok(err(parseSlots(many)).length > 0);
   assert.ok(err(parseSlots("")).length > 0);
   assert.ok(err(parseSlots("   \n\n")).length > 0);
-  assert.ok(err(parseSlots(`${"a".repeat(31)} - Axe`)).length > 0);
-  assert.ok(err(parseSlots(`Tank - ${"a".repeat(41)}`)).length > 0);
-  ok(parseSlots(`${"a".repeat(30)} - ${"b".repeat(40)}`));
-  ok(parseSlots(Array.from({ length: 20 }, (_, i) => `R${i} - W`).join("\n")));
+  assert.ok(err(parseSlots(`${"a".repeat(31)} - Mace`)).includes("too long"));
+  assert.ok(err(parseSlots(`Tank - ${"a".repeat(41)}`)).includes("too long"));
+  ok(parseSlots(Array.from({ length: 20 }, () => "Tank - Mace").join("\n")));
 });
 
 test("parseUtcStart", () => {
@@ -84,20 +83,21 @@ test("parseNotes", () => {
 });
 
 test("parseSlots hyphenated roles and weapons", () => {
-  assert.deepEqual(ok(parseSlots("Off-Tank - Axe")), [{ role: "Off-Tank", weapon: "Axe" }]);
-  assert.deepEqual(ok(parseSlots("Off-Tank – Axe")), [{ role: "Off-Tank", weapon: "Axe" }]);
+  // A spaced dash splits first, so a hyphenated name stays one name; Off-Tank is not one of the five roles (FR-077).
+  assert.ok(err(parseSlots("Off-Tank - Mace")).includes('"Off-Tank" is not a supported role'));
+  assert.ok(err(parseSlots("Off-Tank – Mace")).includes('"Off-Tank" is not a supported role'));
   assert.deepEqual(ok(parseSlots("DPS-Longbow")), [{ role: "DPS", weapon: "Longbow" }]);
-  assert.deepEqual(ok(parseSlots("Tank - Great-Axe")), [{ role: "Tank", weapon: "Great-Axe" }]);
-  assert.deepEqual(ok(parseSlots("Tank-Great Axe")), [{ role: "Tank", weapon: "Great Axe" }]);
-  assert.ok(err(parseSlots("- Axe")).includes("needs a role"));
+  assert.deepEqual(ok(parseSlots("Tank - Great-Axe")), [{ role: "Tank", weapon: "Greataxe" }]);
+  assert.deepEqual(ok(parseSlots("Tank-Great Axe")), [{ role: "Tank", weapon: "Greataxe" }]);
+  assert.ok(err(parseSlots("- Mace")).includes("needs a role"));
 });
 
 test("parseSlots CRLF and original line numbers", () => {
-  assert.deepEqual(ok(parseSlots("Tank - Axe\r\nHealer - Holy\r\n")), [
-    { role: "Tank", weapon: "Axe" },
-    { role: "Healer", weapon: "Holy" },
+  assert.deepEqual(ok(parseSlots("Tank - Mace\r\nHealer - Holy Staff\r\n")), [
+    { role: "Tank", weapon: "Mace" },
+    { role: "Healer", weapon: "Holy Staff" },
   ]);
-  assert.ok(err(parseSlots("Tank - Axe\n\n\n- Broken")).includes("line 4"));
+  assert.ok(err(parseSlots("Tank - Mace\n\n\n- Broken")).includes("line 4"));
 });
 
 test("parseUtcStart edge cases", () => {
@@ -119,12 +119,12 @@ test("parseSlots reads an optional duty in brackets at the end of a line", () =>
   const r = parseSlots("Tank - Great Axe (Caller)\nHealer - Holy Staff ( scout )\nDPS - Bow\nDPS - Dagger Pair (RAT)");
   assert.equal(r.ok, true);
   assert.deepEqual((r as { value: unknown[] }).value, [
-    { role: "Tank", weapon: "Great Axe", duty: "caller" },
+    { role: "Tank", weapon: "Greataxe", duty: "caller" },
     { role: "Healer", weapon: "Holy Staff", duty: "scout" },
     { role: "DPS", weapon: "Bow" },
     { role: "DPS", weapon: "Dagger Pair", duty: "rat" },
   ]);
-  const bad = parseSlots("Tank - Axe (Captain)");
+  const bad = parseSlots("Tank - Mace (Captain)");
   assert.equal(bad.ok, false);
   assert.match((bad as { error: string }).error, /Unknown duty "Captain" on line 1\. Use Caller, Scout, Rat, Looter, Catcher, Party Healer, Main Healer\./);
   assert.deepEqual(ok(parseSlots("Tank - (Caller)")), [{ role: "Tank", weapon: "", duty: "caller" }]);
@@ -143,9 +143,32 @@ test("Looter is a duty, typed as (Looter) in any case", () => {
 });
 
 test("Party Healer and Main Healer are duties, typed with a space in any case", async () => {
-  const r = parseSlots("Healer - Holy (Party Healer)\nHealer - Fallen ( main healer )");
-  assert.deepEqual(r, { ok: true, value: [{ role: "Healer", weapon: "Holy", duty: "party-healer" }, { role: "Healer", weapon: "Fallen", duty: "main-healer" }] });
+  const r = parseSlots("Healer - Holy Staff (Party Healer)\nHealer - Fallen Staff ( main healer )");
+  assert.deepEqual(r, { ok: true, value: [{ role: "Healer", weapon: "Holy Staff", duty: "party-healer" }, { role: "Healer", weapon: "Fallen Staff", duty: "main-healer" }] });
   const { dutyDef } = await import("../../src/domain/duties.ts");
   assert.deepEqual(dutyDef("party-healer"), { id: "party-healer", label: "Party Healer", icon: "💚" });
   assert.deepEqual(dutyDef("main-healer"), { id: "main-healer", label: "Main Healer", icon: "💖" });
+});
+
+// ---- FR-076, FR-077: slots by role or by weapon, strict terms ----
+test("FR-077: roles and weapons are checked and stored in the list's spelling", () => {
+  assert.deepEqual(ok(parseSlots("tank - mace (caller)")), [{ role: "Tank", weapon: "Mace", duty: "caller" }]);
+  assert.equal(err(parseSlots("Raider")), 'Line 1: "Raider" is not a supported role. Use Tank, DTank, Healer, Support or DPS.');
+  const e = err(parseSlots("Tank - Bow\nTank - Grt Axe"));
+  assert.ok(e.startsWith('Line 2: "Grt Axe" is not a weapon.') && e.includes("Greataxe"), e);
+  assert.deepEqual(ok(parseSlots("Healer")), [{ role: "Healer", weapon: "" }], "a role alone is still fine (FR-030)");
+});
+
+test("FR-076: weapon mode reads `Weapon` or `Weapon (Duty)`, needs a weapon and refuses role lines", () => {
+  assert.deepEqual(ok(parseSlots("Great Axe (Caller)\nhallowfall", "weapon")), [{ role: "", weapon: "Greataxe", duty: "caller" }, { role: "", weapon: "Hallowfall" }]);
+  assert.ok(err(parseSlots("Tank - Mace", "weapon")).includes("slots are by weapon"));
+  assert.ok(err(parseSlots("Tank", "weapon")).includes('"Tank" is not a weapon'));
+  assert.ok(err(parseSlots("(Caller)", "weapon")).includes("needs a weapon"));
+});
+
+test("FR-077: a line equal to an existing slot is accepted unchecked (old rosters stay editable)", () => {
+  const existing = [{ role: "Raider", weapon: "Holy", duty: null }];
+  assert.deepEqual(ok(parseSlots("Raider - Holy\nTank - Mace", "role", existing)), [{ role: "Raider", weapon: "Holy" }, { role: "Tank", weapon: "Mace" }]);
+  assert.ok(err(parseSlots("Raider - Holy")).includes("is not a supported role"));
+  assert.ok(err(parseSlots("Raider2 - Holy", "role", existing)).includes("is not a supported role"));
 });

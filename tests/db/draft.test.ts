@@ -87,3 +87,13 @@ test("a draft keeps parties, party 2 slots and typed party 2 lines; a new card s
   d = (await getDraft(sql, id, new Date()))!;
   assert.deepEqual([d.parties, d.slots2, d.slots2Text], [1, [], null]);
 });
+
+test("FR-076: the card keeps its slot mode, role by default, and a new card starts in role mode", async () => {
+  const sql = await testSql();
+  const id = await startDraft(sql, who);
+  assert.equal((await getDraft(sql, id, new Date()))!.slotMode, "role");
+  await saveCard(sql, id, { slotMode: "weapon" });
+  assert.equal((await getDraft(sql, id, new Date()))!.slotMode, "weapon");
+  await startCard(sql, who);
+  assert.equal((await getDraft(sql, id, new Date()))!.slotMode, "role");
+});

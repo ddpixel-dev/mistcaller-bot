@@ -327,3 +327,12 @@ test("an edit that leaves out title, notes, start and tier keeps the values stor
   assert.equal(v.startsAt.toISOString(), "2026-12-05T20:00:00.000Z");
   assert.equal(v.slots.filter((s) => s.party === 2).length, 2);
 });
+
+test("FR-076: renaming a slot to a weapon slot stores no role", async () => {
+  const sql = await testSql();
+  const { createContent } = await import("../../src/db/content.ts");
+  const id = await createContent(sql, { guildId: "g1", threadId: "tw", type: "pvp", title: "W", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"), tier: "T8", hasLoot: false, createdBy: "u1", slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }] });
+  const r = await editContent(sql, id, { hasLoot: null, kind: null, slots: [{ role: "", weapon: "Mace" }] } as EditInput, new Date("2026-11-30T18:00:00Z"));
+  assert.equal(r.result, "ok");
+  assert.deepEqual((await sql`select role, weapon from slot where content_id = ${id}`).map((x) => [x.role, x.weapon]), [[null, "Mace"]]);
+});

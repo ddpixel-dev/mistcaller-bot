@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Promotion } from "../db/signup.ts";
 import { escapeText } from "../render/roster.ts";
@@ -9,7 +10,7 @@ export async function announcePromotions(deps: Deps, threadId: string, title: st
   const lines = promoted.map((p) =>
     p.fillWanted !== undefined
       ? fillSeatedLine(p.userId, p.fillWanted, p)
-      : `<@${p.userId}> a position opened for you: **${partyLead(p.partyCount, p.party)}${p.number}. ${escapeText(p.role)}${p.weapon ? ` - ${escapeText(p.weapon)}` : ""}**`);
+      : `<@${p.userId}> a position opened for you: **${partyLead(p.partyCount, p.party)}${p.number}. ${escapeText(slotText(p))}**`);
   try {
     await deps.rest.createMessage(threadId, {
       content: `🕒 **${escapeText(title)}**\n${lines.join("\n")}`,
@@ -23,4 +24,4 @@ export async function announcePromotions(deps: Deps, threadId: string, title: st
 
 // FR-057: the post line when a fill is seated, now or later: what they asked for and where they landed.
 export const fillSeatedLine = (userId: string, wanted: string, seat: { number: number; party: number; partyCount: number; role: string; weapon: string }): string =>
-  `🔁 <@${userId}> joined as fill (${escapeText(wanted)}) and was seated in ${positionText(seat.partyCount, seat.party, seat.number)} · ${escapeText(seat.role)}${seat.weapon ? ` - ${escapeText(seat.weapon)}` : ""}.`;
+  `🔁 <@${userId}> joined as fill (${escapeText(wanted)}) and was seated in ${positionText(seat.partyCount, seat.party, seat.number)} · ${escapeText(slotText(seat))}.`;

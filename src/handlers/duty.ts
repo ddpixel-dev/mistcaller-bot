@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -20,8 +21,8 @@ function dutyPanel(view: RosterView, position: number | null, party = 1) {
     components: [{
       type: 3, custom_id: withParty(`dt:p:${view.id}`, party), placeholder: "Position",
       options: slotsOfParty(view, party).slice(0, 25).map((s) => ({
-        label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
-        value: String(s.position), default: s.position === position, emoji: { name: roleIcon(s.role) },
+        label: Array.from(`${displayNumber(s, view.slots)}. ${slotText(s)}`).slice(0, 100).join(""),
+        value: String(s.position), default: s.position === position, emoji: { name: roleIcon(slotLabel(s)) },
         ...(dutyDef(s.duty) ? { description: `Now: ${dutyDef(s.duty)!.label}` } : {}),
       })),
     }],

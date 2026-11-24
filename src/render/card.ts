@@ -126,6 +126,17 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         ],
       }],
     },
+    // FR-076: how the slots are written. Switching clears the slots typed so far.
+    {
+      type: 1,
+      components: [{
+        type: 3, custom_id: `cc:mode:${id}`, placeholder: "Slots by",
+        options: [
+          { label: "Slots by role (Role - Weapon)", value: "role", emoji: { name: "🛡️" }, default: d.slotMode !== "weapon" },
+          { label: "Slots by weapon (Weapon only)", value: "weapon", emoji: { name: "🗡️" }, default: d.slotMode === "weapon" },
+        ],
+      }],
+    },
     {
       type: 1,
       components: [

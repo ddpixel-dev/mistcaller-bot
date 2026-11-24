@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -23,7 +24,7 @@ type Entry = { userId: string; where: string };
 function entries(view: RosterView, party: number): Entry[] {
   if (party === BOMBERS_GROUP) return (view.bomberIds ?? []).map((u) => ({ userId: u, where: "Bomber" }));
   return [
-    ...slotsOfParty(view, party).filter((s) => s.userId !== null).map((s) => ({ userId: s.userId!, where: `Position ${displayNumber(s, view.slots)} · ${s.role}` })),
+    ...slotsOfParty(view, party).filter((s) => s.userId !== null).map((s) => ({ userId: s.userId!, where: `Position ${displayNumber(s, view.slots)} · ${slotLabel(s)}` })),
     ...(view.applicants ?? []).filter((a) => userInParty(view, a.userId, party)).map((a) => ({ userId: a.userId, where: `Applicant · ${a.wants}` })),
     ...(view.fills ?? []).filter((u) => userInParty(view, u, party)).map((u) => ({ userId: u, where: "Fill" })),
     ...(view.waitlist ?? []).filter((w) => userInParty(view, w.userId, party)).map((w) => ({ userId: w.userId, where: `Waitlist · ${w.role}` })),

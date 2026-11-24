@@ -334,3 +334,23 @@ test("every private message in the create and guided flow stays inside Discord's
   assert.deepEqual(modalProblems(((await d(press(`cc:details:${id}`))) as any).data), []);
   assert.deepEqual(modalProblems(((await d(press(`cc:build:${id}`))) as any).data), []);
 });
+
+test("FR-076: in weapon mode the Roles builder has no role menu, needs a weapon, and saves weapon slots", async () => {
+  const { sql, d } = await setup();
+  const opened: any = await d(create());
+  const id = cardIdOf(opened);
+  await d(press(`cc:mode:${id}`, ["weapon"]));
+  await d(press(`cc:guided:${id}`));
+  let card: any = await d(press(`gs:setcount:${id}`, ["2"]));
+  assert.equal(find(card, "gs:role:"), undefined, "no role step");
+  assert.equal(find(card, "gs:weapon:").placeholder, "Weapon (pick a class first)");
+  assert.equal(find(card, "gs:next:").disabled, true, "a weapon is needed");
+  const bow = WEAPONS.find((x) => x.name === "Bow")!;
+  await d(press(`gs:class:${id}`, [weaponClass(bow)]));
+  card = await d(press(`gs:weapon:${id}`, [bow.base]));
+  assert.equal(find(card, "gs:next:").disabled, false);
+  card = await d(press(`gs:rest:${id}`));
+  assert.ok(say(card).includes("1. Bow") && say(card).includes("2. Bow"), say(card));
+  await d(press(`gs:done:${id}`));
+  assert.deepEqual((await getDraft(sql, id, NOW))!.slots, [{ role: "", weapon: "Bow" }, { role: "", weapon: "Bow" }]);
+});

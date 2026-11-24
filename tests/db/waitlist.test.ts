@@ -159,3 +159,36 @@ test("two simultaneous leaves seat two different waiters and never the same one 
   assert.deepEqual(rows.map((r) => [r.user_id, r.status]), [["w1", "signed"], ["w2", "signed"]]);
   assert.deepEqual((await view()).waitlist, []);
 });
+
+// FR-076: on a weapon-mode content the waitlist and fills work by weapon.
+async function weaponSetup() {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, threadId: "tw", slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }, { role: "", weapon: "Bow" }, { role: "", weapon: "Mace" }] });
+  const slots = (await getRosterView(sql, id, NOW))!.slots.map((s) => s.id);
+  return { sql, id, slots };
+}
+
+test("FR-076: a weapon whose positions are all taken can be waited for, and a freed seat goes to the first waiter", async () => {
+  const { sql, id, slots } = await weaponSetup();
+  const claim = (u: string, s: string) => claimSlot(sql, { contentId: id, slotId: s, userId: u, guildId: "g1", now: NOW });
+  const wait = (u: string, role: string) => joinWaitlist(sql, { contentId: id, userId: u, guildId: "g1", role, now: NOW });
+  await claim("b1", slots[0]!);
+  assert.equal(await wait("w1", "Bow"), "open_slot");
+  await claim("b2", slots[1]!);
+  assert.equal(await wait("w1", "bow"), "ok");
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.waitlist, [{ userId: "w1", role: "Bow", party: 1 }]);
+  assert.equal(await wait("w2", "Hallowfall"), "unknown_role");
+  const promoted: Promotion[] = [];
+  await leaveContent(sql, { contentId: id, userId: "b1", guildId: "g1", now: NOW, promoted });
+  assert.deepEqual(promoted.map((p) => [p.userId, p.role, p.weapon]), [["w1", "", "Bow"]]);
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[0]!.userId, "w1");
+});
+
+test("FR-076: a fill that chose a weapon is seated in an open position with that weapon", async () => {
+  const { sql, id, slots } = await weaponSetup();
+  const { joinFill } = await import("../../src/db/signup.ts");
+  const r = await joinFill(sql, { contentId: id, userId: "f1", guildId: "g1", now: NOW, pref: { any: false, roles: ["Mace"], slotIds: [] } });
+  assert.equal(r.result, "seated");
+  assert.equal((await getRosterView(sql, id, NOW))!.slots.find((s) => s.weapon === "Mace")!.userId, "f1");
+  void slots;
+});

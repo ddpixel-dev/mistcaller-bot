@@ -135,3 +135,16 @@ test("the finished slots become lines the normal parser accepts, including dutie
   assert.deepEqual((parsed as { value: unknown[] }).value[0], { role: "Support", weapon: "Great Arcane Staff", duty: "caller" });
   assert.equal((parsed as { value: unknown[] }).value.length, 20);
 });
+
+// FR-076: in weapon mode a card needs a weapon and no role; the slot is saved with an empty role.
+test("FR-076: weapon mode saves a weapon slot with no role, and needs a weapon", () => {
+  let d = setCount(emptyDraft(), 2);
+  assert.equal(canSave(d, "weapon"), false);
+  d = setWeapon(d, "Hallowfall");
+  assert.equal(canSave(d, "weapon"), true);
+  assert.equal(canSave(d), false, "role mode still needs a role");
+  d = next(d, "weapon");
+  assert.deepEqual(d.slots, [{ role: "", weapon: "Hallowfall" }]);
+  d = fillRest(setWeapon(d, "Bow"), "weapon");
+  assert.deepEqual(d.slots, [{ role: "", weapon: "Hallowfall" }, { role: "", weapon: "Bow" }]);
+});

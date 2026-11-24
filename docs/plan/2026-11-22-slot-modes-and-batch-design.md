@@ -1,7 +1,7 @@
 ---
 title: Slot modes (Role or Weapon), strict slot terms, Edit preset, and the 2026-11-22 batch
 type: design
-status: accepted 2026-11-22; releases A and B built together in 0.31.11, release C next
+status: accepted 2026-11-22; releases A and B built together in 0.31.11, release C built for 0.32.0
 date: 2026-11-22
 tags: [slots, presets, calendar, kinds, selection, roster]
 satisfies: [FR-076, FR-077, FR-078, FR-079, FR-080]
@@ -194,6 +194,7 @@ The missing weapon in the owner's report does not matter: the same thing happens
 - Free tiers only. No new dependency.
 - Domain logic stays pure (NFR-007).
 - Restricted mentions everywhere (FR-018).
+- Built note (2026-11-23): weapon names are matched ignoring spaces, hyphens and apostrophes too, because the game spells some as one word (`Greataxe`). Set weapon needed no change: it already picks from the game list. The role error keeps the CTA wording "is not a supported role".
 - Each interaction is answered within 3 seconds (NFR-002). Weapon lookup is an in-memory list of 155, so it is fast enough.
 - The tooling runs in Docker (ADR 0006).
 - Git flow (ADR 0014): `hotfix/applicant-taken-position` from main for release A, then `feature/batch-2026-11-22` and `feature/slot-modes` from develop.

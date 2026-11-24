@@ -55,7 +55,7 @@ const button = (customId: string, userId = "boss", over: Partial<Interaction> = 
   id: "i", type: 3, application_id: "a", token: "t", guild_id: "g1", member: who(userId),
   data: { custom_id: customId, component_type: 2 }, ...over,
 });
-const good = { title: "Ganking 2", start: "2026-12-02 18:00", tier: "T6.1-T8.0", slots: "Tank - Mace\nHealer - Holy\nScout - Bow", notes: "food" };
+const good = { title: "Ganking 2", start: "2026-12-02 18:00", tier: "T6.1-T8.0", slots: "Tank - Mace\nHealer - Holy\nDPS - Bow", notes: "food" };
 const text = (r: any) => r.data.content as string;
 const isEphemeral = (r: any) => { assert.equal(r.type, 4); assert.equal(r.data.flags, 64); };
 
@@ -269,13 +269,13 @@ test("a CTA's Edit details holds no slots but the Bombers cap; the Edit panel ha
   assert.equal(one.type, 9);
   assert.equal(one.data.custom_id, `edp1:${id}`);
   const box1 = one.data.components[0].components[0];
-  assert.equal(box1.label, "Party 1 slots");
+  assert.equal(box1.label, "Party 1 slots (one per line: Role - Weapon)");
   assert.equal(box1.value, "Tank - Mace\nHealer - Holy");
   const opened: any = await d(button(`ed:p:${id}`));
   assert.equal(opened.type, 9);
   assert.equal(opened.data.custom_id, `edp:${id}`);
   const box = opened.data.components[0].components[0];
-  assert.equal(box.label, "Party 2 slots");
+  assert.equal(box.label, "Party 2 slots (one per line: Role - Weapon)");
   assert.equal(box.max_length, 1500);
   assert.equal(box.value, "Tank - Axe\nDPS - Bow");
 });
@@ -290,10 +290,10 @@ test("a one-party content has no Edit party 2 slots button and keeps its Slots l
 
 test("the party 2 form saves party 2 only, refreshes every party, and keeps party 1 and the party count", async () => {
   const { sql, deps, id, edits } = await setupTwo();
-  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Locus"));
+  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Arcane Staff"));
   assert.match(text(r), /Party 2 updated/);
   const v = (await getRosterView(sql, id, NOW))!;
-  assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}-${s.weapon}`), ["1:Tank-Mace", "1:Healer-Holy", "2:Tank-Axe", "2:Support-Locus"]);
+  assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}-${s.weapon}`), ["1:Tank-Mace", "1:Healer-Holy", "2:Tank-Axe", "2:Support-Arcane Staff"]);
   assert.equal(v.partyCount, 2);
   assert.equal(v.title, "Ganking");
   assert.ok(edits.length >= 1);
@@ -313,7 +313,7 @@ test("the party 2 form refuses an unsupported role, naming Party 2, and a held s
   assert.match(text(await d(p2form(id, "Tank - Axe", "stranger"))), /Only the creator/);
 });
 
-test("the Party 1 slots form on a CTA rejects an unsupported role and leaves party 2 alone; normal content accepts any role", async () => {
+test("the Party 1 slots form on a CTA rejects an unsupported role and leaves party 2 alone; normal content refuses one too (FR-077)", async () => {
   const { sql, deps, id } = await setupTwo();
   const d = createDispatch(deps);
   const bad: any = await d(p1form(id, "Tank - Mace\nScout - Bow"));
@@ -323,9 +323,10 @@ test("the Party 1 slots form on a CTA rejects an unsupported role and leaves par
   const v = (await getRosterView(sql, id, NOW))!;
   assert.deepEqual(v.slots.map((s) => `${s.party}:${s.role}`), ["1:Tank", "1:Healer", "1:DPS", "2:Tank", "2:DPS"]);
   assert.equal(v.partyCount, 2);
-  // normal content keeps accepting any role (the existing "Scout" case in `good`) through Edit details
+  // FR-077: normal content checks new lines too; its old "Holy" line is kept because it is unchanged
   await resetDb(sql);
   const n = await setup();
+  assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nScout - Bow" }))), /"Scout" is not a supported role/);
   assert.match(text(await handleEditModal(n.deps, modal(n.id, "k", good))), /Content updated/);
   isEphemeral(await d(p1form(id, "Tank")));
 });
@@ -347,7 +348,7 @@ test("Edit details on a CTA saves the Bombers cap; a cap below the players in Bo
 test("a party 2 slots save does not undo a concurrent change of the title, notes, start or tier", async () => {
   const { sql, deps, id } = await setupTwo();
   await sql`update content set title = 'Renamed', notes = 'new notes', gear_tier = 'T7.0', starts_at = '2026-12-05T20:00:00Z' where id = ${id}`;
-  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Locus"));
+  const r: any = await createDispatch(deps)(p2form(id, "Tank - Axe\nSupport - Arcane Staff"));
   assert.match(text(r), /Party 2 updated/);
   const v = (await getRosterView(sql, id, NOW))!;
   assert.equal(v.title, "Renamed");
@@ -430,4 +431,32 @@ test("a title edit of normal content edits no announcement", async () => {
   const { deps, id, edits } = await setup();
   await handleEditModal(deps, modal(id, "k", { ...good, slots: "Tank - Mace\nHealer - Holy\nDPS - Bow" }));
   assert.ok(!edits.some((e: any) => e.channelId === "cta-ch"));
+});
+
+// ---- FR-076: Edit details on a weapon-mode roster ----
+test("FR-076: a weapon-mode roster's Edit form shows weapon lines and saves weapon lines; role lines are refused", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, slotMode: "weapon", slots: [{ role: "", weapon: "Bow", duty: "caller" }, { role: "", weapon: "Mace" }] });
+  await setMessageId(sql, id, "m1");
+  const deps: Deps = { sql, rest: { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} }, now: () => NOW };
+  const form: any = await openEditForm(deps, command("edit"));
+  const box = form.data.components.flatMap((r: any) => r.components).find((c: any) => c.custom_id === "slots");
+  assert.deepEqual([box.label, box.value], ["Slots (one per line: Weapon)", "Bow (Caller)\nMace"]);
+  const values = { title: "Ganking", start: "2026-12-01 18:00", tier: "T8.0", notes: "" };
+  assert.match(text(await handleEditModal(deps, modal(id, "k", { ...values, slots: "Tank - Mace" }))), /slots are by weapon/);
+  assert.match(text(await handleEditModal(deps, modal(id, "k", { ...values, slots: "Bow (Caller)\nMace\nHallowfall" }))), /Content updated/);
+  const v = (await getRosterView(sql, id, NOW))!;
+  assert.deepEqual(v.slots.map((s) => [s.role, s.weapon]), [["", "Bow"], ["", "Mace"], ["", "Hallowfall"]]);
+});
+
+test("FR-076: a weapon-mode CTA's party forms read weapon lines", async () => {
+  const sql = await testSql();
+  const id = await createContent(sql, { ...base, cta: true, slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }], slots2: [{ role: "", weapon: "Mace" }] });
+  await setMessageId(sql, id, "m1");
+  const deps: Deps = { sql, rest: { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} }, now: () => NOW };
+  const d = createDispatch(deps);
+  assert.match(text(await d(p2form(id, "Mace\nHallowfall"))), /Party 2 updated/);
+  assert.match(text(await d(p2form(id, "Tank - Mace"))), /Party 2, line 1: this content's slots are by weapon/);
+  const open: any = await d(button(`ed:p:${id}`));
+  assert.equal(open.data.components[0].components[0].label, "Party 2 slots (one per line: Weapon)");
 });
