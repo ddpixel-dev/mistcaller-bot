@@ -82,7 +82,8 @@ test("the Category menu follows the Type: only that type's categories, and a cat
   assert.equal(((await d(press(`cc:type:${id}`, ["moon"]))) as any).data.flags, 64);
   assert.equal(((await d(press(`cc:loot:${id}`, ["maybe"]))) as any).data.flags, 64);
   r = await d(press(`cc:loot:${id}`, ["1"]));
-  assert.deepEqual(menus(r)[2].options.map((o: any) => !!o.default), [false, true]);
+  // FR-081: the Parties menu follows the category, so the Loot vote is the fourth menu.
+  assert.deepEqual(menus(r)[3].options.map((o: any) => !!o.default), [false, true]);
   assert.deepEqual(discordProblems(r.data), []);
 });
 
@@ -171,7 +172,7 @@ test("with no event forum for the type, Create says so on the card and keeps it"
   await d(press(`cc:type:${id}`, ["pve"]));
   await d(form(`ccd:${id}`, details));
   const r: any = await d(press(`cc:create:${id}`));
-  assert.ok(say(r).includes("No event forum is set for PvE content"), say(r));
+  assert.ok(say(r).includes("No PvE event forum is set"), say(r));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.ok(await getDraft(sql, id, NOW));
 });
@@ -234,15 +235,13 @@ test("setup event-forum registers the forum for one type, the same forum can tak
   assert.equal(calls.filter((c) => c.op === "createForumPost" || c.op === "editChannel").length, 0, "nothing is posted in the forum");
   assert.deepEqual((await sql`select forum_id, type, launcher_thread_id from event_forum`).map((x) => [x.forum_id, x.type, x.launcher_thread_id]), [[FORUM, "pvp", null]]);
   assert.ok(((await setupForum(d)) as any).data.content.includes("forum-type"), "the type must be given");
-  const more: any = await setupForum(d, "pvx");
-  assert.ok(more.data.content.includes("PvP, PvX"), more.data.content);
-  assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pvp", "pvx"], "one forum serves PvP and PvX");
-  assert.ok(((await setupForum(d, "any")) as any).data.content.includes("Pick PvP, PvE, PvX or ZvZ"));
-  const zvz: any = await setupForum(d, "zvz");
-  assert.ok(zvz.data.content.includes("ZvZ"), zvz.data.content);
-  assert.ok((await sql`select type from event_forum`).some((x) => x.type === "zvz"), "ZvZ is a forum type");
-  await sql`delete from event_forum where type = 'zvz'`;
-  const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pvx" }], {}, resolvedForum));
+  // FR-083: only PvP and PvE forums; the PvP forum also takes PvX and ZvZ.
+  assert.ok(r.data.content.includes("PvX and ZvZ"), r.data.content);
+  for (const t of ["pvx", "zvz", "any"]) assert.ok(((await setupForum(d, t)) as any).data.content.includes("Pick PvP or PvE"), t);
+  const more: any = await setupForum(d, "pve");
+  assert.ok(more.data.content.includes("PvP") && more.data.content.includes("serves: PvE, PvP"), more.data.content);
+  assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pve", "pvp"], "one forum may serve both");
+  const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pve" }], {}, resolvedForum));
   assert.ok(one.data.content.includes("still serves other types"), one.data.content);
   assert.deepEqual((await sql`select type from event_forum`).map((x) => x.type), ["pvp"]);
   const cleared: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM)], {}, resolvedForum));
@@ -250,17 +249,26 @@ test("setup event-forum registers the forum for one type, the same forum can tak
   assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
 });
 
-test("setting a type again moves it to the new forum; PvX has no fallback to another type's forum", async () => {
-  const { d, sql } = await setup();
+test("setting a type again moves it to the new forum", async () => {
+  const { d, sql, calls } = await setup();
   await sql`delete from event_forum`;
   await setupForum(d, "pvp");
   const other = "300000002";
   await d(command("setup", [forumOpt("event-forum", other), { name: "forum-type", type: 3, value: "pvp" }], {}, { channels: { [other]: { id: other, type: 15 } } }));
   assert.deepEqual((await sql`select forum_id, type from event_forum`).map((x) => [x.forum_id, x.type]), [[other, "pvp"]]);
+  // FR-083: PvX and ZvZ go to the PvP forum.
+  for (const type of ["pvx", "zvz"]) {
+    const { id } = await open(d);
+    await d(press(`cc:type:${id}`, [type]));
+    await d(form(`ccd:${id}`, details));
+    assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"), type);
+  }
+  assert.ok(calls.filter((c) => c.op === "createForumPost").every((c) => c.args[0] === other), "both in the PvP forum");
   const { id } = await open(d);
-  await d(press(`cc:type:${id}`, ["pvx"]));
+  await sql`delete from event_forum where type = 'pvp'`;
+  await d(press(`cc:type:${id}`, ["zvz"]));
   await d(form(`ccd:${id}`, details));
-  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for PvX content"));
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No PvP event forum is set"), "ZvZ needs the PvP forum");
 });
 
 test("setup event-forum is for admins and forums only; an old launcher post is removed when the forum is set again", async () => {
@@ -728,10 +736,10 @@ async function ctaCard(d: any, sql: any) {
 const partiesMenu = (r: any): any => flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:parties:"));
 const btnOf = (r: any, id: string): any => flatComponents(r.data).find((c: any) => c.custom_id === id);
 
-test("the Parties menu is on a CTA card only; the CTA card has no Type or Category menu, normal content keeps them", async () => {
+test("every card has the Parties menu (FR-081); the CTA card has no Type or Category menu, normal content keeps them", async () => {
   const { d, sql } = await setup();
   const normal: any = await d(press("hub:n"));
-  assert.equal(partiesMenu(normal), undefined);
+  assert.ok(partiesMenu(normal), "normal content can have two parties too");
   assert.ok(flatComponents(normal.data).some((c: any) => String(c.custom_id).startsWith("cc:type:")));
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const r: any = await d(press("hub:c", undefined, adminCta));
@@ -753,7 +761,7 @@ test("choosing 2 parties stores it, relabels Details, shows Party 2 slots and Co
   assert.equal(btnOf(r, `cc:p1:${id}`).label, "Party 1 slots", "one button per party's slots");
   assert.equal(btnOf(r, `cc:p2:${id}`).label, "Party 2 slots");
   assert.equal(btnOf(r, `cc:copy:${id}`).label, "Copy party 1");
-  assert.ok(say(r).includes("Roles fills party 1"));
+  assert.ok(!say(r).includes("Roles fills party 1"), "Setup Slots asks which party (FR-084)");
   assert.deepEqual(discordProblems(r.data), []);
   const det: any = await d(press(`cc:details:${id}`, undefined, adminCta));
   assert.deepEqual(det.data.components.map((row: any) => row.components[0].custom_id), ["title", "start", "tier", "notes", "bombers"], "a CTA's Details holds no slots");
@@ -767,7 +775,7 @@ test("choosing 2 parties stores it, relabels Details, shows Party 2 slots and Co
   assert.deepEqual([back.parties, back.slots2, back.slots2Text], [1, [], null]);
   assert.equal(((await d(press(`cc:parties:${id}`, ["3"], adminCta))) as any).data.flags, 64);
   const normal = (await open(d, undefined, "n")).id;
-  assert.equal(((await d(press(`cc:parties:${normal}`, ["2"]))) as any).data.flags, 64, "normal content cannot have two parties");
+  assert.equal(((await d(press(`cc:parties:${normal}`, ["2"]))) as any).type, 7, "normal content can have two parties (FR-081)");
 });
 
 test("the Party 2 button opens a form with one 1500-character box, filled with what is stored; valid lines are stored, bad lines are kept", async () => {
@@ -1005,15 +1013,16 @@ test("Create and the Blank form pass Massing at to the content, and a CTA is pos
   assert.equal((await sql`select massing_at from content`)[0]!.massing_at, "The portal");
 });
 
-test("ZvZ is a type on Plan Content: its own categories, and it needs its own event forum", async () => {
+test("ZvZ is a type on Plan Content: its own categories, posted in the PvP forum (FR-083)", async () => {
   const { d, sql } = await setup();
   const { id } = await open(d, undefined, "n");
   const r: any = await d(press(`cc:type:${id}`, ["zvz"]));
   const kind = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:kind:"))!;
   assert.deepEqual(kind.options.map((o: any) => o.label), ["Faction Warfare", "Outpost & Castle", "Siege", "Territory Attack", "Territory Defense", "Other"]);
   await d(form(`ccd:${id}`, details));
-  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for ZvZ content"));
-  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'zf', 'zvz')`;
+  await sql`delete from event_forum where type <> 'pve'`;
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No PvP event forum is set (ZvZ content goes there)"));
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'pf', 'pvp')`;
   assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"));
   assert.equal((await sql`select type from content`)[0]!.type, "zvz");
 });
@@ -1090,4 +1099,39 @@ test("FR-076: a preset keeps its mode and loads it; an old preset with unusual t
   const old: any = await d(press(`cc:preset:${card}`, [presets.find((p: any) => p.name === "Old")!.id]));
   assert.equal(modeMenu(old).options.find((o: any) => o.default).value, "role", "an old preset is role mode");
   assert.ok(say(old).includes('"Raider" is not a supported role'), say(old));
+});
+
+// ---- FR-081, FR-082: two parties on normal content; Setup Slots ----
+test("FR-081: a normal card has the parties menu; two parties adds Party 2 slots and Copy party 1; back to one drops party 2", async () => {
+  const { d, sql } = await setup();
+  const { r, id } = await open(d);
+  const parties = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:parties:"))!;
+  assert.deepEqual(parties.options.map((o: any) => [o.value, !!o.default]), [["1", true], ["2", false]]);
+  assert.ok(labels(r).includes("Setup Slots") && !labels(r).includes("Roles"), labels(r).join("|"));
+  const two: any = await d(press(`cc:parties:${id}`, ["2"]));
+  assert.ok(labels(two).includes("Party 2 slots") && labels(two).includes("Copy party 1"), labels(two).join("|"));
+  assert.deepEqual(discordProblems(two.data), []);
+  const details: any = await d(press(`cc:details:${id}`));
+  assert.equal(details.data.components.flatMap((x: any) => x.components).find((c: any) => c.custom_id === "slots").label, "Party 1 slots (one per line: Role - Weapon)");
+  await d(form(`ccs2:${id}`, { slots2: "Healer - Holy Staff" }));
+  assert.equal((await getDraft(sql, id, NOW))!.slots2.length, 1);
+  await d(press(`cc:parties:${id}`, ["1"]));
+  const draft = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([draft.parties, draft.slots2, draft.slots2Text], [1, [], null]);
+});
+
+test("FR-081: Create on a two-party normal card stores both parties in one forum post", async () => {
+  const { d, sql, calls } = await setup();
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:parties:${id}`, ["2"]));
+  await d(form(`ccd:${id}`, details));
+  await d(press(`cc:copy:${id}`));
+  const done: any = await d(press(`cc:create:${id}`));
+  assert.ok(say(done).startsWith("✅ Created"), say(done));
+  const [c] = await sql`select id, party_count from content`;
+  assert.equal(c!.party_count, 2);
+  assert.deepEqual((await sql`select party, count(*)::int as n from slot where content_id = ${c!.id} group by party order by party`).map((x: any) => [x.party, x.n]), [[1, 2], [2, 2]]);
+  assert.equal(calls.filter((x) => x.op === "createForumPost").length, 1);
+  assert.equal(calls.filter((x) => x.op === "createMessage").length, 0, "no second message for party 2");
 });

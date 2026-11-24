@@ -6,9 +6,9 @@ import type { Result, SlotDef, SlotMode } from "./types.ts";
 export const MAX_PARTY_SLOTS = 20;
 export const CTA_ROLES = ["Tank", "DTank", "Healer", "Support", "DPS"] as const;
 
-// The single hook a later ZvZ feature changes.
-export function maxPartiesFor(_kind: string, isCta: boolean): 1 | 2 {
-  return isCta ? 2 : 1;
+// Every content may have two parties (FR-081, owner request 2026-11-25); the host chooses on the card.
+export function maxPartiesFor(_kind: string, _isCta: boolean): 1 | 2 {
+  return 2;
 }
 
 // One party's lines (FR-070), checked like every content's (FR-077) and read in the content's mode (FR-076). `existing` are

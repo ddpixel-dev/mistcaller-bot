@@ -5,7 +5,8 @@ import { renderMovedNote, renderRosterMessage } from "../render/roster.ts";
 import type { RosterView } from "../domain/types.ts";
 
 // A call to arms is one message holding every party (ADR 0047); a blank one has no parties.
-export const isOneMessage = (view: RosterView): boolean => view.cta === true && !view.blank;
+// One message holds every party: a CTA (ADR 0047), and any content with two parties (FR-081).
+export const isOneMessage = (view: RosterView): boolean => !view.blank && (view.cta === true || view.partyCount > 1);
 
 const log = (view: RosterView, party: number, e: unknown) => console.error(JSON.stringify({
   evt: "roster_edit_failed", contentId: view.id, party, name: e instanceof Error ? e.name : "unknown",

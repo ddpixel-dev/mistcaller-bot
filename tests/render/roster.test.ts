@@ -871,3 +871,14 @@ test("FR-076: a weapon whose positions are all taken is offered on the waitlist 
   assert.deepEqual(wait.options.filter((o: any) => o.value !== "~fill").map((o: any) => [o.label, o.value, o.description]), [["Bow (all taken)", "Bow", "1 waiting"]]);
   assert.ok(raw(v).includes("🕒 **Waitlist (1):** 1. <@201> (Bow)"));
 });
+
+test("FR-081: two-party normal content is one message: both party headings and menus, no Bombers", () => {
+  const p2 = (n: number, userId: string | null): RosterSlot => ({ id: `q${n}`, position: 2 + n, party: 2, role: "Healer", weapon: "Holy Staff", userId });
+  const v = view({ partyCount: 2, slots: [...slots(2, 1), p2(1, null), p2(2, "222")] });
+  const t = raw(v);
+  assert.ok(t.includes("👥 **Party 1 (1/2)**") && t.includes("👥 **Party 2 (1/2)**"), t);
+  assert.ok(!t.includes("Bombers"));
+  assert.deepEqual(byId(v, "join:").map((c: any) => c.custom_id), ["join:c1", "join:c1@2"]);
+  assert.equal(byId(v, "bomb:").length, 0);
+  assert.deepEqual(discordProblems(msg(v)), []);
+});

@@ -35,7 +35,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
   // says what is still needed. Problems from the last action (a slot line that did not parse) come first.
   const checked = validateCard(d, ctx.now);
   const needed = [...new Set([...(ctx.problems ?? []), ...(checked.ok ? [] : checked.problems)])];
-  const ctaParties = d.cta && maxPartiesFor(d.kind, true) > 1; // the Parties menu is offered
+  const ctaParties = maxPartiesFor(d.kind, d.cta) > 1; // the Parties menu is offered on every card (FR-081)
   const two = ctaParties && d.parties >= 2;
   const lineOf = (s: SlotDef, n: number) => `${n + 1}. ${roleIcon(s.role)} ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
   const slotBlock = (title: string, slots: SlotDef[], typed: string | null, where: string) => [
@@ -53,8 +53,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
     `🎯 **Sign-up** ${d.selection ? "Selection: players apply and you pick the party" : "Open: players take their own position"}`,
     ...(d.cta ? [`💣 **Bombers** ${d.bombers ? `up to ${d.bombers}` : NONE}`, `-# Roles: ${CTA_ROLES.join(", ")}`] : []),
     ...(two
-      ? [...slotBlock("Party 1", d.slots, d.slotsText, "Party 1 slots"), ...slotBlock("Party 2", d.slots2, d.slots2Text, "Party 2 slots"),
-        "-# Roles fills party 1; use Party 2 slots for the second party."]
+      ? [...slotBlock("Party 1", d.slots, d.slotsText, d.cta ? "Party 1 slots" : "Details"), ...slotBlock("Party 2", d.slots2, d.slots2Text, "Party 2 slots")]
       : slotBlock("Slots", d.slots, d.slotsText, d.cta ? "Slots" : "Details")),
     ...(needed.length ? ["", "**Still needed before Create:**", ...needed.map((p) => `⚠️ ${p}`)] : ["", "✅ Ready: press **Create**."]),
     ...(ctx.editing ? ["", `✏️ Editing the preset **${escapeText(ctx.editing)}**. Change the card, then **Manage presets → Save preset**.`] : []),
@@ -62,6 +61,16 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
   ];
 
   const types = typesFor(ctx.forumType);
+  const partiesRow = {
+      type: 1,
+      components: [{
+        type: 3, custom_id: `cc:parties:${id}`, placeholder: PARTIES_PLACEHOLDER,
+        options: [
+          { label: ONE_PARTY_LABEL, value: "1", emoji: { name: ONE_PARTY_EMOJI }, default: !two },
+          { label: TWO_PARTIES_LABEL, value: "2", emoji: { name: TWO_PARTIES_EMOJI }, default: two },
+        ],
+      }],
+    };
   const rows: unknown[] = [
     {
       type: 1,
@@ -76,17 +85,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
           options: [{ label: "No presets yet: save one with /content preset save", value: NO_PRESET }],
         }],
     },
-    // A CTA has no type or category (it is ZvZ, Other); it has the Parties choice instead (FR-070).
-    ...(d.cta ? (ctaParties ? [{
-      type: 1,
-      components: [{
-        type: 3, custom_id: `cc:parties:${id}`, placeholder: PARTIES_PLACEHOLDER,
-        options: [
-          { label: ONE_PARTY_LABEL, value: "1", emoji: { name: ONE_PARTY_EMOJI }, default: !two },
-          { label: TWO_PARTIES_LABEL, value: "2", emoji: { name: TWO_PARTIES_EMOJI }, default: two },
-        ],
-      }],
-    }] : []) : [
+    ...(d.cta ? [] : [
       {
         type: 1,
         components: [{
@@ -106,6 +105,8 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         }],
       },
     ]),
+    // Every card has the Parties choice (FR-070, FR-081): first on a CTA (it has no type or category), after the category otherwise.
+    ...(ctaParties ? [partiesRow] : []),
     {
       type: 1,
       components: [{
@@ -155,7 +156,7 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
             btn("Details", "✏️", `cc:details:${id}`, 1),
             btn(two ? "Party 1 slots" : "Slots", "👥", `cc:p1:${id}`, 1),
             ...(two ? [btn("Party 2 slots", "👥", `cc:p2:${id}`, 1), btn("Copy party 1", "📋", `cc:copy:${id}`)] : []),
-            btn("Roles", "🧩", `cc:guided:${id}`),
+            btn("Setup Slots", "🧩", `cc:guided:${id}`),
           ],
         },
         {
@@ -171,12 +172,22 @@ export function renderCard(d: StoredDraft, ctx: CardContext) {
         type: 1,
         components: [
           btn("Details", "✏️", `cc:details:${id}`, 1),
-          btn("Roles", "🧩", `cc:guided:${id}`), // the guided slot cards, named Roles by the owner (2026-10-24)
+          btn("Setup Slots", "🧩", `cc:guided:${id}`), // the guided slot cards (named Setup Slots by the owner, 2026-11-25)
+          // FR-081: a second party has its own slots button, beside the ones that fill party 1.
+          ...(two
+            ? [btn("Party 2 slots", "👥", `cc:p2:${id}`, 1), btn("Copy party 1", "📋", `cc:copy:${id}`)]
+            : [btn("Build link", "🧰", `cc:build:${id}`), { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 }, btn("Cancel", "✖️", `cc:cancel:${id}`)]),
+        ],
+      },
+      ...(two ? [{
+        type: 1,
+        components: [
           btn("Build link", "🧰", `cc:build:${id}`),
           { ...btn("Create", "✅", `cc:create:${id}`, 3), disabled: needed.length > 0 },
           btn("Cancel", "✖️", `cc:cancel:${id}`),
         ],
-      }]),
+      }] : []),
+    ]),
   ];
   return {
     flags: IS_COMPONENTS_V2,
@@ -195,7 +206,7 @@ export const NO_PRESET = "-";
 export const CARD_TIPS = [
   "-# 💡 Only you see this card.",
   "-# 💡 Pick a preset to fill the whole card at once, or set the type, category and loot vote, then press **Details** for the title, start time, gear tier and notes.",
-  "-# 💡 Press **Roles** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
+  "-# 💡 Press **Setup Slots** to build the slots step by step (role, weapon, duty) instead of typing them in **Details**.",
   "-# 💡 **Blank template** is a quick event without a roster: only a title, start, gear tier and description.",
   "-# 💡 Admins: **Manage presets** saves this card as a preset (once it is valid) or deletes one.",
   "-# 💡 **Create** lights up once everything needed is set.",
