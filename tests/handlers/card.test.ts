@@ -779,7 +779,7 @@ test("the Party 2 button opens a form with one 1500-character box, filled with w
   assert.equal(f.data.custom_id, `ccs2:${id}`);
   assert.equal(f.data.components.length, 1);
   const input = f.data.components[0].components[0];
-  assert.deepEqual([input.custom_id, input.max_length, input.label, input.placeholder], ["slots2", 1500, "Party 2 slots", "Tank - Mace"]);
+  assert.deepEqual([input.custom_id, input.max_length, input.label, input.placeholder], ["slots2", 1500, "Party 2 slots (one per line: Role - Weapon)", "Tank - Mace"]);
   assert.deepEqual(modalProblems(f.data), []);
   let r: any = await d(form(`ccs2:${id}`, { slots2: "Healer - Holy Staff\nDPS - Bow" }, adminCta));
   assert.equal(r.type, 7);
@@ -1016,4 +1016,78 @@ test("ZvZ is a type on Plan Content: its own categories, and it needs its own ev
   await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'zf', 'zvz')`;
   assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"));
   assert.equal((await sql`select type from content`)[0]!.type, "zvz");
+});
+
+// ---- FR-076: Slots by Role or Weapon on the card ----
+const modeMenu = (r: any) => flatComponents(r.data).find((c: any) => c.type === 3 && String(c.custom_id).startsWith("cc:mode:"))!;
+
+test("FR-076: the card has a Slots by menu, Role by default; switching clears the slots with a note", async () => {
+  const { d, sql } = await setup();
+  const { r, id } = await open(d);
+  const menu = modeMenu(r);
+  assert.deepEqual(menu.options.map((o: any) => [o.label, o.value, !!o.default]), [["Slots by role (Role - Weapon)", "role", true], ["Slots by weapon (Weapon only)", "weapon", false]]);
+  await d(form(`ccd:${id}`, details));
+  const switched: any = await d(press(`cc:mode:${id}`, ["weapon"]));
+  assert.ok(say(switched).includes("Slots cleared: they were written by role."), say(switched));
+  const draft = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([draft.slotMode, draft.slots, draft.slotsText], ["weapon", [], null]);
+  assert.equal(modeMenu(switched).options.find((o: any) => o.default).value, "weapon");
+  assert.deepEqual(discordProblems(switched.data), []);
+  const same: any = await d(press(`cc:mode:${id}`, ["weapon"]));
+  assert.ok(!say(same).includes("Slots cleared"), "picking the same mode clears nothing");
+  assert.ok((await d(press(`cc:mode:${id}`, ["nonsense"])) as any).data.content.includes("expired"));
+});
+
+test("FR-076: in weapon mode the Details form asks for weapons, and Create posts a weapon roster", async () => {
+  const { d, sql } = await setup();
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:mode:${id}`, ["weapon"]));
+  const modal: any = await d(press(`cc:details:${id}`));
+  const box = modal.data.components.flatMap((r: any) => r.components).find((c: any) => c.custom_id === "slots");
+  assert.deepEqual([box.label, box.placeholder], ["Slots (one per line: Weapon)", "Hallowfall (Main Healer)"]);
+  const bad: any = await d(form(`ccd:${id}`, { ...details, slots: "Tank - Mace" }));
+  assert.ok(say(bad).includes("slots are by weapon"), say(bad));
+  await d(form(`ccd:${id}`, { ...details, slots: "Bow\nHallowfall (Main Healer)" }));
+  const done: any = await d(press(`cc:create:${id}`));
+  assert.ok(say(done).startsWith("✅ Created"), say(done));
+  const [c] = await sql`select id, slot_mode from content`;
+  assert.equal(c!.slot_mode, "weapon");
+  assert.deepEqual((await sql`select role, weapon from slot where content_id = ${c!.id} order by position`).map((s: any) => [s.role, s.weapon]), [[null, "Bow"], [null, "Hallowfall"]]);
+});
+
+test("FR-076: a CTA can be by weapon, in both parties", async () => {
+  const { d, sql } = await setup();
+  await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
+  const { id } = await open(d, adminCta, "c");
+  await d(press(`cc:mode:${id}`, ["weapon"], adminCta));
+  await d(press(`cc:parties:${id}`, ["2"], adminCta));
+  const p1: any = await d(press(`cc:p1:${id}`, undefined, adminCta));
+  assert.equal(p1.data.components[0].components[0].label, "Party 1 slots (one per line: Weapon)");
+  await ctaDetails(d, id, { ...details, slots: "Bow\nMace" }, adminCta);
+  const two: any = await d(form(`ccs2:${id}`, { slots2: "Hallowfall" }, adminCta));
+  assert.ok(!say(two).includes("⚠️ Party 2"), say(two));
+  const done: any = await d(press(`cc:create:${id}`, undefined, adminCta));
+  assert.ok(say(done).startsWith("✅ Created"), say(done));
+  assert.equal((await sql`select slot_mode from content`)[0]!.slot_mode, "weapon");
+});
+
+test("FR-076: a preset keeps its mode and loads it; an old preset with unusual terms loads and lists the problem", async () => {
+  const { d, sql } = await setup();
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:mode:${id}`, ["weapon"]));
+  await d(form(`ccd:${id}`, { ...details, slots: "Bow" }));
+  await d(form(`ccp:${id}`, { name: "Bows" }, admin));
+  const { savePreset } = await import("../../src/db/preset.ts");
+  await savePreset(sql, { guildId: GUILD, name: "Old", slots: [{ role: "Raider", weapon: "Holy" }], createdBy: OWNER });
+  const presets = await sql`select id, name, settings from slot_preset order by name`;
+  assert.equal(presets.find((p: any) => p.name === "Bows")!.settings.slotMode, "weapon");
+  const { id: card } = await open(d);
+  const loaded: any = await d(press(`cc:preset:${card}`, [presets.find((p: any) => p.name === "Bows")!.id]));
+  assert.equal(modeMenu(loaded).options.find((o: any) => o.default).value, "weapon");
+  assert.equal((await getDraft(sql, card, NOW))!.slotMode, "weapon");
+  const old: any = await d(press(`cc:preset:${card}`, [presets.find((p: any) => p.name === "Old")!.id]));
+  assert.equal(modeMenu(old).options.find((o: any) => o.default).value, "role", "an old preset is role mode");
+  assert.ok(say(old).includes('"Raider" is not a supported role'), say(old));
 });

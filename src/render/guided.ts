@@ -1,3 +1,4 @@
+import { slotText } from "../domain/slotlabel.ts";
 import type { StoredDraft } from "../db/draft.ts";
 import { WEAPONS } from "../data/weapons.ts";
 import { GUIDED_ROLES, canSave, isComplete } from "../domain/guided.ts";
@@ -30,7 +31,7 @@ export function weaponChoices(d: StoredDraft): Weapon[] {
 }
 
 const slotLine = (s: { role: string; weapon: string; duty?: string | null }, n: number) =>
-  `${n}. ${escapeText(s.role)}${s.weapon ? ` - ${escapeText(s.weapon)}` : ""}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
+  `${n}. ${escapeText(slotText(s))}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
 
 // One screen of the guided steps, rebuilt from the stored draft after every click. `pickCount` shows the number menu
 // (Change number) over the cards; without a number it shows anyway. The steps return to the creation card (ADR 0032).
@@ -89,17 +90,21 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
       weaponOptions.unshift({ label: d.weapon.slice(0, 100), value: TYPED_WEAPON, default: true });
       weaponOptions.splice(25);
     }
+    // FR-076: a weapon-mode content has no roles, so there is no role step and the weapon is required.
+    const byWeapon = d.slotMode === "weapon";
+    if (!byWeapon) {
+      rows.push({
+        type: 1,
+        components: [{
+          type: 3, custom_id: `gs:role:${id}`, placeholder: "Role (pick one)",
+          options: GUIDED_ROLES.map((r) => ({ label: r, value: r, default: r === d.role })),
+        }],
+      });
+    }
     rows.push({
       type: 1,
       components: [{
-        type: 3, custom_id: `gs:role:${id}`, placeholder: "Role (pick one)",
-        options: GUIDED_ROLES.map((r) => ({ label: r, value: r, default: r === d.role })),
-      }],
-    });
-    rows.push({
-      type: 1,
-      components: [{
-        type: 3, custom_id: `gs:class:${id}`, placeholder: "Weapon class (optional)", min_values: 0, max_values: 1,
+        type: 3, custom_id: `gs:class:${id}`, placeholder: byWeapon ? "Weapon class" : "Weapon class (optional)", min_values: 0, max_values: 1,
         options: WEAPON_CLASSES.filter((c) => c !== "Other" || cls === "Other").map((c) => ({ label: c, value: c, default: c === cls })),
       }],
     });
@@ -107,7 +112,7 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
       type: 1,
       components: [{
         type: 3, custom_id: `gs:weapon:${id}`, min_values: 0, max_values: 1,
-        placeholder: weaponOptions.length ? "Weapon (optional)" : "Weapon (pick a class first)",
+        placeholder: weaponOptions.length ? (byWeapon ? "Weapon (pick one)" : "Weapon (optional)") : "Weapon (pick a class first)",
         disabled: weaponOptions.length === 0,
         options: weaponOptions.length ? weaponOptions : [{ label: "Pick a weapon class first", value: TYPED_WEAPON }],
       }],
@@ -120,7 +125,7 @@ export function renderGuidedStep(d: StoredDraft, pickCount = false) {
         options: DUTIES.map((x) => ({ label: x.label, value: x.id, default: x.id === d.duty })),
       }],
     });
-    const ready = canSave(d);
+    const ready = canSave(d, d.slotMode);
     rows.push({
       type: 1,
       components: [

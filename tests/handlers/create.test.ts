@@ -120,7 +120,7 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");
   assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
   assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
-  assert.equal(allMenus(r).length, 5, "the dimmed Preset menu is on the card while the server has none");
+  assert.equal(allMenus(r).length, 6, "the dimmed Preset menu is on the card while the server has none");
   assert.ok(String(allMenus(r)[0].custom_id).startsWith("cc:preset:"), "the Preset menu comes first");
 });
 
