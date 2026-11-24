@@ -1,7 +1,7 @@
 ---
 title: Two parties for normal content, Setup Slots per party, and PvE-or-PvP forums
 type: design
-status: accepted 2026-11-25
+status: accepted 2026-11-25; built in 0.33.0
 date: 2026-11-25
 tags: [parties, card, guided, forums]
 satisfies: [FR-081, FR-082, FR-083, FR-084]
