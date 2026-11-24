@@ -1,3 +1,4 @@
+import { modalProblems } from "../helpers/discordLimits.ts";
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { testSql, resetDb } from "../helpers/db.ts";
@@ -459,4 +460,21 @@ test("FR-076: a weapon-mode CTA's party forms read weapon lines", async () => {
   assert.match(text(await d(p2form(id, "Tank - Mace"))), /Party 2, line 1: this content's slots are by weapon/);
   const open: any = await d(button(`ed:p:${id}`));
   assert.equal(open.data.components[0].components[0].label, "Party 2 slots (one per line: Weapon)");
+});
+
+// Bug 2026-11-24: Edit details on content whose notes span several lines (typed in the card's multi-line box) was refused by
+// Discord ("not responding"): the notes box was a one-line input. Blank content included.
+test("Edit details opens for content whose notes or description have line breaks", async () => {
+  const sql = await testSql();
+  const notes = "Witchwork :\nPerma 3x :\n Healers :\nT7";
+  for (const [thread, blank] of [["tn", false], ["tb", true]] as const) {
+    const id = await createContent(sql, { ...base, threadId: thread, notes, blank, slots: blank ? [] : base.slots });
+    await setMessageId(sql, id, "m1");
+    const deps: Deps = { sql, rest: { async createMessage() { return { id: "p" }; }, async editMessage() {}, async deleteMessage() {} }, now: () => NOW };
+    const r: any = await openEditForm(deps, command("edit", "boss", { channel: { id: thread, type: 11, parent_id: "fp" }, channel_id: thread }));
+    assert.equal(r.type, 9, JSON.stringify(r.data));
+    assert.deepEqual(modalProblems(r.data), [], `blank=${blank}`);
+    const box = r.data.components.flatMap((row: any) => row.components).find((c: any) => c.custom_id === "notes");
+    assert.deepEqual([box.style, box.value], [2, notes]);
+  }
 });

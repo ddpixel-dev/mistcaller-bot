@@ -66,7 +66,7 @@ export async function handleRetryComponent(deps: Deps, i: Interaction): Promise<
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, filled("start")),
         textInput("tier", "Gear Tier", 80, filled("tier")),
         textInput("slots", slotsLabel, 1500, { style: 2, ...filled("slots") }),
-        textInput("notes", "Notes (optional)", 500, { required: false, ...filled("notes") }),
+        textInput("notes", "Notes (optional)", 500, { required: false, style: 2, ...filled("notes") }), // may hold line breaks
       ],
     },
   };

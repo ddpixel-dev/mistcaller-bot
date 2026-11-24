@@ -135,3 +135,16 @@ test("FR-076: Fix and retry on a weapon-mode roster labels the slots box for wea
   const box = r.data.components.flatMap((row: any) => row.components).find((c: any) => c.custom_id === "slots");
   assert.deepEqual([box.label, box.value], ["Slots (one per line: Weapon)", "Tank - Mace"]);
 });
+
+test("Fix and retry reopens a form whose notes have line breaks, in a multi-line box (bug 2026-11-24)", async () => {
+  const { d, sql } = await setup();
+  const { modalProblems } = await import("../helpers/discordLimits.ts");
+  const id = await createContent(sql, {
+    guildId: GUILD, threadId: "c1", type: "pvp", title: "Raid", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"), tier: "T8", hasLoot: false,
+    createdBy: "boss", slots: [{ role: "Tank", weapon: "Mace" }],
+  });
+  await setMessageId(sql, id, "m1");
+  const failed: any = await d(submit(`edit:${id}:k`, { title: "Raid", start: "tomorrow-ish", tier: "T8", slots: "Tank - Mace", notes: "line one\nline two" }));
+  const r: any = await d(press(retryId(failed)));
+  assert.deepEqual(modalProblems(r.data), []);
+});
