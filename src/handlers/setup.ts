@@ -127,7 +127,7 @@ async function applyEventForum(deps: Deps, guildId: string, forumId: string, typ
   await saveEventForum(deps.sql, { guildId, forumId, type, launcherThreadId: null });
   const types = (await forumsOf(deps.sql, guildId, forumId)).map((f) => TYPE_LABEL[f.type]).join(", ");
   return [
-    `<#${forumId}> is now the event forum for ${TYPE_LABEL[type]} content (it serves: ${types}). Content of that type created with the buttons in the content-management channel is posted there. Run the command again with another \`forum-type\` to use the same forum for more types.`,
+    `<#${forumId}> is now the event forum for ${type === "pvp" ? "PvP, PvX and ZvZ" : TYPE_LABEL[type]} content (it serves: ${types}). Content of that type created with the buttons in the content-management channel is posted there. Run the command again with the other \`forum-type\` to use the same forum for both.`,
     FORUM_PERMISSIONS,
   ].join("\n");
 }
@@ -195,8 +195,9 @@ export async function handleSetupCommand(deps: Deps, i: Interaction): Promise<In
   if (forum !== undefined && !isForum(forum)) return reply("Pick a forum channel of this server for `event-forum`.");
   if (clearForum !== undefined && !isForum(clearForum)) return reply("Pick a forum channel of this server for `clear-event-forum`.");
   if (forumType !== undefined && forum === undefined && clearForum === undefined) return reply("`forum-type` goes with `event-forum` or `clear-event-forum`.");
-  if (forumType !== undefined && !isContentType(forumType)) return reply("Pick PvP, PvE, PvX or ZvZ.");
-  if (forum !== undefined && forumType === undefined) return reply("Pick the `forum-type` this forum is for: PvP, PvE, PvX or ZvZ. Run the command again to use the same forum for more types.");
+  // FR-083: a forum is for PvE, or for PvP (which also holds PvX and ZvZ).
+  if (forumType !== undefined && forumType !== "pvp" && forumType !== "pve") return reply("Pick PvP or PvE. The PvP forum also holds PvX and ZvZ events.");
+  if (forum !== undefined && forumType === undefined) return reply("Pick the `forum-type` this forum is for: PvP or PvE. The PvP forum also holds PvX and ZvZ events. Run the command again to use the same forum for both.");
   if (forum !== undefined && clearForum !== undefined) return reply("Set a forum or clear one, not both.");
   const resolvedRoles = (i.data as { resolved?: { roles?: Record<string, unknown> } } | undefined)?.resolved?.roles ?? {};
   for (const [name, role] of [["cta-role", ctaRole], ["remove-cta-role", removeCtaRole]] as const) {

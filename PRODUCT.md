@@ -395,6 +395,22 @@ In Review applicants and Add player the position menu shall list every open posi
 status: built, release 0.31.11 (owner request 2026-11-22, ADR 0049)
 Tracking in PvE (not PvX); Skirmish removed from PvP; ZvZ gains Territory Attack, and its Outpost and Castle merge into Outpost & Castle; party headings use 👥; the host-picks note is a small line under Your time; Assign player is named Add player and Remove player has ❌; the roster button Manage is named Edit content; the calendar has a divider between CTA and other content and between Live now and upcoming. Changed 2026-11-23 (owner request): when Live now is shown, the upcoming days start under a 🔜 Upcoming label.
 
+### FR-081: Two parties for every content
+status: built, release 0.33.0 (owner request 2026-11-25, ADR 0050; design docs/plan/2026-11-25-two-parties-setup-slots-forums-design.md)
+Every normal content, not only a CTA, may have one or two parties of up to 20, chosen by the host on the card. It shows as one roster message with each party's rows, menus, fills and waitlist, like a CTA. Bombers stay CTA-only. Changes FR-070.
+
+### FR-082: Setup Slots
+status: built, release 0.33.0 (owner request 2026-11-25, ADR 0050)
+The card's guided slot builder is named **Setup Slots** (was Roles).
+
+### FR-083: PvE forum, else PvP forum
+status: built, release 0.33.0 (owner request 2026-11-25, ADR 0050)
+PvE content is posted in the PvE event forum and every other type (PvP, PvX, ZvZ) in the PvP event forum; a CTA stays in the CTA channel. `/content setup forum-type` offers PvP and PvE. Changes ADR 0037.
+
+### FR-084: Setup Slots per party
+status: built, release 0.33.0 (owner request 2026-11-25, ADR 0050); migration 0037
+On a two-party card, Setup Slots first asks which party, then fills that party only.
+
 ### FR-029: Help and owner tips
 status: accepted; tips changed 2026-10-24 by ADR 0029 to "🛠️ Press **Manage** to edit, add players, end or cancel · `/content help` for more"
 `/content help` shall answer privately with what the bot does and every command, so that a new member or owner can learn it in one message (owner request 2026-10-08). A live roster (open or locked) shall end, below its buttons, with small tips for the owner: `/content edit` changes the event, do not forget `/content end` when it is over, and `/content help` for more. Finished and cancelled rosters show no tips.
@@ -569,9 +585,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.32.1 (hotfix: Edit details and Fix and retry open for notes with line breaks; see docs/lessons.md 2026-11-24). Before it release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
-Last updated: 2026-11-24
-Next step: the owner checks Edit details on a multi-line event. Open: creations failing with 404 Unknown Channel (2026-11-24 20:22 to 20:29 UTC) and the bot missing Pin Messages in a channel (403 50013); cron roster edits on archived threads (50083).
+Phase: MVP, release 0.33.0 (FR-081 two parties on every content in one roster; FR-082 Setup Slots; FR-083 PvE forum, else PvP forum; FR-084 Setup Slots asks the party; ADR 0050, migration 0037). Before it release 0.32.1 (hotfix: Edit details and Fix and retry open for notes with line breaks; see docs/lessons.md 2026-11-24). Before it release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
+Last updated: 2026-11-25
+Next step: start the next session by setting up a TypeScript language server (owner request 2026-11-25; Docker or ask first, ADR 0006). The owner tries two-party normal content and Setup Slots on a two-party card. Open: 404 Unknown Channel creations, missing Pin Messages (403 50013), cron edits on archived threads (50083).
 
 | Item | Status | Note |
 |---|---|---|

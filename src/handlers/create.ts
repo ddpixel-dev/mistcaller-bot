@@ -6,7 +6,7 @@ import { modalValues, subOption, textInput } from "../discord/modal.ts";
 import { resolveKind } from "../domain/kinds.ts";
 import { BUILD_REFERENCE_HELP, packRef, parseBuildReference, unpackRef } from "../domain/buildref.ts";
 import {
-  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId, setPartyMessageId,
+  PostTakenError, createContent, deleteContent, findContentInThread, getRosterView, setMessageId,
 } from "../db/content.ts";
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { IS_COMPONENTS_V2, renderRosterMessage, rosterUrl } from "../render/roster.ts";
@@ -203,7 +203,6 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
     throw err;
   }
   let postedId: string | null = null;
-  let party2Id: string | null = null;
   let rosterChannelId: string | null = null; // ADR 0047: a CTA's roster channel, when its roster is not in the thread
   try {
     const view = await getRosterView(deps.sql, id, deps.now());
@@ -225,19 +224,14 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
       // Pinned, so the roster is one tap away from the pin icon however far the talk has scrolled (owner request 2026-11-06).
       await pinQuietly(deps, threadId, postedId).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
     }
-    // A second party has its own message, right after the first (FR-070). A CTA has one message for every party.
-    if (view.partyCount === 2 && !inChannel) {
-      party2Id = (await deps.rest.createMessage(threadId, renderRosterMessage(view, 2))).id;
-      await setPartyMessageId(deps.sql, { guildId: a.guildId, contentId: id, party: 2, messageId: party2Id });
-      await pinQuietly(deps, threadId, party2Id).catch((e) => console.error(JSON.stringify({ evt: "pin_failed", name: errName(e), ...(e instanceof DiscordApiError ? { status: e.status, code: e.code } : {}) })));
-    }
+    // Every content keeps all its parties in this one message (ADR 0047, FR-081).
   } catch (err) {
     await deleteContent(deps.sql, id).catch((e) => {
       console.error(JSON.stringify({ evt: "cleanup_failed", error: errName(e) }));
     });
     if (ownPost) await dropPost();
     else {
-      for (const m of [postedId, party2Id]) {
+      for (const m of [postedId]) {
         if (m !== null) {
           await deps.rest.deleteMessage(threadId, m).catch((e) => {
             console.error(JSON.stringify({ evt: "orphan_delete_failed", name: errName(e) }));

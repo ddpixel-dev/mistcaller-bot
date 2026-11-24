@@ -2,12 +2,12 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, textInput } from "../discord/modal.ts";
-import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, guidedView, startGuided, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
 import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, updatePreset, type PresetSettings } from "../db/preset.ts";
 import { MAX_PARTY_SLOTS, maxPartiesFor, parseCtaSlots } from "../domain/parties.ts";
-import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
+import { forumTypeFor, pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
@@ -17,7 +17,7 @@ import { formatSlotLines } from "../domain/slots.ts";
 import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
 import { NO_PRESET, renderCard, renderPresetPanel, v2Text } from "../render/card.ts";
-import { renderGuidedStep } from "../render/guided.ts";
+import { renderGuidedStep, renderPartyChoice } from "../render/guided.ts";
 import { NOT_HERE, publish } from "./create.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getCtaRoleIds } from "../db/cta.ts";
@@ -78,7 +78,7 @@ const reload = async (deps: Deps, d: StoredDraft) => (await getDraft(deps.sql, d
 export async function handleCardComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const [prefix, action, id, extra] = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
-  if (prefix !== "cc" || (extra !== undefined && !(action === "delyes" && UUID.test(extra)))) return reply(EXPIRED);
+  if (prefix !== "cc" || (extra !== undefined && !(action === "delyes" && UUID.test(extra)) && action !== "gp")) return reply(EXPIRED);
   const d = await ownedDraft(deps, i, id);
   if (!d) return reply(EXPIRED);
   const value = Array.isArray(data?.values) && data!.values.length === 1 && typeof data!.values[0] === "string" ? data!.values[0] as string : null;
@@ -125,7 +125,7 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       const preset = found && found.cta === d.cta ? found : null; // each card loads only its own kind (FR-073)
       if (!preset) return reply("That preset no longer exists.");
       // A preset keeps `party` per slot (absent = 1); loading sets the parties to the highest one (a CTA only).
-      const second = d.cta && maxPartiesFor(d.kind, true) > 1 ? preset.slots.filter((s) => s.party === 2).slice(0, MAX_PARTY_SLOTS) : [];
+      const second = maxPartiesFor(d.kind, d.cta) > 1 ? preset.slots.filter((s) => s.party === 2).slice(0, MAX_PARTY_SLOTS) : [];
       const first = preset.slots.filter((s) => s.party !== 2).slice(0, 20);
       await saveCard(deps.sql, d.id, {
         ...presetFields(preset.settings, d.cta), slots: first, slotsText: null,
@@ -138,16 +138,16 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       });
     }
     case "parties": {
-      if (!d.cta || maxPartiesFor(d.kind, true) < 2 || (value !== "1" && value !== "2")) return reply(EXPIRED);
+      if (maxPartiesFor(d.kind, d.cta) < 2 || (value !== "1" && value !== "2")) return reply(EXPIRED);
       // Back to one party drops party 2, typed text included.
       await saveCard(deps.sql, d.id, value === "1" ? { parties: 1, slots2: [], slots2Text: null } : { parties: 2 });
       return await showCard(deps, await reload(deps, d));
     }
     case "massing": return massingForm(d);
     case "p1": return d.cta ? party1Form(d) : reply(EXPIRED);
-    case "p2": return d.cta && d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
+    case "p2": return d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
     case "copy": {
-      if (!d.cta || d.parties < 2) return reply(EXPIRED);
+      if (d.parties < 2) return reply(EXPIRED);
       // Typed party 1 lines that did not parse are copied as typed, to be fixed in party 2.
       await saveCard(deps.sql, d.id, d.slotsText !== null ? { slots2: [], slots2Text: d.slotsText } : { slots2: d.slots.map(({ role, weapon, duty }) => ({ role, weapon, ...(duty ? { duty } : {}) })), slots2Text: null });
       return await showCard(deps, await reload(deps, d));
@@ -209,7 +209,17 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
         },
       };
     }
-    case "guided": return { type: UPDATE_MESSAGE, data: renderGuidedStep(d) };
+    case "guided": {
+      // FR-084: with two parties, Setup Slots asks which party it fills; one party goes straight to the builder.
+      if (d.parties >= 2) return { type: UPDATE_MESSAGE, data: renderPartyChoice(d.id) };
+      if (d.guidedParty !== 1) await startGuided(deps.sql, d.id, 1);
+      return { type: UPDATE_MESSAGE, data: renderGuidedStep(guidedView(await reload(deps, d))) };
+    }
+    case "gp": {
+      if (d.parties < 2 || (extra !== "1" && extra !== "2")) return reply(EXPIRED);
+      await startGuided(deps.sql, d.id, extra === "2" ? 2 : 1);
+      return { type: UPDATE_MESSAGE, data: renderGuidedStep(guidedView(await reload(deps, d))) };
+    }
     case "create": return await create(deps, i, d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
@@ -248,7 +258,7 @@ function detailsForm(d: StoredDraft): InteractionResponse {
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
-        textInput("slots", slotsLabel(d, d.cta && d.parties >= 2 ? "Party 1 slots" : "Slots"), 1500, {
+        textInput("slots", slotsLabel(d, d.parties >= 2 ? "Party 1 slots" : "Slots"), 1500, {
           style: 2, required: false, placeholder: d.slotMode === "weapon" ? WEAPON_EXAMPLE : "Tank - Mace  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
         }),
         textInput("notes", "Notes (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
@@ -362,7 +372,7 @@ export async function handleCardParty2(deps: Deps, i: Interaction): Promise<Inte
   const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
   if (prefix !== "ccs2" || extra !== undefined) return reply(EXPIRED);
   const d = await ownedDraft(deps, i, id);
-  if (!d || !d.cta || d.parties < 2) return reply(EXPIRED);
+  if (!d || d.parties < 2) return reply(EXPIRED);
   const typed = (modalValues(i).slots2 ?? "").trim();
   const parsed = typed ? parseCtaSlots(typed, 2, d.parties, [], d.slotMode) : null;
   await saveCard(deps.sql, d.id, parsed === null ? { slots2: [], slots2Text: null } : parsed.ok ? { slots2: parsed.value, slots2Text: null } : { slots2Text: typed });
@@ -399,7 +409,8 @@ async function destinationOf(deps: Deps, d: StoredDraft, type: ContentType): Pro
     return channel ? { ok: true, place: { channelId: channel } } : { ok: false, problem: "No CTA channel is set. Ask an admin to run `/content setup` with `cta-channel`." };
   }
   const forum = pickEventForum(await listEventForums(deps.sql, d.guildId), type);
-  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum is set for ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\` and \`forum-type\` ${TYPE_LABEL[type]}.` };
+  const where = TYPE_LABEL[forumTypeFor(type)]; // FR-083: PvE, or PvP for every other type
+  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No ${where} event forum is set${type === "pve" || type === "pvp" ? "" : ` (${TYPE_LABEL[type]} content goes there)`}. Ask an admin to run \`/content setup\` with \`event-forum\` and \`forum-type\` ${where}.` };
 }
 
 // A CTA is checked again at Create: the roles may have changed since the card was opened.

@@ -7,8 +7,8 @@ test("constants", () => {
   assert.deepEqual([...CTA_ROLES], ["Tank", "DTank", "Healer", "Support", "DPS"]);
 });
 
-test("maxPartiesFor allows two parties only for a CTA", () => {
-  assert.equal(maxPartiesFor("zvz", false), 1);
+test("maxPartiesFor allows two parties for every content since FR-081", () => {
+  assert.equal(maxPartiesFor("zvz", false), 2);
   assert.equal(maxPartiesFor("other", true), 2);
 });
 

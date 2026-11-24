@@ -146,7 +146,8 @@ export function renderRosterMessage(view: RosterView, party = 1): {
   allowed_mentions: { parse: [] };
 } {
   // ADR 0047: a call to arms is one message holding every party, so `party` does not apply to it.
-  if (view.cta && !view.blank) return renderCtaMessage(view);
+  // FR-081: content with two parties is one message too, without Bombers (they are a CTA's only).
+  if (!view.blank && (view.cta || view.partyCount > 1)) return renderCtaMessage(view);
   return renderPartyMessage(view, party);
 }
 

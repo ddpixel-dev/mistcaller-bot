@@ -478,3 +478,12 @@ test("Edit details opens for content whose notes or description have line breaks
     assert.deepEqual([box.style, box.value], [2, notes]);
   }
 });
+
+test("FR-081: two-party normal content: Edit details holds party 1, Edit party 2 slots saves party 2", async () => {
+  const { sql, deps, id } = await setupTwo(false);
+  const form: any = await openEditForm(deps, command("edit"));
+  const box = form.data.components.flatMap((r: any) => r.components).find((c: any) => c.custom_id === "slots");
+  assert.deepEqual([box.label, box.value], ["Party 1 slots (one per line: Role - Weapon)", "Tank - Mace\nHealer - Holy"]);
+  assert.match(text(await createDispatch(deps)(p2form(id, "Tank - Axe\nDPS - Bow\nHealer - Holy Staff"))), /Party 2 updated/);
+  assert.deepEqual((await getRosterView(sql, id, NOW))!.slots.filter((s) => s.party === 2).map((s) => s.role), ["Tank", "Healer", "DPS"]);
+});
