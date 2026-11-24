@@ -30,7 +30,7 @@ export const HELP_TEXT = [
   "",
   "### Admins (an admin role or Manage Server)",
   "• Everything the owner can do on any content, and `/content history` for any member.",
-  "• `/content setup` sets admin roles, channels, a PvE and a PvP forum (PvP also takes PvX, ZvZ), CTA roles. `cta-msg` pins a message in every new CTA.",
+  "• `/content setup` sets admin roles, channels, PvE and PvP forums (PvP takes PvX, ZvZ), CTA roles. `cta-msg` pins a message in every new CTA.",
 ].join("\n");
 
 export async function handleHelpCommand(_deps: Deps, _i: Interaction): Promise<InteractionResponse> {
