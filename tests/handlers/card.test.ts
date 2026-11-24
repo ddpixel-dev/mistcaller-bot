@@ -172,7 +172,7 @@ test("with no event forum for the type, Create says so on the card and keeps it"
   await d(press(`cc:type:${id}`, ["pve"]));
   await d(form(`ccd:${id}`, details));
   const r: any = await d(press(`cc:create:${id}`));
-  assert.ok(say(r).includes("No event forum is set for PvE content"), say(r));
+  assert.ok(say(r).includes("No PvE event forum is set"), say(r));
   assert.equal((await sql`select count(*)::int as n from content`)[0]!.n, 0);
   assert.ok(await getDraft(sql, id, NOW));
 });
@@ -235,15 +235,13 @@ test("setup event-forum registers the forum for one type, the same forum can tak
   assert.equal(calls.filter((c) => c.op === "createForumPost" || c.op === "editChannel").length, 0, "nothing is posted in the forum");
   assert.deepEqual((await sql`select forum_id, type, launcher_thread_id from event_forum`).map((x) => [x.forum_id, x.type, x.launcher_thread_id]), [[FORUM, "pvp", null]]);
   assert.ok(((await setupForum(d)) as any).data.content.includes("forum-type"), "the type must be given");
-  const more: any = await setupForum(d, "pvx");
-  assert.ok(more.data.content.includes("PvP, PvX"), more.data.content);
-  assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pvp", "pvx"], "one forum serves PvP and PvX");
-  assert.ok(((await setupForum(d, "any")) as any).data.content.includes("Pick PvP, PvE, PvX or ZvZ"));
-  const zvz: any = await setupForum(d, "zvz");
-  assert.ok(zvz.data.content.includes("ZvZ"), zvz.data.content);
-  assert.ok((await sql`select type from event_forum`).some((x) => x.type === "zvz"), "ZvZ is a forum type");
-  await sql`delete from event_forum where type = 'zvz'`;
-  const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pvx" }], {}, resolvedForum));
+  // FR-083: only PvP and PvE forums; the PvP forum also takes PvX and ZvZ.
+  assert.ok(r.data.content.includes("PvX and ZvZ"), r.data.content);
+  for (const t of ["pvx", "zvz", "any"]) assert.ok(((await setupForum(d, t)) as any).data.content.includes("Pick PvP or PvE"), t);
+  const more: any = await setupForum(d, "pve");
+  assert.ok(more.data.content.includes("PvP") && more.data.content.includes("serves: PvE, PvP"), more.data.content);
+  assert.deepEqual((await sql`select type from event_forum order by type`).map((x) => x.type), ["pve", "pvp"], "one forum may serve both");
+  const one: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM), { name: "forum-type", type: 3, value: "pve" }], {}, resolvedForum));
   assert.ok(one.data.content.includes("still serves other types"), one.data.content);
   assert.deepEqual((await sql`select type from event_forum`).map((x) => x.type), ["pvp"]);
   const cleared: any = await d(command("setup", [forumOpt("clear-event-forum", FORUM)], {}, resolvedForum));
@@ -251,17 +249,26 @@ test("setup event-forum registers the forum for one type, the same forum can tak
   assert.equal((await sql`select count(*)::int as n from event_forum`)[0]!.n, 0);
 });
 
-test("setting a type again moves it to the new forum; PvX has no fallback to another type's forum", async () => {
-  const { d, sql } = await setup();
+test("setting a type again moves it to the new forum", async () => {
+  const { d, sql, calls } = await setup();
   await sql`delete from event_forum`;
   await setupForum(d, "pvp");
   const other = "300000002";
   await d(command("setup", [forumOpt("event-forum", other), { name: "forum-type", type: 3, value: "pvp" }], {}, { channels: { [other]: { id: other, type: 15 } } }));
   assert.deepEqual((await sql`select forum_id, type from event_forum`).map((x) => [x.forum_id, x.type]), [[other, "pvp"]]);
+  // FR-083: PvX and ZvZ go to the PvP forum.
+  for (const type of ["pvx", "zvz"]) {
+    const { id } = await open(d);
+    await d(press(`cc:type:${id}`, [type]));
+    await d(form(`ccd:${id}`, details));
+    assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"), type);
+  }
+  assert.ok(calls.filter((c) => c.op === "createForumPost").every((c) => c.args[0] === other), "both in the PvP forum");
   const { id } = await open(d);
-  await d(press(`cc:type:${id}`, ["pvx"]));
+  await sql`delete from event_forum where type = 'pvp'`;
+  await d(press(`cc:type:${id}`, ["zvz"]));
   await d(form(`ccd:${id}`, details));
-  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for PvX content"));
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No PvP event forum is set"), "ZvZ needs the PvP forum");
 });
 
 test("setup event-forum is for admins and forums only; an old launcher post is removed when the forum is set again", async () => {
@@ -1006,15 +1013,16 @@ test("Create and the Blank form pass Massing at to the content, and a CTA is pos
   assert.equal((await sql`select massing_at from content`)[0]!.massing_at, "The portal");
 });
 
-test("ZvZ is a type on Plan Content: its own categories, and it needs its own event forum", async () => {
+test("ZvZ is a type on Plan Content: its own categories, posted in the PvP forum (FR-083)", async () => {
   const { d, sql } = await setup();
   const { id } = await open(d, undefined, "n");
   const r: any = await d(press(`cc:type:${id}`, ["zvz"]));
   const kind = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:kind:"))!;
   assert.deepEqual(kind.options.map((o: any) => o.label), ["Faction Warfare", "Outpost & Castle", "Siege", "Territory Attack", "Territory Defense", "Other"]);
   await d(form(`ccd:${id}`, details));
-  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No event forum is set for ZvZ content"));
-  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'zf', 'zvz')`;
+  await sql`delete from event_forum where type <> 'pve'`;
+  assert.ok(say((await d(press(`cc:create:${id}`))) as any).includes("No PvP event forum is set (ZvZ content goes there)"));
+  await sql`insert into event_forum (guild_id, forum_id, type) values (${GUILD}, 'pf', 'pvp')`;
   assert.ok(say((await d(press(`cc:create:${id}`))) as any).startsWith("✅ Created"));
   assert.equal((await sql`select type from content`)[0]!.type, "zvz");
 });

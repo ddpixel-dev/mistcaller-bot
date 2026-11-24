@@ -7,7 +7,7 @@ import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
 import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, updatePreset, type PresetSettings } from "../db/preset.ts";
 import { MAX_PARTY_SLOTS, maxPartiesFor, parseCtaSlots } from "../domain/parties.ts";
-import { pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
+import { forumTypeFor, pickEventForum, typesFor, validateBlank, validateCard } from "../domain/card.ts";
 import { DEFAULT_KIND, TYPE_LABEL, resolveKind } from "../domain/kinds.ts";
 import { parseBuildReference } from "../domain/buildref.ts";
 import { parseSlots } from "../domain/parse.ts";
@@ -399,7 +399,8 @@ async function destinationOf(deps: Deps, d: StoredDraft, type: ContentType): Pro
     return channel ? { ok: true, place: { channelId: channel } } : { ok: false, problem: "No CTA channel is set. Ask an admin to run `/content setup` with `cta-channel`." };
   }
   const forum = pickEventForum(await listEventForums(deps.sql, d.guildId), type);
-  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No event forum is set for ${TYPE_LABEL[type]} content. Ask an admin to run \`/content setup\` with \`event-forum\` and \`forum-type\` ${TYPE_LABEL[type]}.` };
+  const where = TYPE_LABEL[forumTypeFor(type)]; // FR-083: PvE, or PvP for every other type
+  return forum ? { ok: true, place: { forumId: forum.forumId } } : { ok: false, problem: `No ${where} event forum is set${type === "pve" || type === "pvp" ? "" : ` (${TYPE_LABEL[type]} content goes there)`}. Ask an admin to run \`/content setup\` with \`event-forum\` and \`forum-type\` ${where}.` };
 }
 
 // A CTA is checked again at Create: the roles may have changed since the card was opened.

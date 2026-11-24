@@ -31,8 +31,8 @@ export const commands = [
           { type: 5, name: "clear-calendar", description: "Stop keeping the Events Calendar and remove its messages", required: false },
           { type: 7, name: "event-forum", description: "A forum where the bot posts normal events of one type (use with forum-type)", required: false, channel_types: [15] },
           {
-            type: 3, name: "forum-type", description: "With event-forum: the type this forum is for. Repeat to use one forum for several", required: false,
-            choices: [{ name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }, { name: "PvX", value: "pvx" }, { name: "ZvZ", value: "zvz" }],
+            type: 3, name: "forum-type", description: "With event-forum: PvE, or PvP (which also holds PvX and ZvZ events)", required: false,
+            choices: [{ name: "PvP", value: "pvp" }, { name: "PvE", value: "pve" }],
           },
           { type: 7, name: "changelog-channel", description: "Where changelogs go: a channel, a forum (a post per release), or one thread or forum post", required: false, channel_types: [0, 5, 10, 11, 12, 15] },
           { type: 5, name: "clear-changelog", description: "Stop posting changelogs in this server", required: false },

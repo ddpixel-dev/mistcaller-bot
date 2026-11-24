@@ -49,14 +49,17 @@ test("forum tags match the type or the category by name, ignoring case; at most 
   assert.deepEqual(matchTags([], "pvp", "zvz"), []);
 });
 
-import { pickEventForum, validateBlank } from "../../src/domain/card.ts";
+import { forumTypeFor, pickEventForum, validateBlank } from "../../src/domain/card.ts";
 
-test("normal content goes to the forum set for its type and nowhere else; one forum may serve several types", () => {
-  const forums = [{ forumId: "pvp-f", type: "pvp" as const }, { forumId: "pve-f", type: "pve" as const }, { forumId: "pvp-f", type: "pvx" as const }];
+// FR-083 (ADR 0050): PvE content goes to the PvE forum; every other type goes to the PvP forum.
+test("FR-083: PvE goes to the PvE forum; PvP, PvX and ZvZ go to the PvP forum; old PvX and ZvZ settings are not read", () => {
+  assert.deepEqual((["pvp", "pve", "pvx", "zvz"] as const).map(forumTypeFor), ["pvp", "pve", "pvp", "pvp"]);
+  const forums = [{ forumId: "pvp-f", type: "pvp" as const }, { forumId: "pve-f", type: "pve" as const }, { forumId: "old-f", type: "pvx" as const }];
   assert.equal(pickEventForum(forums, "pvp")?.forumId, "pvp-f");
   assert.equal(pickEventForum(forums, "pve")?.forumId, "pve-f");
-  assert.equal(pickEventForum(forums, "pvx")?.forumId, "pvp-f", "PvX set to the PvP forum");
-  assert.equal(pickEventForum(forums.slice(0, 2), "pvx"), null, "no fallback to another type's forum");
+  assert.equal(pickEventForum(forums, "pvx")?.forumId, "pvp-f", "the old PvX setting is ignored");
+  assert.equal(pickEventForum(forums, "zvz")?.forumId, "pvp-f");
+  assert.equal(pickEventForum([{ forumId: "pve-f", type: "pve" as const }], "zvz"), null, "no PvP forum, no place for ZvZ");
   assert.equal(pickEventForum([], "pvp"), null);
 });
 

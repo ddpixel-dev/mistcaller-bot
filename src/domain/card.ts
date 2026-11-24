@@ -99,9 +99,12 @@ export function matchTags(tags: { id: string; name: string }[], type: ContentTyp
   return tags.filter((t) => wanted.has(t.name.trim().toLowerCase())).map((t) => t.id).slice(0, 5);
 }
 
-// Where normal content is posted (ADR 0037): the event forum set for its type, nothing else.
+// FR-083 (ADR 0050): PvE content has its own forum; PvP, PvX and ZvZ share the PvP forum.
+export const forumTypeFor = (type: ContentType): "pvp" | "pve" => (type === "pve" ? "pve" : "pvp");
+
+// Where normal content is posted: the PvE forum, or the PvP forum for every other type. Old PvX and ZvZ settings are not read.
 export function pickEventForum<T extends { forumId: string; type: ContentType }>(forums: readonly T[], type: ContentType): T | null {
-  return forums.find((f) => f.type === type) ?? null;
+  return forums.find((f) => f.type === forumTypeFor(type)) ?? null;
 }
 
 export type BlankInput = { type: ContentType | null; title: string | null; startText: string | null; gearTier: string | null; notes: string | null };
