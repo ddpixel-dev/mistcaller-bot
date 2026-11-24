@@ -11,7 +11,7 @@ import { WEAPON_EMOJI } from "../../src/data/weapon-emoji.ts";
 
 function view(over: Partial<RosterView> = {}): RosterView {
   return {
-    id: "c1", guildId: "g1", threadId: "t1", messageId: null, rosterChannelId: null, bombers: null, bomberIds: [], type: "pvp", kind: "other", partyCount: 1,
+    id: "c1", guildId: "g1", threadId: "t1", messageId: null, rosterChannelId: null, bombers: null, bomberIds: [], type: "pvp", kind: "other", partyCount: 1, slotMode: "role",
     title: "Ava roam", notes: null,
     startsAt: new Date("2026-10-07T18:00:00Z"),
     tier: "T5.3–T7.0",
@@ -846,4 +846,28 @@ test("every position row reads role - weapon - player - duty, in a one-party ros
     assert.ok(parts[3]!.includes("Caller"), "then the duty");
   }
   assert.ok(rows(twoParty())[1]!.includes("- Open"), "an empty position shows Open in the player place");
+});
+
+// ---- FR-076: a weapon-mode roster ----
+const wslot = (n: number, weapon: string, userId: string | null, duty: string | null = null): RosterSlot => ({ id: `w${n}`, position: n, party: 1, role: "", weapon, userId, duty });
+const bowTag = weaponEmojiTag("Bow");
+
+test("FR-076: a weapon-mode row reads `n. WeaponIcon Weapon - Player - Duty`, with Open for an empty position", () => {
+  const v = view({ slotMode: "weapon", slots: [wslot(1, "Bow", "111", "caller"), wslot(2, "Bow", null)] });
+  const t = raw(v);
+  assert.ok(t.includes(`1. ${bowTag} Bow - <@111> - 📯 Caller`), t);
+  assert.ok(t.includes(`2. ${bowTag} Bow - Open`), t);
+  assert.ok(!t.includes("Player's choice"));
+  const join = byId(v, "join:")[0]!;
+  const opt = join.options.find((o: any) => o.value === "w2");
+  assert.equal(opt.label, "2. Bow");
+  assert.deepEqual(discordProblems(msg(v)), []);
+});
+
+test("FR-076: a weapon whose positions are all taken is offered on the waitlist menu for a full weapon", () => {
+  const v = view({ slotMode: "weapon", slots: [wslot(1, "Bow", "111"), wslot(2, "Bow", "112"), wslot(3, "Mace", null)], waitlist: [{ userId: "201", role: "Bow" }] });
+  const wait = byId(v, "wait:")[0]!;
+  assert.equal(wait.placeholder, "Join the waitlist for a full weapon");
+  assert.deepEqual(wait.options.filter((o: any) => o.value !== "~fill").map((o: any) => [o.label, o.value, o.description]), [["Bow (all taken)", "Bow", "1 waiting"]]);
+  assert.ok(raw(v).includes("🕒 **Waitlist (1):** 1. <@201> (Bow)"));
 });

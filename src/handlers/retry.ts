@@ -1,3 +1,4 @@
+import { getRosterView } from "../db/content.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, reply } from "../discord/response.ts";
@@ -51,6 +52,10 @@ export async function handleRetryComponent(deps: Deps, i: Interaction): Promise<
     };
   }
   const filled = (name: string) => (f[name] ? { value: f[name] } : {});
+  // FR-076: the slots box follows the content's mode (the edit form's id names the content).
+  const contentId = /^edit:([0-9a-f-]{36}):/i.exec(stored.formId)?.[1];
+  const view = contentId ? await getRosterView(deps.sql, contentId, deps.now()) : null;
+  const slotsLabel = `Slots (one per line: ${view?.slotMode === "weapon" ? "Weapon" : "Role - Weapon"})`;
   return {
     type: MODAL,
     data: {
@@ -60,7 +65,7 @@ export async function handleRetryComponent(deps: Deps, i: Interaction): Promise<
         textInput("title", "Title", 100, filled("title")),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, filled("start")),
         textInput("tier", "Gear Tier", 80, filled("tier")),
-        textInput("slots", "Slots (one per line: Role - Weapon)", 1500, { style: 2, ...filled("slots") }),
+        textInput("slots", slotsLabel, 1500, { style: 2, ...filled("slots") }),
         textInput("notes", "Notes (optional)", 500, { required: false, ...filled("notes") }),
       ],
     },

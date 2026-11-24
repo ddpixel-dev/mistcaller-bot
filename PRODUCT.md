@@ -157,7 +157,7 @@ status: accepted
 `/content create` shall work in any text channel, announcement channel, thread or forum post of a server (changed 2026-10-08, ADR 0020; it was limited to two configured forums). The content type (PvP or PvE) is chosen in the create panel (ADR 0016). Elsewhere (a direct message, a voice channel, a category) it shall reply privately with an explanation. The content belongs to the place where the command ran (FR-019). Before anything is saved, the bot checks the install type and its own permissions that Discord sends with the interaction, and explains the problem instead of a vague failure: it is not added to the server (only to an account), or it lacks View Channel and Send Messages (Send Messages in Threads for threads and forum posts) in that place.
 
 ### FR-003: Creation input
-status: accepted; the title is prefilled from the post since 2026-10-24 (FR-050); the panel is replaced by the first create form (FR-052, ADR 0031)
+status: accepted; the title is prefilled from the post since 2026-10-24 (FR-050); the panel is replaced by the first create form (FR-052, ADR 0031); changed 2026-11-22 by FR-076 (slots by role or by weapon) and FR-077 (five roles and the game's weapons only)
 Creation shall collect a title, a start time in UTC, a gear tier, a list of slots and optional notes, with no command options: `/content create` opens a private panel with menus for the kind (categories of the forum's type), the loot vote and an optional preset, then a Continue button opens the form (owner request 2026-10-07). The type (PvP or PvE) is chosen in the panel. The **Gear Tier** is free text of up to 80 characters, shown as typed, for example `Weapon T7.1 - Gear T4.3` (owner decision 2026-10-08, replacing the fixed `T5.3` or `T5.3-T7.0` format). Each slot is one line of the form `Role - Weapon`, or a role alone (FR-030), optionally followed by a duty in brackets (`Tank - Great Axe (Caller)`), with no repetition shorthand, and there shall be at most 20 slots. Invalid input and start times in the past shall be rejected with an example of the correct format.
 
 ### FR-004: Roster message
@@ -376,12 +376,12 @@ status: built, release 0.31.9 (owner request 2026-11-11, ADR 0047)
 Presets saved from the CTA card shall be listed only on the CTA card, with both parties and the Bombers cap; presets saved from Plan Content only on Plan Content. Each kind has its own cap of 25.
 
 ### FR-076: Slots by role or by weapon
-status: accepted (owner request 2026-11-22, ADR 0049; design docs/plan/2026-11-22-slot-modes-and-batch-design.md); release C, migration 0036
+status: built, release 0.32.0 (owner request 2026-11-22, ADR 0049; design docs/plan/2026-11-22-slot-modes-and-batch-design.md; plan docs/plan/2026-11-23-slot-modes-implementation.md; migration 0036)
 Every content, normal or CTA, shall choose at creation whether its slots are written by role (`Role - Weapon (Duty)`, as in FR-003) or by weapon (`Weapon (Duty)`). The mode is fixed after creation. In weapon mode a slot has no role, the roster row reads `n. Weapon - Player - Duty` in the typed order, and the waitlist, fills and menus use the weapon where they used the role. Healer priority for fills applies in role mode only. Presets keep the mode.
 
 ### FR-077: Strict roles and weapons
-status: accepted (owner request 2026-11-22, ADR 0049); release C
-A slot's role shall be one of Tank, DTank, Healer, Support or DPS, and its weapon a name from the game's weapon list (off-hands included), on every content and every path that writes slots. Near misses get suggestions. Old rosters and presets keep their terms; an unchanged line in Edit details is accepted. Supersedes the CTA-only role check of FR-070 and relaxes nothing else.
+status: built, release 0.32.0 (owner request 2026-11-22, ADR 0049)
+A slot's role shall be one of Tank, DTank, Healer, Support or DPS, and its weapon a name from the game's weapon list (off-hands included; capitals, spaces, hyphens and apostrophes ignored, stored in the game's spelling, so `Great Axe` is `Greataxe`), on every content and every path that writes slots. Near misses get suggestions. Old rosters and presets keep their terms; an unchanged line in Edit details is accepted. Supersedes the CTA-only role check of FR-070 and relaxes nothing else.
 
 ### FR-078: Edit preset
 status: built, release 0.31.11 (owner request 2026-11-22, ADR 0049; migration 0035)
@@ -569,9 +569,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.31.12 (the calendar's 🔜 Upcoming label after Live now, FR-080). Before it release 0.31.11 (FR-078 Edit preset; FR-079 the host places an applicant or fill in any open position; FR-080 Tracking, no Skirmish, ZvZ Territory Attack and Outpost & Castle, 👥 party titles, the host-picks note under Your time, Add player, ❌ Remove player, the Edit content button, calendar dividers; ADR 0049, migration 0035). Before it 0.31.10 (FR-074, FR-075, ADR 0048, migration 0034).
-Last updated: 2026-11-23
-Next step: release C of docs/plan/2026-11-22-slot-modes-and-batch-design.md, slots by Role or Weapon on every content and strict roles and weapons (FR-076, FR-077, ADR 0049, migration 0036); it needs its implementation plan first. The owner tries 0.31.11 (Edit preset, the applicant fix, the calendar dividers).
+Phase: MVP, release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
+Last updated: 2026-11-24
+Next step: find the Edit details "not responding" bug the owner reported 2026-11-24 (Edit content → Edit details); a timed reproduction with the logs is pending. The owner tries Slots by weapon on a test event.
 
 | Item | Status | Note |
 |---|---|---|

@@ -1,3 +1,4 @@
+import { slotLabel } from "../domain/slotlabel.ts";
 import type { Sql } from "./client.ts";
 
 import { displayNumber } from "../domain/parties.ts";
@@ -28,7 +29,7 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     select s.id, s.position, s.party, s.role, s.weapon from slot s
     left join signup su on su.slot_id = s.id and su.status = 'signed'
     where s.content_id = ${contentId} and su.user_id is null order by s.position`).map((r) => ({
-    id: r.id as string, position: r.position as number, party: r.party as number, role: r.role as string, weapon: (r.weapon as string | null) ?? "",
+    id: r.id as string, position: r.position as number, party: r.party as number, role: (r.role as string | null) ?? "", weapon: (r.weapon as string | null) ?? "",
   }));
   if (open.length === 0) return [];
   const waiting = await tx`
@@ -49,7 +50,7 @@ export async function promoteWaitlist(tx: Tx, contentId: string, now: Date): Pro
     const mine = open.filter((o) => o.party === w.party);
     const slot = pref
       ? pickFillSlot(pref, mine)
-      : mine.find((o) => o.role.toLowerCase() === String(w.wait_role ?? "").toLowerCase()) ?? null;
+      : mine.find((o) => slotLabel(o).toLowerCase() === String(w.wait_role ?? "").toLowerCase()) ?? null; // role or weapon (FR-076)
     if (!slot) continue;
     open.splice(open.indexOf(slot), 1);
     await tx`
@@ -179,16 +180,16 @@ export async function joinWaitlist(
     if (c.selection) return "selection";
     const party = a.party ?? 1;
     const slots = await tx`
-      select s.role, su.user_id from slot s
+      select coalesce(s.role, s.weapon) as label, su.user_id from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
-      where s.content_id = ${a.contentId} and s.party = ${party} and lower(s.role) = lower(${a.role})`;
+      where s.content_id = ${a.contentId} and s.party = ${party} and lower(coalesce(s.role, s.weapon)) = lower(${a.role})`; // FR-076: a role, or a weapon
     if (slots.length === 0) return "unknown_role";
     const [prev] = await tx`
       select status, wait_role, party from signup where content_id = ${a.contentId} and user_id = ${a.userId} for update`;
     if (slots.some((s) => s.user_id === null)) return "open_slot";
     if (prev?.status === "signed") return "signed";
     if (prev?.status === "waitlist" && prev.wait_role?.toLowerCase() === a.role.toLowerCase() && prev.party === party) return "already";
-    const role = slots[0]!.role as string;
+    const role = slots[0]!.label as string;
     await tx`
       insert into signup (guild_id, content_id, user_id, slot_id, status, wait_role, party)
       values (${a.guildId}, ${a.contentId}, ${a.userId}, null, 'waitlist', ${role}, ${party})
@@ -247,7 +248,7 @@ export async function joinFill(
       select s.id, s.position, s.role, s.weapon from slot s
       left join signup su on su.slot_id = s.id and su.status = 'signed'
       where s.content_id = ${a.contentId} and s.party = ${party} and su.user_id is null order by s.position`).map((r) => ({
-      id: r.id as string, position: r.position as number, role: r.role as string, weapon: (r.weapon as string | null) ?? "",
+      id: r.id as string, position: r.position as number, role: (r.role as string | null) ?? "", weapon: (r.weapon as string | null) ?? "",
     }));
     const slot = pickFillSlot(pref, open);
     if (slot) {
@@ -308,7 +309,7 @@ async function assignOnce(sql: Sql, a: AssignArgs): Promise<AssignResult> {
         do update set slot_id = excluded.slot_id, status = 'signed', party = excluded.party, wait_role = null, fill_roles = null, fill_slots = null, joined_at = now(),
           chosen_weapon = excluded.chosen_weapon`;
       if (prev?.status === "signed" && a.promoted) a.promoted.push(...(await promoteWaitlist(tx, a.contentId, a.now)));
-      return { result: "ok", position: slot.position, role: slot.role };
+      return { result: "ok", position: slot.position, role: (slot.role ?? slot.weapon ?? "") as string }; // the label (FR-076)
     });
   } catch (err) {
     if (isSlotTaken(err)) return { result: "taken" };

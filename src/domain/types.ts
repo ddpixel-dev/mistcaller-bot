@@ -1,11 +1,16 @@
 import type { FillPref } from "./fillmatch.ts";
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-// An empty weapon means the slot is a role alone: the player brings the weapon (FR-030).
+// An empty weapon means the slot is a role alone: the player brings the weapon (FR-030). An empty role means the content's
+// slots are by weapon (FR-076): the slot is named by its weapon.
 export type SlotDef = { role: string; weapon: string; duty?: string | null; party?: number };
 // ZvZ is a content type of its own (owner decision 2026-11-11, ADR 0048), next to PvP, PvE and PvX.
 export const CONTENT_TYPES = ["pvp", "pve", "pvx", "zvz"] as const;
 export type ContentType = (typeof CONTENT_TYPES)[number];
 export const isContentType = (v: unknown): v is ContentType => (CONTENT_TYPES as readonly unknown[]).includes(v);
+// How a content's slots are written (FR-076): "Role - Weapon (Duty)" or "Weapon (Duty)". Fixed after creation.
+export const SLOT_MODES = ["role", "weapon"] as const;
+export type SlotMode = (typeof SLOT_MODES)[number];
+export const isSlotMode = (v: unknown): v is SlotMode => (SLOT_MODES as readonly unknown[]).includes(v);
 export type ContentStatus = "open" | "locked" | "cancelled" | "done";
 export type RosterSlot = {
   id: string;
@@ -34,6 +39,7 @@ export type RosterView = {
   hasLoot: boolean;
   status: ContentStatus;
   partyCount: number; // 1 or 2 (FR-070)
+  slotMode: SlotMode; // slots by role or by weapon (FR-076)
   partyOf?: Record<string, number>; // party of each waitlist, fill and applied user; absent means party 1 (FR-070)
   slots: RosterSlot[];
   waitlist?: { userId: string; role: string; party?: number }[];

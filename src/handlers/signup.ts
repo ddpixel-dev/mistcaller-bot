@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -89,7 +90,7 @@ export async function handleJoin(deps: Deps, i: Interaction): Promise<Interactio
     await refreshRoster(deps, got[0]!);
     const view = await getRosterView(deps.sql, got[0]!, deps.now());
     const slot = view?.slots.find((s) => s.id === slotId);
-    return reply(`📨 You applied for ${slot && view ? `${positionText(view.partyCount, slot.party, displayNumber(slot, view.slots))} (${escapeText(slot.role)})` : "that position"}. The host picks the party; you are mentioned in the post when you are accepted.`);
+    return reply(`📨 You applied for ${slot && view ? `${positionText(view.partyCount, slot.party, displayNumber(slot, view.slots))} (${escapeText(slotText(slot))})` : "that position"}. The host picks the party; you are mentioned in the post when you are accepted.`);
   }
   // A slot without a weapon (FR-030): update the roster through the API, and give the player a private weapon picker.
   const [slot] = await deps.sql`select role, position, party, weapon from slot where id = ${slotId}`;

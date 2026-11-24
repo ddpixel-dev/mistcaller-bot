@@ -84,6 +84,10 @@ const mentions = (users: string[]) => users.map((u) => `<@${u}>`).join(" ");
 
 // Edit details (the Manage panel's Edit, then Edit details): the form with the event's current text. The category,
 // loot vote and build reference are changed in the Edit panel (ADR 0029), so the form id keeps them ("k").
+// FR-076: the slots box says how to write the lines in the content's mode.
+export const slotsBoxLabel = (view: { slotMode: "role" | "weapon" }, what: string) =>
+  `${what} (one per line: ${view.slotMode === "weapon" ? "Weapon" : "Role - Weapon"})`;
+
 export async function openEditForm(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const target = await targetOf(deps, i);
   const checked = await authorize(deps, i, target);
@@ -119,7 +123,7 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
         textInput("tier", "Gear Tier", 80, { value: view.tier }),
         // A blank content has no slots (FR-060); its notes are the description.
         ...(view.blank ? [] : [textInput(
-          "slots", view.partyCount === 2 ? "Party 1 slots" : "Slots (one per line: Role - Weapon)", 1500,
+          "slots", slotsBoxLabel(view, view.partyCount === 2 ? "Party 1 slots" : "Slots"), 1500,
           { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) },
         )]),
         textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
@@ -162,7 +166,8 @@ export async function handleEditModal(deps: Deps, i: Interaction): Promise<Inter
     : parseUtcStart(v.start ?? "", deps.now());
   // A CTA's slots come from the Edit panel's own forms: this form leaves them as they are and reads the Bombers cap instead.
   const ctaForm = current?.cta === true && !isBlank;
-  const slots = isBlank || ctaForm ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "");
+  // FR-077: lines are checked, except a line equal to one of the roster's slots, so an older roster stays editable.
+  const slots = isBlank || ctaForm ? ({ ok: true, value: [] } as ReturnType<typeof parseSlots>) : parseSlots(v.slots ?? "", current?.slotMode ?? "role", (current?.slots ?? []).filter((s) => s.party === 1));
   const cap = ctaForm ? parseBombersCap(v.bombers ?? "") : ({ ok: true, value: null } as ReturnType<typeof parseBombersCap>);
   const notes = parseNotes(v.notes ?? "");
   // Every mistake at once, with a button that reopens the form filled in (ADR 0025).
@@ -326,7 +331,7 @@ async function editPartyModal(deps: Deps, i: Interaction, party: 1 | 2): Promise
   if (!checked.ok) return checked.response;
   const view = await getRosterView(deps.sql, checked.target.id, deps.now());
   if (!view || (party === 2 ? view.partyCount !== 2 : !view.cta || view.blank)) return reply(INVALID);
-  const parsed = parseCtaSlots(modalValues(i).slots ?? "", party, view.partyCount, view.slots.filter((s) => s.party === party));
+  const parsed = parseCtaSlots(modalValues(i).slots ?? "", party, view.partyCount, view.slots.filter((s) => s.party === party), view.slotMode);
   if (!parsed.ok) return await formProblems(deps, i, String(customId), [parsed.error]);
   const result = await editContent(deps.sql, view.id, {
     hasLoot: null, kind: null, ...(party === 2 ? { slots2: parsed.value } : { slots: parsed.value }),

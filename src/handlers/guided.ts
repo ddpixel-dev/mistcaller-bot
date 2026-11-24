@@ -40,7 +40,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
   const value = Array.isArray(data?.values) && data!.values.length === 1 ? data!.values[0] : undefined;
 
   switch (action) {
-    case "role": return update(await store(deps, d, typeof value === "string" ? setRole(d, value) : d));
+    case "role": return update(await store(deps, d, typeof value === "string" && d.slotMode !== "weapon" ? setRole(d, value) : d));
     case "duty": {
       // Deselecting sends no value: that clears the duty.
       const picks = Array.isArray(data?.values) ? data!.values : null;
@@ -56,9 +56,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       if (!w) return reply(EXPIRED);
       return update(await store(deps, d, setWeapon(d, w.name), weaponClass(w)));
     }
-    case "next": return update(await store(deps, d, next(d), null));
+    case "next": return update(await store(deps, d, next(d, d.slotMode), null));
     case "same": return update(await store(deps, d, sameAsPrevious(d), null));
-    case "rest": return update(await store(deps, d, fillRest(d), null));
+    case "rest": return update(await store(deps, d, fillRest(d, d.slotMode), null));
     case "class": {
       // Deselecting the class (it is optional) clears the weapon with it.
       const picks = Array.isArray(data?.values) ? data!.values : null;

@@ -11,7 +11,7 @@ import {
 import { parseGearTier, parseNotes, parseSlots, parseTitle, parseUtcStart } from "../domain/parse.ts";
 import { IS_COMPONENTS_V2, renderRosterMessage, rosterUrl } from "../render/roster.ts";
 import { DiscordApiError } from "../discord/rest.ts";
-import { isContentType, type ContentType, type SlotDef } from "../domain/types.ts";
+import { isContentType, type ContentType, type SlotDef, type SlotMode } from "../domain/types.ts";
 import { matchTags } from "../domain/card.ts";
 import { openCard } from "./card.ts";
 import { postCtaMessage } from "./ctamsg.ts";
@@ -135,7 +135,7 @@ export async function handleCreateModal(deps: Deps, i: Interaction): Promise<Int
 
 export type PublishInput = {
   guildId: string; creator: string; type: ContentType; kind: string; title: string; notes: string | null; startsAt: Date;
-  tier: string; slots: SlotDef[]; slots2?: SlotDef[]; bombers?: number | null; massing?: string | null; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
+  tier: string; slots: SlotDef[]; slots2?: SlotDef[]; slotMode?: SlotMode; bombers?: number | null; massing?: string | null; hasLoot: boolean; selection?: boolean; cta?: boolean; blank?: boolean; buildRef: string | null;
   // Where the roster goes: an existing channel or post, a new post the bot creates in an event forum (ADR 0032), or a new
   // thread under an announcement in a text channel (the CTA channel, ADR 0036).
   place: { threadId: string } | { forumId: string } | { channelId: string };
@@ -194,7 +194,7 @@ export async function publish(deps: Deps, a: PublishInput): Promise<{ ok: true; 
   try {
     id = await createContent(deps.sql, {
       guildId: a.guildId, threadId, type: a.type, kind: a.kind, title: a.title, notes: a.notes, startsAt: a.startsAt, tier: a.tier,
-      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, slots2: a.slots2, bombers: a.bombers ?? null, massing: a.massing ?? null,
+      buildRef: a.buildRef, hasLoot: a.hasLoot, selection: a.selection ?? false, cta: a.cta ?? false, blank: a.blank ?? false, createdBy: a.creator, slots: a.slots, slots2: a.slots2, slotMode: a.slotMode ?? "role", bombers: a.bombers ?? null, massing: a.massing ?? null,
       rosterChannelId: "channelId" in a.place ? a.place.channelId : null, ownPost, now: deps.now(),
     });
   } catch (err) {

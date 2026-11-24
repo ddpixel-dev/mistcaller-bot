@@ -122,3 +122,16 @@ test("old retries are purged with the old drafts", async () => {
   assert.equal(await purgeDrafts(sql, new Date(NOW.getTime() + 61 * 60000)), 1);
   assert.equal((await sql`select 1 from form_retry`).length, 0);
 });
+
+test("FR-076: Fix and retry on a weapon-mode roster labels the slots box for weapons", async () => {
+  const { d, sql } = await setup();
+  const id = await createContent(sql, {
+    guildId: GUILD, threadId: "c1", type: "pvp", title: "Raid", notes: null, startsAt: new Date("2026-12-01T18:00:00Z"), tier: "T8", hasLoot: false,
+    createdBy: "boss", slotMode: "weapon", slots: [{ role: "", weapon: "Bow" }],
+  });
+  await setMessageId(sql, id, "m1");
+  const failed: any = await d(submit(`edit:${id}:k`, { title: "Raid", start: "2026-12-01 18:00", tier: "T8", slots: "Tank - Mace", notes: "" }));
+  const r: any = await d(press(retryId(failed)));
+  const box = r.data.components.flatMap((row: any) => row.components).find((c: any) => c.custom_id === "slots");
+  assert.deepEqual([box.label, box.value], ["Slots (one per line: Weapon)", "Tank - Mace"]);
+});

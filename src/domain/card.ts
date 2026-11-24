@@ -1,4 +1,4 @@
-import type { ContentType, SlotDef } from "./types.ts";
+import type { ContentType, SlotDef, SlotMode } from "./types.ts";
 import { MAX_SLOTS } from "./guided.ts";
 import { TYPE_LABEL, kindDef, resolveKind } from "./kinds.ts";
 import { formatSlotLines } from "./slots.ts";
@@ -21,15 +21,16 @@ export type CardInput = {
   slots2?: SlotDef[];
   slots2Text?: string | null;
   bombers?: number | null; // a CTA's Bombers cap (FR-071)
+  slotMode?: SlotMode; // how the slots are written (FR-076); absent means role
 };
 
-export type CardContent = { type: ContentType; kind: string; title: string; startsAt: Date; tier: string; notes: string | null; slots: SlotDef[]; slots2: SlotDef[]; parties: 1 | 2; bombers: number | null };
+export type CardContent = { type: ContentType; kind: string; title: string; startsAt: Date; tier: string; notes: string | null; slots: SlotDef[]; slots2: SlotDef[]; parties: 1 | 2; bombers: number | null; slotMode: SlotMode };
 
 // One party of a CTA: typed lines win over stored slots; every role must be a CTA role; an empty party is a problem.
-function ctaParty(text: string | null, stored: SlotDef[], party: number, parties: number, problems: string[]): SlotDef[] {
+function ctaParty(text: string | null, stored: SlotDef[], party: number, parties: number, problems: string[], mode: SlotMode): SlotDef[] {
   const label = party === 1 ? "Slots: " : "";
   if (text !== null) {
-    const typed = parseCtaSlots(text, party, parties);
+    const typed = parseCtaSlots(text, party, parties, [], mode);
     if (typed.ok) return typed.value;
     problems.push(`${label}${typed.error}`);
     return [];
@@ -39,7 +40,7 @@ function ctaParty(text: string | null, stored: SlotDef[], party: number, parties
   } else if (stored.length > MAX_SLOTS) {
     problems.push(parties > 1 ? `Party ${party} can have at most ${MAX_SLOTS} slots.` : `There can be at most ${MAX_SLOTS} slots.`);
   } else {
-    const checked = parseCtaSlots(formatSlotLines(stored), party, parties);
+    const checked = parseCtaSlots(formatSlotLines(stored), party, parties, [], mode);
     if (!checked.ok) problems.push(`${label}${checked.error}`);
   }
   return stored;
@@ -49,6 +50,7 @@ function ctaParty(text: string | null, stored: SlotDef[], party: number, parties
 export function validateCard(c: CardInput, now: Date): { ok: true; value: CardContent } | { ok: false; problems: string[] } {
   const problems: string[] = [];
   const cta = c.cta === true;
+  const mode: SlotMode = c.slotMode ?? "role";
   const parties: 1 | 2 = cta && (c.parties ?? 1) >= 2 && maxPartiesFor(c.kind ?? "other", true) >= 2 ? 2 : 1;
   const type: ContentType | null = cta ? "zvz" : c.type;
   if (!type) problems.push("Pick the type of content.");
@@ -63,21 +65,25 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   let slots = c.slots;
   let slots2: SlotDef[] = [];
   if (cta) {
-    slots = ctaParty(c.slotsText, c.slots, 1, parties, problems);
-    if (parties === 2) slots2 = ctaParty(c.slots2Text ?? null, c.slots2 ?? [], 2, parties, problems);
+    slots = ctaParty(c.slotsText, c.slots, 1, parties, problems, mode);
+    if (parties === 2) slots2 = ctaParty(c.slots2Text ?? null, c.slots2 ?? [], 2, parties, problems, mode);
   } else if (c.slotsText !== null) {
-    const typed = parseSlots(c.slotsText);
+    const typed = parseSlots(c.slotsText, mode);
     if (typed.ok) slots = typed.value;
     else problems.push(`Slots: ${typed.error}`);
   } else if (slots.length === 0) {
     problems.push("Add the slots: press Roles, type them in Details, or pick a preset.");
   } else if (slots.length > MAX_SLOTS) {
     problems.push(`There can be at most ${MAX_SLOTS} slots.`);
+  } else {
+    // Stored slots (a preset, the Roles builder) are checked like typed ones (FR-077).
+    const checked = parseSlots(formatSlotLines(slots), mode);
+    if (!checked.ok) problems.push(`Slots: ${checked.error}`);
   }
   const notes = parseNotes(c.notes ?? "");
   if (!notes.ok) problems.push(notes.error);
   if (problems.length > 0 || !type || !kind?.ok || !title.ok || !start.ok || !tier.ok || !notes.ok) return { ok: false, problems };
-  return { ok: true, value: { type, kind: kind.value, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value, slots, slots2, parties, bombers: cta ? c.bombers ?? null : null } };
+  return { ok: true, value: { type, kind: kind.value, title: title.value, startsAt: start.value, tier: tier.value, notes: notes.value, slots, slots2, parties, bombers: cta ? c.bombers ?? null : null, slotMode: mode } };
 }
 
 // A card opened for one forum's type offers that type only (ADR 0037); with none, every type.
