@@ -2,7 +2,7 @@ import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, MODAL, UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues, textInput } from "../discord/modal.ts";
-import { deleteDraft, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, guidedView, startGuided, getDraft, saveCard, startCard, type StoredDraft } from "../db/draft.ts";
 import { getEventForum, listEventForums } from "../db/eventForum.ts";
 import { getCtaChannel } from "../db/cta.ts";
 import { MAX_PRESETS, deletePreset, getPresetById, listPresets, savePreset, updatePreset, type PresetSettings } from "../db/preset.ts";
@@ -17,7 +17,7 @@ import { formatSlotLines } from "../domain/slots.ts";
 import { defaultStart } from "../domain/time.ts";
 import type { ContentType } from "../domain/types.ts";
 import { NO_PRESET, renderCard, renderPresetPanel, v2Text } from "../render/card.ts";
-import { renderGuidedStep } from "../render/guided.ts";
+import { renderGuidedStep, renderPartyChoice } from "../render/guided.ts";
 import { NOT_HERE, publish } from "./create.ts";
 import { getAdminRoleIds } from "../db/settings.ts";
 import { getCtaRoleIds } from "../db/cta.ts";
@@ -78,7 +78,7 @@ const reload = async (deps: Deps, d: StoredDraft) => (await getDraft(deps.sql, d
 export async function handleCardComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
   const data = i.data as { custom_id?: unknown; values?: unknown } | undefined;
   const [prefix, action, id, extra] = typeof data?.custom_id === "string" ? data.custom_id.split(":") : [];
-  if (prefix !== "cc" || (extra !== undefined && !(action === "delyes" && UUID.test(extra)))) return reply(EXPIRED);
+  if (prefix !== "cc" || (extra !== undefined && !(action === "delyes" && UUID.test(extra)) && action !== "gp")) return reply(EXPIRED);
   const d = await ownedDraft(deps, i, id);
   if (!d) return reply(EXPIRED);
   const value = Array.isArray(data?.values) && data!.values.length === 1 && typeof data!.values[0] === "string" ? data!.values[0] as string : null;
@@ -209,7 +209,17 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
         },
       };
     }
-    case "guided": return { type: UPDATE_MESSAGE, data: renderGuidedStep(d) };
+    case "guided": {
+      // FR-084: with two parties, Setup Slots asks which party it fills; one party goes straight to the builder.
+      if (d.parties >= 2) return { type: UPDATE_MESSAGE, data: renderPartyChoice(d.id) };
+      if (d.guidedParty !== 1) await startGuided(deps.sql, d.id, 1);
+      return { type: UPDATE_MESSAGE, data: renderGuidedStep(guidedView(await reload(deps, d))) };
+    }
+    case "gp": {
+      if (d.parties < 2 || (extra !== "1" && extra !== "2")) return reply(EXPIRED);
+      await startGuided(deps.sql, d.id, extra === "2" ? 2 : 1);
+      return { type: UPDATE_MESSAGE, data: renderGuidedStep(guidedView(await reload(deps, d))) };
+    }
     case "create": return await create(deps, i, d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);

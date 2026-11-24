@@ -22,6 +22,7 @@ export type CardFields = {
   massing: string | null; // where the party gathers (FR-074)
   editingPresetId: string | null; // the preset Edit preset loaded into the card (FR-078)
   slotMode: SlotMode; // slots by role or by weapon (FR-076)
+  guidedParty: 1 | 2; // the party Setup Slots fills (FR-084)
 };
 
 export type StoredDraft = GuidedDraft & {
@@ -49,6 +50,7 @@ export type StoredDraft = GuidedDraft & {
   massing: string | null;
   editingPresetId: string | null;
   slotMode: SlotMode;
+  guidedParty: 1 | 2;
 };
 
 const toDraft = (r: Record<string, any>): StoredDraft => ({
@@ -82,6 +84,7 @@ const toDraft = (r: Record<string, any>): StoredDraft => ({
   massing: r.massing ?? null,
   editingPresetId: r.editing_preset_id ?? null,
   slotMode: isSlotMode(r.slot_mode) ? r.slot_mode : "role",
+  guidedParty: r.guided_party === 2 ? 2 : 1,
 });
 
 // One draft per member per place: opening the creation card again starts over.
@@ -95,7 +98,7 @@ export async function startCard(
     on conflict (guild_id, thread_id, user_id) do update set
       type = excluded.type, loot = false, selection = false, kind = 'other', build_channel_id = null, count = null, counts = null, slots = '[]'::jsonb,
       step = 0, role = null, weapon = null, duty = null, query = null, weapon_class = null, gear_tier = null, title = excluded.title,
-      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, massing = null, editing_preset_id = null, slot_mode = 'role', created_at = now()
+      start_text = excluded.start_text, notes = null, slots_text = null, target_forum_id = excluded.target_forum_id, cta = excluded.cta, parties = 1, slots2 = '[]'::jsonb, slots2_text = null, bombers = null, massing = null, editing_preset_id = null, slot_mode = 'role', guided_party = 1, created_at = now()
     returning id`;
   return row!.id;
 }
@@ -113,6 +116,7 @@ export async function saveCard(sql: Sql, id: string, f: Partial<CardFields> & { 
       slots_text = ${pick(f.slotsText, c.slots_text)}, build_channel_id = ${pick(f.buildRef, c.build_channel_id)},
       parties = ${pick(f.parties, c.parties)}, slots2 = ${f.slots2 ? sql.json(f.slots2 as never) : c.slots2}, slots2_text = ${pick(f.slots2Text, c.slots2_text)}, bombers = ${pick(f.bombers, c.bombers)}, massing = ${pick(f.massing, c.massing)},
       editing_preset_id = ${pick(f.editingPresetId, c.editing_preset_id)}, slot_mode = ${pick(f.slotMode, c.slot_mode)},
+      guided_party = ${pick(f.guidedParty, c.guided_party)},
       slots = ${slots ? sql.json(slots as never) : c.slots}, count = ${slots ? slots.length || null : c.count}, step = ${slots ? slots.length : c.step},
       role = ${slots ? null : c.role}, weapon = ${slots ? null : c.weapon}, duty = ${slots ? null : c.duty}, weapon_class = ${slots ? null : c.weapon_class}
     where id = ${id}`;
@@ -124,10 +128,31 @@ export async function getDraft(sql: Sql, id: string, now: Date): Promise<StoredD
   return r ? toDraft(r) : null;
 }
 
-export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { weaponClass: string | null }): Promise<void> {
+// The builder's working slots are the slots of the party it fills (FR-084): party 1's `slots`, or party 2's `slots2`.
+export const guidedView = (d: StoredDraft): StoredDraft => (d.guidedParty === 2 ? { ...d, slots: d.slots2 } : d);
+
+export async function saveDraft(sql: Sql, id: string, d: GuidedDraft & { weaponClass: string | null; guidedParty?: 1 | 2 }): Promise<void> {
+  const slots = sql.json(d.slots as never);
+  if (d.guidedParty === 2) {
+    await sql`
+      update slot_draft set count = ${d.count}, slots2 = ${slots}, step = ${d.step},
+        role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, weapon_class = ${d.weaponClass}
+      where id = ${id}`;
+    return;
+  }
   await sql`
-    update slot_draft set count = ${d.count}, slots = ${sql.json(d.slots as never)}, step = ${d.step},
+    update slot_draft set count = ${d.count}, slots = ${slots}, step = ${d.step},
       role = ${d.role}, weapon = ${d.weapon}, duty = ${d.duty}, weapon_class = ${d.weaponClass}
+    where id = ${id}`;
+}
+
+// Point the builder at one party: its cards start from that party's slots (FR-084).
+export async function startGuided(sql: Sql, id: string, party: 1 | 2): Promise<void> {
+  await sql`
+    update slot_draft set guided_party = ${party},
+      count = nullif(jsonb_array_length(case when ${party} = 2 then slots2 else slots end), 0),
+      step = jsonb_array_length(case when ${party} = 2 then slots2 else slots end),
+      role = null, weapon = null, duty = null, weapon_class = null
     where id = ${id}`;
 }
 

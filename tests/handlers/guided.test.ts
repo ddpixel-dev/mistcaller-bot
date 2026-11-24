@@ -354,3 +354,42 @@ test("FR-076: in weapon mode the Roles builder has no role menu, needs a weapon,
   await d(press(`gs:done:${id}`));
   assert.deepEqual((await getDraft(sql, id, NOW))!.slots, [{ role: "", weapon: "Bow" }, { role: "", weapon: "Bow" }]);
 });
+
+// ---- FR-084: Setup Slots asks which party on a two-party card ----
+test("FR-084: on a two-party card Setup Slots asks which party; party 2 fills slots2 and leaves party 1 alone", async () => {
+  const { sql, d } = await setup();
+  const opened: any = await d(create());
+  const id = cardIdOf(opened);
+  await d(press(`cc:parties:${id}`, ["2"]));
+  await d(form(`ccd:${id}`, { title: "Raid", start: "2026-10-25 18:00", tier: "T8", slots: "Tank - Mace", notes: "" }));
+  const ask: any = await d(press(`cc:guided:${id}`));
+  const buttons = flatComponents(ask.data).filter((c: any) => c.type === 2);
+  assert.deepEqual(buttons.map((b: any) => [b.label, b.custom_id]).slice(0, 2), [["Party 1", `cc:gp:${id}:1`], ["Party 2", `cc:gp:${id}:2`]]);
+  assert.deepEqual(discordProblems(ask.data), []);
+  let card: any = await d(press(`cc:gp:${id}:2`));
+  assert.ok(say(card).includes("Setup Slots · Party 2"), say(card));
+  card = await d(press(`gs:setcount:${id}`, ["2"]));
+  await fillCard(d, id, "Healer", "Hallowfall");
+  await fillCard(d, id, "DPS", "Bow");
+  await d(press(`gs:done:${id}`));
+  const draft = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual(draft.slots2, [{ role: "Healer", weapon: "Hallowfall" }, { role: "DPS", weapon: "Bow" }]);
+  assert.deepEqual(draft.slots, [{ role: "Tank", weapon: "Mace" }], "party 1 is untouched");
+  // Party 1 again: the builder shows party 1's slots and saves to them.
+  card = await d(press(`cc:gp:${id}:1`));
+  assert.ok(say(card).includes("1. Tank - Mace") && !say(card).includes("Hallowfall"), say(card));
+  await d(press(`gs:count:${id}`));
+  await d(press(`gs:setcount:${id}`, ["2"]));
+  await fillCard(d, id, "Support", "Arcane Staff");
+  await d(press(`gs:done:${id}`));
+  const after = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual(after.slots.map((s) => s.role), ["Tank", "Support"]);
+  assert.equal(after.slots2.length, 2, "party 2 is untouched");
+});
+
+test("FR-084: a one-party card goes straight to the builder, titled Setup Slots", async () => {
+  const { d } = await setup();
+  const { card } = await begin(d, null);
+  assert.ok(say(card).includes("Setup Slots") && !say(card).includes("Party"), say(card));
+  assert.equal(find(card, "cc:gp:"), undefined);
+});

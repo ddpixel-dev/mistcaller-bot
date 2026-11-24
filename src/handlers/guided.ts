@@ -3,7 +3,7 @@ import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { UPDATE_MESSAGE, reply } from "../discord/response.ts";
 import { modalValues } from "../discord/modal.ts";
 import { WEAPONS } from "../data/weapons.ts";
-import { deleteDraft, getDraft, saveCard, saveDraft, type StoredDraft } from "../db/draft.ts";
+import { deleteDraft, getDraft, guidedView, saveCard, saveDraft, type StoredDraft } from "../db/draft.ts";
 import {
   NO_DUTY, back, fillRest, isComplete, next, parseCount, sameAsPrevious, setCount, setDuty, setRole, setWeapon, type GuidedDraft,
 } from "../domain/guided.ts";
@@ -19,7 +19,7 @@ const update = (d: StoredDraft): InteractionResponse => ({ type: UPDATE_MESSAGE,
 const picked = (d: GuidedDraft) => ({ count: d.count, slots: d.slots, step: d.step, role: d.role, weapon: d.weapon, duty: d.duty });
 
 async function store(deps: Deps, d: StoredDraft, next: GuidedDraft, weaponClass: string | null = d.weaponClass): Promise<StoredDraft> {
-  const out = { ...d, ...picked(next), weaponClass };
+  const out = { ...d, ...picked(next), weaponClass }; // saved to the party the builder fills (FR-084)
   await saveDraft(deps.sql, d.id, out);
   return out;
 }
@@ -28,7 +28,7 @@ async function owned(deps: Deps, i: Interaction, id: string | undefined): Promis
   if (!id || !UUID.test(id)) return null;
   const d = await getDraft(deps.sql, id, deps.now());
   if (!d || d.guildId !== i.guild_id || d.userId !== i.member?.user?.id || d.threadId !== i.channel?.id) return null;
-  return d;
+  return guidedView(d); // the builder sees the slots of the party it fills (FR-084)
 }
 
 export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise<InteractionResponse> {
@@ -79,9 +79,9 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
       // Back on the first slot shows the number menu, so the number can change (owner request 2026-10-24); from there
       // Back to the card returns to the creation card.
       if (d.count !== null) return { type: UPDATE_MESSAGE, data: renderGuidedStep(d, true) };
-      return await showCard(deps, d);
+      return await showCard(deps, (await getDraft(deps.sql, d.id, deps.now())) ?? d);
     }
-    case "card": return await showCard(deps, d);
+    case "card": return await showCard(deps, (await getDraft(deps.sql, d.id, deps.now())) ?? d);
     case "cancel": {
       await deleteDraft(deps.sql, d.id);
       return { type: UPDATE_MESSAGE, data: v2Text("Creation cancelled.") };
@@ -89,7 +89,7 @@ export async function handleGuidedComponent(deps: Deps, i: Interaction): Promise
     // Use these slots: back to the creation card, which now shows them (typed slots that did not parse are replaced).
     case "done": {
       if (!isComplete(d)) return update(d);
-      await saveCard(deps.sql, d.id, { slotsText: null });
+      await saveCard(deps.sql, d.id, d.guidedParty === 2 ? { slots2Text: null } : { slotsText: null });
       return await showCard(deps, (await getDraft(deps.sql, d.id, deps.now())) ?? d);
     }
     default: return reply(EXPIRED);

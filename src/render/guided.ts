@@ -33,13 +33,29 @@ export function weaponChoices(d: StoredDraft): Weapon[] {
 const slotLine = (s: { role: string; weapon: string; duty?: string | null }, n: number) =>
   `${n}. ${escapeText(slotText(s))}${dutyDef(s.duty) ? ` · ${dutyDef(s.duty)!.icon} ${dutyDef(s.duty)!.label}` : ""}`;
 
+// FR-084: on a two-party card, Setup Slots first asks which party to fill.
+export function renderPartyChoice(id: string) {
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [{
+      type: 17,
+      components: [
+        { type: 10, content: "### Setup Slots\nWhich party do you want to set up? The other party keeps its slots." },
+        { type: 1, components: [btn("Party 1", `cc:gp:${id}:1`, { style: 1 }), btn("Party 2", `cc:gp:${id}:2`, { style: 1 }), btn("Back to the card", `gs:card:${id}`)] },
+      ],
+    }],
+    allowed_mentions: { parse: [] as [] },
+  };
+}
+
 // One screen of the guided steps, rebuilt from the stored draft after every click. `pickCount` shows the number menu
 // (Change number) over the cards; without a number it shows anyway. The steps return to the creation card (ADR 0032).
 export function renderGuidedStep(d: StoredDraft, pickCount = false) {
   const id = d.id;
   const count = d.count ?? 0;
   const done = isComplete(d);
-  const embed = { title: "Roles" };
+  // FR-082, FR-084: named Setup Slots; a two-party card says which party it fills.
+  const embed = { title: `Setup Slots${d.parties >= 2 ? ` · Party ${d.guidedParty}` : ""}` };
   const body: string[] = [];
   if (d.count === null || pickCount) {
     body.push("How many players are needed? Pick a number from 1 to 20.");
