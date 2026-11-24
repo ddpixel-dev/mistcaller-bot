@@ -305,3 +305,34 @@ test("the attendance form lists a fill and a role-only holder with sensible labe
   assert.deepEqual(options.map((o: any) => [o.label, o.description]), [["1. Player 1", "Tank - Mace"], ["2. Ana", "Healer"], ["🔁 Cy", "Fill"]].map(([l, dsc]) => [l === "1. Player 1" ? "1. Player 1" : l, dsc]));
   assert.deepEqual(discordProblems({ ...form, flags: 0 }), []);
 });
+
+// ---- FR-076: weapon mode ----
+async function weaponSetup() {
+  const s = await setup();
+  const id = await createContent(s.sql, {
+    guildId: "g1", threadId: "tw", type: "pvp", title: "Comp", notes: null, startsAt: START, tier: "T8", hasLoot: false, createdBy: OWNER, now: NOW, slotMode: "weapon",
+    slots: [{ role: "", weapon: "Bow" }, { role: "", weapon: "Bow" }, { role: "", weapon: "Hallowfall" }],
+  });
+  await setMessageId(s.sql, id, "m2");
+  return { ...s, id, slots: (await getRosterView(s.sql, id, NOW))!.slots.map((x) => x.id) };
+}
+
+test("FR-076: in weapon mode the Fill panel lists the weapons, and choosing one seats the player with it", async () => {
+  const { d, id, sql, posts } = await weaponSetup();
+  const panel: any = await d(click(`join:${id}`, A, ["fill"], { channel: { id: "tw", type: 11 }, message: { id: "m2", flags: V2 } }));
+  const menu = panel.data.components[0].components[0];
+  assert.deepEqual(menu.options.map((o: any) => [o.label, o.value]), [["Any position", "any"], ["Any Bow position", "r:Bow"], ["Any Hallowfall position", "r:Hallowfall"]]);
+  assert.ok(text(panel).includes("one or more weapons"), text(panel));
+  const r: any = await d(click(`fp:${id}`, A, ["r:Hallowfall"], { channel: { id: "tw", type: 11 }, message: { id: "m2", flags: V2 } }));
+  assert.ok(text(r).includes("(Hallowfall)"), text(r));
+  assert.equal((await getRosterView(sql, id, NOW))!.slots[2]!.userId, A);
+  assert.ok(!posts.some((p) => String(p.body.content).includes(" - Hallowfall") && String(p.body.content).includes("· -")), "no empty role in announcements");
+});
+
+test("FR-076: joining a weapon slot shows no weapon picker, and the host's position menu names the weapon", async () => {
+  const { d, id, slots } = await weaponSetup();
+  const r: any = await d(click(`join:${id}`, A, [slots[0]!], { channel: { id: "tw", type: 11 }, message: { id: "m2", flags: V2 } }));
+  assert.ok(!JSON.stringify(r.data).includes("Which weapon will you bring"));
+  const add: any = await d(click(`fa:u:${id}`, OWNER, [B], { message: { id: "p1", flags: 64 } }));
+  assert.deepEqual(add.data.components.at(-1).components[0].options.map((o: any) => o.label), ["2. Bow", "3. Hallowfall"]);
+});

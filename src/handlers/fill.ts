@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -97,8 +98,8 @@ async function panel(deps: Deps, view: RosterView, chosen: string | null, mode: 
       components: [{
         type: 3, custom_id: withParty(`fa:s:${view.id}:${chosen}`, party), placeholder: "Open position",
         options: open.map((s) => ({
-          label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""), value: s.id,
-          emoji: { name: roleIcon(s.role) }, ...(asked(s) ? { description: "Asked for" } : {}),
+          label: Array.from(`${displayNumber(s, view.slots)}. ${slotText(s)}`).slice(0, 100).join(""), value: s.id,
+          emoji: { name: roleIcon(slotLabel(s)) }, ...(asked(s) ? { description: "Asked for" } : {}),
         })),
       }],
     });
@@ -120,13 +121,15 @@ function allTaken(view: RosterView, pref: { any: boolean; roles: string[]; slotI
 // Only the player is pinged; the host's name shows without a ping.
 async function finish(deps: Deps, view: RosterView, host: string, userId: string, r: Extract<AssignResult, { result: "ok" }>, promoted: Promotion[]): Promise<void> {
   const accepted = (view.applicants ?? []).some((a) => a.userId === userId);
+  // A role shows its icon; a weapon slot (FR-076) shows the weapon's name alone, so no role is implied.
+  const tag = view.slotMode === "weapon" ? escapeText(r.role) : `${roleIcon(r.role)} ${escapeText(r.role)}`;
   await refreshRoster(deps, view.id);
   // A position without a weapon: the player's own pick was cleared by the move, so they choose again (ADR 0029).
   const shown = shownNumber(view, r.position);
   const pick = view.slots.some((s) => s.position === r.position && !s.weapon) ? " Pick your weapon with `/content me`." : "";
   await announce(deps, view.threadId, accepted
-    ? `✅ <@${host}> accepted <@${userId}> for position ${shown} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`
-    : `📝 <@${host}> signed up <@${userId}> for position ${shown} (${roleIcon(r.role)} ${escapeText(r.role)}).${pick}`, [userId], rosterButton(view));
+    ? `✅ <@${host}> accepted <@${userId}> for position ${shown} (${tag}).${pick}`
+    : `📝 <@${host}> signed up <@${userId}> for position ${shown} (${tag}).${pick}`, [userId], rosterButton(view));
   await announcePromotions(deps, view.threadId, view.title, promoted, rosterButton(view));
 }
 

@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -27,7 +28,7 @@ export function renderMePanel(view: RosterView, userId: string, chosenParty: num
   const lines = [`**${escapeText(view.title)}**`];
   lines.push(
     mine
-      ? `You are signed up as ${shownNumber(view, mine.position)}. ${escapeText(mine.role)}${mine.weapon || mine.chosenWeapon ? ` - ${escapeText(mine.weapon || mine.chosenWeapon!)}` : ""}.`
+      ? `You are signed up as ${shownNumber(view, mine.position)}. ${escapeText(slotText({ role: mine.role, weapon: mine.weapon || mine.chosenWeapon || "" }))}.`
       : (view.applicants ?? []).some((a) => a.userId === userId) ? `You applied (${view.applicants!.find((a) => a.userId === userId)!.wants}). The host picks the party.`
       : isFill ? `You are waiting as a fill (${view.fillWants?.[userId] ?? "Any"}): you are seated as soon as a matching position is free.`
       : "You are not signed up.",
@@ -43,7 +44,7 @@ export function renderMePanel(view: RosterView, userId: string, chosenParty: num
       components: [{
         type: 3, custom_id: withParty(`me:pick:${view.id}`, party), placeholder: mine ? "Move to another position" : "Sign up for a position",
         options: slotsOfParty(view, party).map((s) => ({
-          label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}`).slice(0, 100).join(""),
+          label: Array.from(`${displayNumber(s, view.slots)}. ${slotText(s)}`).slice(0, 100).join(""),
           value: s.id,
           description: s.userId === userId ? "You are here" : s.userId ? "Taken" : "Open",
         })),

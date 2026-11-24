@@ -1,3 +1,4 @@
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import { buildRefText } from "../domain/buildref.ts";
 import type { RosterSlot, RosterView } from "../domain/types.ts";
 import { DEFAULT_KIND, TYPE_LABEL, kindDef, kindIcon } from "../domain/kinds.ts";
@@ -56,6 +57,10 @@ export function voteLine(view: RosterView): string {
   return `${VOTE_ICON} Loot vote result: ${voteResultText(view)}`;
 }
 
+// FR-076: a weapon-mode content waits for a weapon; its menu shows the weapon's icon.
+const fullWord = (view: RosterView) => (view.slotMode === "weapon" ? "weapon" : "role");
+const waitEmoji = (view: RosterView, label: string) => (view.slotMode === "weapon" ? weaponEmojiByName(label) : null) ?? { name: roleIcon(label) };
+
 // The rows (ADR 0028, owner decision 2026-10-24): one numbered line per position, with no role headings. A row reads
 // `n. RoleIcon Role - WeaponIcon Weapon - Player - DutyIcon Duty` (`Open` for an empty position); the duty only when set.
 // The weapon icon on each row is enough: the line of only weapon icons (FR-046) was removed (ADR 0029).
@@ -65,7 +70,9 @@ function rowLines(slots: RosterSlot[], withEmoji: boolean, tentative: string[] =
     const weaponName = s.weapon || s.chosenWeapon || "";
     const emoji = withEmoji && weaponName ? weaponEmojiTag(weaponName) : "";
     const duty = dutyDef(s.duty);
-    return `${displayNumber(s, all)}. ${roleIcon(s.role)} ${escapeText(s.role)} - ${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
+    // FR-076: a weapon slot (no role) reads `n. WeaponIcon Weapon - Player - Duty`.
+    const lead = s.role ? `${roleIcon(s.role)} ${escapeText(s.role)} - ` : "";
+    return `${displayNumber(s, all)}. ${lead}${emoji ? `${emoji} ` : ""}${weaponName ? escapeText(weaponName) : WORDS.choice} - ${
       s.userId ? `<@${s.userId}>${tentative.includes(s.userId) ? TENTATIVE : ""}` : WORDS.open
     }${duty ? ` - ${duty.icon} ${duty.label}` : ""}`;
   });
@@ -217,27 +224,27 @@ function renderPartyMessage(view: RosterView, party: number): {
         options: [
           { label: "Fill (choose what you can play)", value: FILL_VALUE, emoji: { name: "🔁" } },
           ...open.slice(0, 24).map((s) => ({
-            label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+            label: Array.from(`${displayNumber(s, view.slots)}. ${slotText(s)}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
             value: s.id,
-            emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(s.role) },
+            emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(slotLabel(s)) },
           })),
         ],
       }],
     });
   }
-  // A role with no open position can be waited for (FR-007, per role).
-  const fullRoles = [...new Set(mine.map((s) => s.role))].filter(
-    (role) => !mine.some((s) => s.role === role && s.userId === null),
+  // A role with no open position can be waited for (FR-007, per role); a weapon on a weapon-mode content (FR-076).
+  const fullRoles = [...new Set(mine.map(slotLabel))].filter(
+    (role) => !mine.some((s) => slotLabel(s) === role && s.userId === null),
   );
   if (view.status === "open" && fullRoles.length > 0 && !view.selection) {
     body.push({
       type: 1,
       components: [{
-        type: 3, custom_id: id(`wait:${view.id}`), placeholder: "Join the waitlist for a full role",
+        type: 3, custom_id: id(`wait:${view.id}`), placeholder: `Join the waitlist for a full ${fullWord(view)}`,
         options: [
           { label: "Fill (choose what you can play)", value: WAIT_FILL_VALUE, emoji: { name: "🔁" } },
           ...fullRoles.slice(0, 24).map((role) => ({
-            label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
+            label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: waitEmoji(view, role),
             description: `${waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
           })),
         ],
@@ -363,9 +370,9 @@ function renderCtaMessage(view: RosterView): {
           options: [
             { label: "Fill (choose what you can play)", value: FILL_VALUE, emoji: { name: "🔁" } },
             ...open.slice(0, 24).map((s) => ({
-              label: Array.from(`${displayNumber(s, view.slots)}. ${s.role}${s.weapon ? ` - ${s.weapon}` : ""}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
+              label: Array.from(`${displayNumber(s, view.slots)}. ${slotText(s)}${dutyDef(s.duty) ? ` - ${dutyDef(s.duty)!.label}` : ""}`).slice(0, 100).join(""),
               value: s.id,
-              emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(s.role) },
+              emoji: (s.weapon ? weaponEmojiByName(s.weapon) : null) ?? { name: roleIcon(slotLabel(s)) },
             })),
           ],
         }],
@@ -373,17 +380,17 @@ function renderCtaMessage(view: RosterView): {
     }
     // A role with no open position in that party can be waited for (FR-007, per role).
     for (const x of view.selection ? [] : per) {
-      const fullRoles = [...new Set(x.mine.map((s) => s.role))].filter((role) => !x.mine.some((s) => s.role === role && s.userId === null));
+      const fullRoles = [...new Set(x.mine.map(slotLabel))].filter((role) => !x.mine.some((s) => slotLabel(s) === role && s.userId === null));
       if (fullRoles.length === 0) continue;
       body.push({
         type: 1,
         components: [{
           type: 3, custom_id: withParty(`wait:${view.id}`, x.party),
-          placeholder: many ? `Party ${x.party}: join the waitlist for a full role` : "Join the waitlist for a full role",
+          placeholder: many ? `Party ${x.party}: join the waitlist for a full ${fullWord(view)}` : `Join the waitlist for a full ${fullWord(view)}`,
           options: [
             { label: "Fill (choose what you can play)", value: WAIT_FILL_VALUE, emoji: { name: "🔁" } },
             ...fullRoles.slice(0, 24).map((role) => ({
-              label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: { name: roleIcon(role) },
+              label: Array.from(`${role} (all taken)`).slice(0, 100).join(""), value: role.slice(0, 100), emoji: waitEmoji(view, role),
               description: `${x.waiting.filter((w) => w.role.toLowerCase() === role.toLowerCase()).length} waiting`,
             })),
           ],

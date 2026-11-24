@@ -1,3 +1,5 @@
+import { weaponEmojiByName } from "../render/weaponIcon.ts";
+import { slotLabel, slotText } from "../domain/slotlabel.ts";
 import type { Deps } from "../discord/dispatch.ts";
 import type { Interaction, InteractionResponse } from "../discord/types.ts";
 import { CHANNEL_MESSAGE, EPHEMERAL, NOT_VALID, UPDATE_MESSAGE, reply } from "../discord/response.ts";
@@ -19,16 +21,18 @@ const NOT_FOUND = "This content no longer exists.";
 // FR-057: the private panel a player gets from Fill: Any position, or whole roles. One menu, several choices. (Single
 // positions are still understood from a panel opened by 0.30.0, but are no longer offered: owner request 2026-11-06.)
 export function fillPanel(view: RosterView, party = 1) {
-  const roles = [...new Map(view.slots.filter((s) => s.party === party).map((s) => [s.role.toLowerCase(), s.role])).values()];
+  // The slot labels: roles, or weapons on a weapon-mode content (FR-076).
+  const roles = [...new Map(view.slots.filter((s) => s.party === party).map((s) => [slotLabel(s).toLowerCase(), slotLabel(s)])).values()];
+  const word = view.slotMode === "weapon" ? "weapon" : "role";
   const options: { label: string; value: string; description?: string; emoji: { name: string } }[] = [
     { label: "Any position", value: "any", description: "Healers first", emoji: { name: "🔁" } },
-    ...roles.slice(0, MAX_FILL_VALUES - 1).map((r) => ({ label: `Any ${r} position`.slice(0, 100), value: `r:${r}`, emoji: { name: roleIcon(r) } })),
+    ...roles.slice(0, MAX_FILL_VALUES - 1).map((r) => ({ label: `Any ${r} position`.slice(0, 100), value: `r:${r}`, emoji: (word === "weapon" ? weaponEmojiByName(r) : null) ?? { name: roleIcon(r) } })),
   ];
   return {
-    content: "🔁 **Fill: what can you play?** Pick Any, or one or more roles. You are seated at once in the first matching open position (healers first), or you wait and are seated as soon as one frees up.",
+    content: `🔁 **Fill: what can you play?** Pick Any, or one or more ${word}s. You are seated at once in the first matching open position (healers first), or you wait and are seated as soon as one frees up.`,
     components: [{
       type: 1,
-      components: [{ type: 3, custom_id: withParty(`fp:${view.id}`, party), placeholder: "Any, or a role", min_values: 1, max_values: options.length, options }],
+      components: [{ type: 3, custom_id: withParty(`fp:${view.id}`, party), placeholder: `Any, or a ${word}`, min_values: 1, max_values: options.length, options }],
     }],
     allowed_mentions: { parse: [] as [] },
   };
@@ -75,7 +79,7 @@ export async function handleFillChoice(deps: Deps, i: Interaction): Promise<Inte
     const seat = { number: view ? shownNumber(view, r.slot.position) : r.slot.position, party, partyCount: view?.partyCount ?? 1, role: r.slot.role, weapon: r.slot.weapon };
     if (view) await announce(deps, view.threadId, `${fillSeatedLine(userId, wanted, seat)}`, [userId], rosterButton(view));
     const pick = r.slot.weapon ? "" : " Pick your weapon with `/content me`.";
-    return done(`✅ You are seated in ${positionText(seat.partyCount, party, seat.number)} (${r.slot.role}).${pick}`);
+    return done(`✅ You are seated in ${positionText(seat.partyCount, party, seat.number)} (${slotLabel(r.slot)}).${pick}`);
   }
   return done(`🕒 No matching position is open. You are waiting as a fill (${wanted}) and will be seated automatically when one frees up.`);
 }
