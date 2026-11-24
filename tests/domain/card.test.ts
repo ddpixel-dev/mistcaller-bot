@@ -124,8 +124,14 @@ test("with two parties both must have slots; with one party party 2 is ignored",
   assert.deepEqual(ignored.ok && ignored.value.slots2, []);
 });
 
-test("normal content ignores parties", () => {
-  const r = validateCard({ ...good, parties: 2, slots2: [] }, NOW);
-  assert.ok(r.ok);
-  assert.deepEqual(r.ok && [r.value.parties, r.value.slots2], [1, []]);
+// FR-081: normal content may have two parties, checked like a CTA's.
+test("FR-081: normal content with two parties needs both, typed or stored, in the card's mode", () => {
+  const empty2 = validateCard({ ...good, parties: 2, slots2: [] }, NOW);
+  assert.ok(!empty2.ok && empty2.problems.some((p) => /party 2/i.test(p)), JSON.stringify(empty2));
+  const ok = validateCard({ ...good, parties: 2, slots2: [{ role: "Healer", weapon: "Holy Staff" }] }, NOW);
+  assert.ok(ok.ok && ok.value.parties === 2 && ok.value.slots2.length === 1 && ok.value.type === "pvp", JSON.stringify(ok));
+  const typed = validateCard({ ...good, parties: 2, slots2: [], slots2Text: "Tank - Holy" }, NOW);
+  assert.ok(!typed.ok && typed.problems.includes('Party 2, line 1: "Holy" is not a weapon. Did you mean Holy Staff or Great Holy Staff?'), JSON.stringify(typed));
+  const one = validateCard({ ...good, parties: 1, slots2: [{ role: "Tank", weapon: "" }] }, NOW);
+  assert.ok(one.ok && one.value.parties === 1 && one.value.slots2.length === 0, "one party ignores party 2");
 });

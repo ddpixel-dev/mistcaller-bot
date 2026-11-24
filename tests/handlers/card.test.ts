@@ -82,7 +82,8 @@ test("the Category menu follows the Type: only that type's categories, and a cat
   assert.equal(((await d(press(`cc:type:${id}`, ["moon"]))) as any).data.flags, 64);
   assert.equal(((await d(press(`cc:loot:${id}`, ["maybe"]))) as any).data.flags, 64);
   r = await d(press(`cc:loot:${id}`, ["1"]));
-  assert.deepEqual(menus(r)[2].options.map((o: any) => !!o.default), [false, true]);
+  // FR-081: the Parties menu follows the category, so the Loot vote is the fourth menu.
+  assert.deepEqual(menus(r)[3].options.map((o: any) => !!o.default), [false, true]);
   assert.deepEqual(discordProblems(r.data), []);
 });
 
@@ -728,10 +729,10 @@ async function ctaCard(d: any, sql: any) {
 const partiesMenu = (r: any): any => flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:parties:"));
 const btnOf = (r: any, id: string): any => flatComponents(r.data).find((c: any) => c.custom_id === id);
 
-test("the Parties menu is on a CTA card only; the CTA card has no Type or Category menu, normal content keeps them", async () => {
+test("every card has the Parties menu (FR-081); the CTA card has no Type or Category menu, normal content keeps them", async () => {
   const { d, sql } = await setup();
   const normal: any = await d(press("hub:n"));
-  assert.equal(partiesMenu(normal), undefined);
+  assert.ok(partiesMenu(normal), "normal content can have two parties too");
   assert.ok(flatComponents(normal.data).some((c: any) => String(c.custom_id).startsWith("cc:type:")));
   await sql`insert into cta_channel (guild_id, channel_id) values (${GUILD}, ${CTA_CHANNEL})`;
   const r: any = await d(press("hub:c", undefined, adminCta));
@@ -753,7 +754,7 @@ test("choosing 2 parties stores it, relabels Details, shows Party 2 slots and Co
   assert.equal(btnOf(r, `cc:p1:${id}`).label, "Party 1 slots", "one button per party's slots");
   assert.equal(btnOf(r, `cc:p2:${id}`).label, "Party 2 slots");
   assert.equal(btnOf(r, `cc:copy:${id}`).label, "Copy party 1");
-  assert.ok(say(r).includes("Roles fills party 1"));
+  assert.ok(!say(r).includes("Roles fills party 1"), "Setup Slots asks which party (FR-084)");
   assert.deepEqual(discordProblems(r.data), []);
   const det: any = await d(press(`cc:details:${id}`, undefined, adminCta));
   assert.deepEqual(det.data.components.map((row: any) => row.components[0].custom_id), ["title", "start", "tier", "notes", "bombers"], "a CTA's Details holds no slots");
@@ -767,7 +768,7 @@ test("choosing 2 parties stores it, relabels Details, shows Party 2 slots and Co
   assert.deepEqual([back.parties, back.slots2, back.slots2Text], [1, [], null]);
   assert.equal(((await d(press(`cc:parties:${id}`, ["3"], adminCta))) as any).data.flags, 64);
   const normal = (await open(d, undefined, "n")).id;
-  assert.equal(((await d(press(`cc:parties:${normal}`, ["2"]))) as any).data.flags, 64, "normal content cannot have two parties");
+  assert.equal(((await d(press(`cc:parties:${normal}`, ["2"]))) as any).type, 7, "normal content can have two parties (FR-081)");
 });
 
 test("the Party 2 button opens a form with one 1500-character box, filled with what is stored; valid lines are stored, bad lines are kept", async () => {
@@ -1090,4 +1091,39 @@ test("FR-076: a preset keeps its mode and loads it; an old preset with unusual t
   const old: any = await d(press(`cc:preset:${card}`, [presets.find((p: any) => p.name === "Old")!.id]));
   assert.equal(modeMenu(old).options.find((o: any) => o.default).value, "role", "an old preset is role mode");
   assert.ok(say(old).includes('"Raider" is not a supported role'), say(old));
+});
+
+// ---- FR-081, FR-082: two parties on normal content; Setup Slots ----
+test("FR-081: a normal card has the parties menu; two parties adds Party 2 slots and Copy party 1; back to one drops party 2", async () => {
+  const { d, sql } = await setup();
+  const { r, id } = await open(d);
+  const parties = flatComponents(r.data).find((c: any) => String(c.custom_id).startsWith("cc:parties:"))!;
+  assert.deepEqual(parties.options.map((o: any) => [o.value, !!o.default]), [["1", true], ["2", false]]);
+  assert.ok(labels(r).includes("Setup Slots") && !labels(r).includes("Roles"), labels(r).join("|"));
+  const two: any = await d(press(`cc:parties:${id}`, ["2"]));
+  assert.ok(labels(two).includes("Party 2 slots") && labels(two).includes("Copy party 1"), labels(two).join("|"));
+  assert.deepEqual(discordProblems(two.data), []);
+  const details: any = await d(press(`cc:details:${id}`));
+  assert.equal(details.data.components.flatMap((x: any) => x.components).find((c: any) => c.custom_id === "slots").label, "Party 1 slots (one per line: Role - Weapon)");
+  await d(form(`ccs2:${id}`, { slots2: "Healer - Holy Staff" }));
+  assert.equal((await getDraft(sql, id, NOW))!.slots2.length, 1);
+  await d(press(`cc:parties:${id}`, ["1"]));
+  const draft = (await getDraft(sql, id, NOW))!;
+  assert.deepEqual([draft.parties, draft.slots2, draft.slots2Text], [1, [], null]);
+});
+
+test("FR-081: Create on a two-party normal card stores both parties in one forum post", async () => {
+  const { d, sql, calls } = await setup();
+  const { id } = await open(d);
+  await d(press(`cc:type:${id}`, ["pvp"]));
+  await d(press(`cc:parties:${id}`, ["2"]));
+  await d(form(`ccd:${id}`, details));
+  await d(press(`cc:copy:${id}`));
+  const done: any = await d(press(`cc:create:${id}`));
+  assert.ok(say(done).startsWith("✅ Created"), say(done));
+  const [c] = await sql`select id, party_count from content`;
+  assert.equal(c!.party_count, 2);
+  assert.deepEqual((await sql`select party, count(*)::int as n from slot where content_id = ${c!.id} group by party order by party`).map((x: any) => [x.party, x.n]), [[1, 2], [2, 2]]);
+  assert.equal(calls.filter((x) => x.op === "createForumPost").length, 1);
+  assert.equal(calls.filter((x) => x.op === "createMessage").length, 0, "no second message for party 2");
 });

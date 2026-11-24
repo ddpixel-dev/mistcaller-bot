@@ -51,7 +51,7 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   const problems: string[] = [];
   const cta = c.cta === true;
   const mode: SlotMode = c.slotMode ?? "role";
-  const parties: 1 | 2 = cta && (c.parties ?? 1) >= 2 && maxPartiesFor(c.kind ?? "other", true) >= 2 ? 2 : 1;
+  const parties: 1 | 2 = (c.parties ?? 1) >= 2 && maxPartiesFor(c.kind ?? "other", cta) >= 2 ? 2 : 1;
   const type: ContentType | null = cta ? "zvz" : c.type;
   if (!type) problems.push("Pick the type of content.");
   const kind = cta ? ({ ok: true, value: "other" } as const) : c.type ? resolveKind(c.type, c.kind) : null;
@@ -64,7 +64,8 @@ export function validateCard(c: CardInput, now: Date): { ok: true; value: CardCo
   if (!tier.ok) problems.push(tier.error);
   let slots = c.slots;
   let slots2: SlotDef[] = [];
-  if (cta) {
+  // A CTA, and any content with two parties (FR-081), checks each party on its own.
+  if (cta || parties === 2) {
     slots = ctaParty(c.slotsText, c.slots, 1, parties, problems, mode);
     if (parties === 2) slots2 = ctaParty(c.slots2Text ?? null, c.slots2 ?? [], 2, parties, problems, mode);
   } else if (c.slotsText !== null) {

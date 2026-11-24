@@ -125,7 +125,7 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       const preset = found && found.cta === d.cta ? found : null; // each card loads only its own kind (FR-073)
       if (!preset) return reply("That preset no longer exists.");
       // A preset keeps `party` per slot (absent = 1); loading sets the parties to the highest one (a CTA only).
-      const second = d.cta && maxPartiesFor(d.kind, true) > 1 ? preset.slots.filter((s) => s.party === 2).slice(0, MAX_PARTY_SLOTS) : [];
+      const second = maxPartiesFor(d.kind, d.cta) > 1 ? preset.slots.filter((s) => s.party === 2).slice(0, MAX_PARTY_SLOTS) : [];
       const first = preset.slots.filter((s) => s.party !== 2).slice(0, 20);
       await saveCard(deps.sql, d.id, {
         ...presetFields(preset.settings, d.cta), slots: first, slotsText: null,
@@ -138,16 +138,16 @@ export async function handleCardComponent(deps: Deps, i: Interaction): Promise<I
       });
     }
     case "parties": {
-      if (!d.cta || maxPartiesFor(d.kind, true) < 2 || (value !== "1" && value !== "2")) return reply(EXPIRED);
+      if (maxPartiesFor(d.kind, d.cta) < 2 || (value !== "1" && value !== "2")) return reply(EXPIRED);
       // Back to one party drops party 2, typed text included.
       await saveCard(deps.sql, d.id, value === "1" ? { parties: 1, slots2: [], slots2Text: null } : { parties: 2 });
       return await showCard(deps, await reload(deps, d));
     }
     case "massing": return massingForm(d);
     case "p1": return d.cta ? party1Form(d) : reply(EXPIRED);
-    case "p2": return d.cta && d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
+    case "p2": return d.parties >= 2 ? party2Form(d) : reply(EXPIRED);
     case "copy": {
-      if (!d.cta || d.parties < 2) return reply(EXPIRED);
+      if (d.parties < 2) return reply(EXPIRED);
       // Typed party 1 lines that did not parse are copied as typed, to be fixed in party 2.
       await saveCard(deps.sql, d.id, d.slotsText !== null ? { slots2: [], slots2Text: d.slotsText } : { slots2: d.slots.map(({ role, weapon, duty }) => ({ role, weapon, ...(duty ? { duty } : {}) })), slots2Text: null });
       return await showCard(deps, await reload(deps, d));
@@ -248,7 +248,7 @@ function detailsForm(d: StoredDraft): InteractionResponse {
         textInput("title", "Title", 100, { required: false, ...(d.title ? { value: d.title } : {}) }),
         textInput("start", "Start time (UTC, YYYY-MM-DD HH:mm)", 20, { required: false, placeholder: "2026-10-07 18:00", ...(d.startText ? { value: d.startText } : {}) }),
         textInput("tier", "Gear Tier", 80, { required: false, placeholder: "Weapon T7.1 - Gear T4.3", ...(d.gearTier ? { value: d.gearTier } : {}) }),
-        textInput("slots", slotsLabel(d, d.cta && d.parties >= 2 ? "Party 1 slots" : "Slots"), 1500, {
+        textInput("slots", slotsLabel(d, d.parties >= 2 ? "Party 1 slots" : "Slots"), 1500, {
           style: 2, required: false, placeholder: d.slotMode === "weapon" ? WEAPON_EXAMPLE : "Tank - Mace  (the weapon is optional: Tank)", ...(slots ? { value: slots } : {}),
         }),
         textInput("notes", "Notes (optional)", 500, { style: 2, required: false, ...(d.notes ? { value: d.notes } : {}) }),
@@ -362,7 +362,7 @@ export async function handleCardParty2(deps: Deps, i: Interaction): Promise<Inte
   const [prefix, id, extra] = typeof raw === "string" ? raw.split(":") : [];
   if (prefix !== "ccs2" || extra !== undefined) return reply(EXPIRED);
   const d = await ownedDraft(deps, i, id);
-  if (!d || !d.cta || d.parties < 2) return reply(EXPIRED);
+  if (!d || d.parties < 2) return reply(EXPIRED);
   const typed = (modalValues(i).slots2 ?? "").trim();
   const parsed = typed ? parseCtaSlots(typed, 2, d.parties, [], d.slotMode) : null;
   await saveCard(deps.sql, d.id, parsed === null ? { slots2: [], slots2Text: null } : parsed.ok ? { slots2: parsed.value, slots2Text: null } : { slots2Text: typed });

@@ -113,14 +113,15 @@ test("the command opens the creation card: summary, Type and Category menus, Loo
   assert.equal(r.data.flags, 64 | (1 << 15), "private, Components V2");
   assert.deepEqual(discordProblems(r.data), []);
   assert.ok(say(r).includes("Create event"));
-  const [type, kind, loot, signup] = cardMenus(r);
+  const [type, kind, parties, loot, signup] = cardMenus(r);
+  assert.ok(String(parties.custom_id).startsWith("cc:parties:"), "Parties follows the category (FR-081)");
   assert.deepEqual(type.options.map((o: any) => o.value), ["pvp", "pve", "pvx", "zvz"]);
   assert.equal(kind.disabled, true, "the category waits for the type");
   assert.deepEqual(loot.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]]);
   assert.deepEqual(signup.options.map((o: any) => [o.value, !!o.default]), [["0", true], ["1", false]], "open sign-up unless the host picks (FR-058)");
-  assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Roles", "Build link", "Create", "Cancel"]);
-  assert.ok(say(r).includes("**Roles**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Roles");
-  assert.equal(allMenus(r).length, 6, "the dimmed Preset menu is on the card while the server has none");
+  assert.deepEqual(rowsOfMsg(r.data).at(-1)!.components.map((b: any) => b.label), ["Details", "Setup Slots", "Build link", "Create", "Cancel"]);
+  assert.ok(say(r).includes("**Setup Slots**") && say(r).includes("instead of typing them in **Details**"), "a hint points to Setup Slots (FR-082)");
+  assert.equal(allMenus(r).length, 7, "the dimmed Preset menu is on the card while the server has none; Parties is there too (FR-081)");
   assert.ok(String(allMenus(r)[0].custom_id).startsWith("cc:preset:"), "the Preset menu comes first");
 });
 
@@ -514,29 +515,29 @@ const partyInput = (thread: string, over: Record<string, unknown> = {}) => ({
 });
 const two = { slots2: [{ role: "Healer", weapon: "Holy" }] };
 
-test("a two-party CTA posts and pins party 1 then party 2, saves both ids, and leaves the copy after them", async () => {
+// FR-081 (ADR 0050): every content keeps both parties in one roster message; no party 2 message is posted any more.
+test("a two-party content in a thread posts and pins one roster message holding both parties, then the CTA copy", async () => {
   const { sql, calls, deps } = await partyRig();
   const { setCtaMessage } = await import("../../src/db/cta.ts");
   await setCtaMessage(sql, "g1", "chan1", "msg1");
-  const r: any = await publish(deps, partyInput("thr-2p", { ...two, cta: true }));
+  const r: any = await publish(deps, partyInput("thr-2p", { slots2: [{ role: "Healer", weapon: "Holy Staff" }], cta: true }));
   assert.equal(r.ok, true);
-  assert.deepEqual(calls.map((c) => (c.op === "pinMessage" ? `pin:${c.args[1]}` : c.op)), [
-    "createMessage", "pin:m1", "createMessage", "pin:m2", "createMessage", "pin:m3",
-  ]);
-  assert.match(JSON.stringify(calls[2]!.args[1]), /Party 2/);
-  assert.ok(calls[4]!.args[1].message_reference, "the copy comes last");
-  const rows = await sql`select party, message_id from content_message order by party`;
-  assert.deepEqual(rows.map((x: any) => [x.party, x.message_id]), [[2, "m2"]]);
-  const [c] = await sql`select message_id from content`;
-  assert.equal(c!.message_id, "m1");
+  assert.deepEqual(calls.map((c) => (c.op === "pinMessage" ? `pin:${c.args[1]}` : c.op)), ["createMessage", "pin:m1", "createMessage", "pin:m2"]);
+  assert.match(JSON.stringify(calls[0]!.args[1]), /Party 1/);
+  assert.match(JSON.stringify(calls[0]!.args[1]), /Party 2/);
+  assert.ok(calls[2]!.args[1].message_reference, "the copy comes last");
+  assert.equal((await sql`select 1 from content_message`).length, 0, "no party 2 message");
+  const [c] = await sql`select message_id, party_count from content`;
+  assert.deepEqual([c!.message_id, c!.party_count], ["m1", 2]);
 });
 
-test("a failed party 2 post removes the content, party 1 message and reports failure", async () => {
-  const { sql, calls, deps } = await partyRig({ failSecond: true });
-  const r: any = await publish(deps, partyInput("thr-2f", two));
-  assert.equal(r.ok, false);
-  assert.deepEqual(calls.filter((c) => c.op === "deleteMessage").map((c) => c.args), [["thr-2f", "m1"]]);
-  assert.equal((await sql`select 1 from content`).length, 0);
+test("normal two-party content posts one message with both parties", async () => {
+  const { calls, deps } = await partyRig();
+  const r: any = await publish(deps, partyInput("thr-2n", two));
+  assert.equal(r.ok, true);
+  assert.equal(calls.filter((c) => c.op === "createMessage").length, 1);
+  assert.match(JSON.stringify(calls[0]!.args[1]), /Party 2/);
+  assert.doesNotMatch(JSON.stringify(calls[0]!.args[1]), /Bombers/);
 });
 
 test("a failed party 2 pin is not fatal", async () => {
