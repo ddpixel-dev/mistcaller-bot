@@ -569,9 +569,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.32.0 built on `develop`, not yet released (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Live: 0.31.12.
+Phase: MVP, release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
 Last updated: 2026-11-24
-Next step: release 0.32.0 when the owner says (migration 0036 first, then the changelog). The owner then tries Slots by weapon on a test event.
+Next step: find the Edit details "not responding" bug the owner reported 2026-11-24 (Edit content → Edit details); a timed reproduction with the logs is pending. The owner tries Slots by weapon on a test event.
 
 | Item | Status | Note |
 |---|---|---|
