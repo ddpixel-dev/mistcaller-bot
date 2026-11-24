@@ -126,7 +126,9 @@ export async function openEditForm(deps: Deps, i: Interaction): Promise<Interact
           "slots", slotsBoxLabel(view, view.partyCount === 2 ? "Party 1 slots" : "Slots"), 1500,
           { style: 2, value: formatSlotLines(view.slots.filter((s) => s.party === 1)) },
         )]),
-        textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, ...(view.notes ? { value: view.notes } : {}) }),
+        // Multi-line (style 2): notes typed on the card can have line breaks, and Discord refuses a one-line box holding
+        // them, so the whole form failed to open (bug 2026-11-24).
+        textInput("notes", view.blank ? "Description (optional)" : "Notes (optional)", 500, { required: false, style: 2, ...(view.notes ? { value: view.notes } : {}) }),
       ],
     },
   };
