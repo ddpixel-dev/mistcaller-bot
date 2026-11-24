@@ -569,9 +569,9 @@ Build the POC first (M0 to M3), with the deployed endpoint first and the schedul
 
 ## Current state
 
-Phase: MVP, release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
+Phase: MVP, release 0.32.1 (hotfix: Edit details and Fix and retry open for notes with line breaks; see docs/lessons.md 2026-11-24). Before it release 0.32.0 (FR-076 slots by role or by weapon on every content; FR-077 five roles and the game's weapons only; ADR 0049, migration 0036). Before it 0.31.12.
 Last updated: 2026-11-24
-Next step: find the Edit details "not responding" bug the owner reported 2026-11-24 (Edit content → Edit details); a timed reproduction with the logs is pending. The owner tries Slots by weapon on a test event.
+Next step: the owner checks Edit details on a multi-line event. Open: creations failing with 404 Unknown Channel (2026-11-24 20:22 to 20:29 UTC) and the bot missing Pin Messages in a channel (403 50013); cron roster edits on archived threads (50083).
 
 | Item | Status | Note |
 |---|---|---|

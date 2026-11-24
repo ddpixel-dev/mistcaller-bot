@@ -94,6 +94,8 @@ function walk(c: C, out: string[], ids: string[], texts: string[], where: string
     if (max < 1 || max > 4000) out.push(`${where}: text input max_length not 1 to 4000`);
     if (c.placeholder && Array.from(String(c.placeholder)).length > 100) out.push(`${where}: placeholder over 100`);
     if (c.value !== undefined && Array.from(String(c.value)).length > max) out.push(`${where}: value longer than max_length`);
+    // Discord refuses the whole form when a short (one-line) text input is given a value with a line break (bug 2026-11-24).
+    if (c.style === 1 && c.value !== undefined && /[\r\n]/.test(String(c.value))) out.push(`${where}: a short text input cannot hold a line break`);
     if (c.label !== undefined && Array.from(String(c.label)).length > 45) out.push(`${where}: text input label over 45`);
   } else {
     out.push(`${where}: unknown component type ${c.type}`);

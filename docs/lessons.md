@@ -64,3 +64,6 @@ Discord answered status 400 for the whole command list because one option descri
 
 ## 2026-11-10: Discord privileged intents also gate REST reads
 The CTA message design read a member's message by link and copied it. Without the Message Content intent, Discord returns an empty body for messages the bot did not write, also over REST. Tests with fake Discord responses passed, so only a review against Discord's rules caught it. Lesson: when a design reads message content, check the intent first (`GET /applications/@me`, flags bit 19), and prefer actions Discord does server-side (a forward) over reading content.
+
+## 2026-11-24: a one-line text input cannot hold a line break
+Edit details answered "not responding" on every event whose notes or description had line breaks (typed in the card's multi-line box). The bot answered fast and logged nothing: Discord refused the form itself because its notes box was a one-line (`style: 1`) input given a multi-line value. The limit checker did not know the rule, so every test passed. Lesson: a form that is prefilled from stored text must use a multi-line box for any field that was typed in one; a fast answer with no error in the logs and "not responding" in Discord means Discord refused the payload. `modalProblems` now flags a line break in a one-line input.
