@@ -48,6 +48,9 @@ Every document under `docs/` must be linked here. Add new ones in the same turn 
 - [0046 Message Content intent](decisions/0046-message-content-intent-on.md): accepted; needed to forward a member's message (FR-069), changes NFR-001
 - [0047 One CTA message, Bombers](decisions/0047-cta-one-message-in-channel-bombers.md): accepted; the roster is the message in the CTA channel, all parties in it, optional Bombers, CTA presets, quiet pins
 - [0048 ZvZ type, Massing at](decisions/0048-zvz-content-type-and-massing-at.md): accepted; ZvZ is a content type, every content may name where it masses, quieter roster notes
+- [0050 Two parties everywhere, Setup Slots, PvE-or-PvP forums](decisions/0050-two-parties-everywhere-setup-slots-pve-pvp-forums.md): accepted; parties for every content, Setup Slots asks the party, PvE forum else PvP forum
+- [Two parties implementation plan](plan/2026-11-25-two-parties-implementation.md): five tasks on `feature/two-parties-setup-slots`, migration 0037, release 0.33.0
+- [Two parties, Setup Slots, forums design](plan/2026-11-25-two-parties-setup-slots-forums-design.md): accepted 2026-11-25 (FR-081 to FR-084), release 0.33.0
 - [0049 Slot modes, strict terms, Edit preset](decisions/0049-slot-modes-strict-terms-and-batch.md): accepted; Role or Weapon slots per content, five roles and the game's weapons only, applicant fix, the 2026-11-22 batch
 - [Slot modes and the 2026-11-22 batch design](plan/2026-11-22-slot-modes-and-batch-design.md): accepted 2026-11-22 (FR-076 to FR-080); A and B built in 0.31.11, C built for 0.32.0
 - [Slot modes implementation plan](plan/2026-11-23-slot-modes-implementation.md): six tasks on `feature/slot-modes`, migration 0036, release 0.32.0 (FR-076, FR-077)
